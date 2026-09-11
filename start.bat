@@ -29,10 +29,9 @@ if not exist "node_modules\express" (
 )
 echo   ✓ node_modules OK
 
-:: 端口检测与释放(避免双开冲突)
+:: 端口检测与释放(避免双开冲突, 静默清理)
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 .* LISTENING"') do (
     taskkill /pid %%a /f >nul 2>&1
-    echo ℹ️  已释放被占用端口 3000(进程 PID=%%a)
 )
 
 :: 启动服务
