@@ -1,21 +1,24 @@
 # Dependencies
 node_modules/
-# 应用项目应锁定依赖版本（CI/复现构建需要）
-# package-lock.json
+package-lock.json
+!.npmrc
 
 # Environment variables
 .env
 .env.local
 
 # Data & Database
+config/data.db
+config/backups/
+config/logs/
 data.db
 data/*.db
 data/*.json
 !data/.gitkeep
-config/*.db
-config/backups/
-config/logs/
-config/data.db
+data/ai_config.json
+data/ai_sessions.json
+**/ai_config.json
+**/ai_sessions.json
 
 # Uploads & Public assets (user-generated content)
 public/uploads/*
@@ -29,8 +32,9 @@ logs/*
 !logs/.gitkeep
 *.log
 server.log
+config/.runtime-port
 
-# SSL 证书（密钥，禁止入库；运行时可自动生成自签证书）
+# SSL 证书（运行时自动生成，禁止入库）
 ssl/*.key
 ssl/*.crt
 ssl/*.pem
@@ -42,8 +46,8 @@ backups/
 # OS files
 .DS_Store
 Thumbs.db
-*.swp
-*.swo
+Desktop.ini
+$RECYCLE.BIN/
 
 # IDE
 .vscode/
@@ -58,26 +62,13 @@ coverage/
 *.tmp
 *.temp
 .cleanup-project.js
-
-# API keys & sensitive configs (should be in .env)
-# SSL 证书（密钥，禁止入库；运行时可自动生成自签证书）
-ssl/*.key
-ssl/*.crt
-ssl/*.pem
-
-# AI 运行时数据（含密钥/会话）
-data/ai_config.json
-data/ai_sessions.json
-**/ai_config.json
-**/ai_sessions.json
+_face_test*.js
+_face_sample.png
+_face_real.jpg
+_face_test*.js
 
 # Windows
-Thumbs.db
 ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 
-# Docker volumes (if any)
+# Docker volumes
 docker/volumes/
-# 运行时端口文件（start.bat 每次启动时生成，勿提交）
-config/.runtime-port

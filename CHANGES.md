@@ -285,5 +285,21 @@
 - `.gitignore`: 补 `ssl/*.key|crt`、`config/backups/`、`config/data.db`、`public/reports/`，恢复 `package-lock.json` 跟踪
 - `swagger.js` 补建（原缺失：Docker `COPY` 必失败、本地 Swagger 一直初始化失败）
 - `stop.bat` 读取 `config/.runtime-port`，修复 EADDRINUSE 端口漂移后停止脚本失效
-- SSL 自动生成加能力检测降级（Node 构建缺 `createSelfSignedCertificate` 时不再抛错）
-- 执行 `git init`（初始提交待确认）
+|-- SSL 自动生成加能力检测降级（Node 构建缺 `createSelfSignedCertificate` 时不再抛错）
+|-- 执行 `git init`（初始提交待确认）
+
+### Fix 18: 服务端人脸识别迁移 vladmandic-face-api(wasm)+WS 鉴权接线+日志按天轮转
+- **文件**: `routes/ai.js`、`routes/liveness.js`、`server.js`、`utils/logger.js`、`public/dashboard.html`、`public/teacher.html`、`public/student.html`、`README.md`、`package.json`
+- **根因**: `face-api.js@0.20` 锁 tfjs 1.x，与项目顶层 tfjs 4.22 版本冲突（引擎崩溃）；Node 下 `faceapi.Image.fromBuffer` 不存在；JWT 含 '.' 不是合法 WebSocket 子协议；`wsAuthMiddleware` 读 Authorization header 但浏览器 WS 无法设自定义 header，且从未挂载——死代码；原 winston.File 的 maxFiles 语义不清理旧文件，日志无限膨胀。
+- **人脸修复**: 改用 `@vladmandic/face-api`(node-wasm 构建) + sharp 解码为 416×416×3 Tensor3D；懒加载模型(3 网各 1 次 loadFromDisk)；`/api/face/register` 端到端实测(Lenna 真人照检出 score=0.788, 128 维特征入库, `/api/face/compare` 自比对 similarity=1.0, matched=true)。
+- **WS 鉴权接线**: `verifyClient` 读 URL 查询参数 token(`validateToken` JWT / `STUDENT_TOKENS` 学生 token)；公开大屏走 `/ws-public`+`'public'` 子协议；三前端同步改连接方式；student.html 加登录成功后重连 + 登出断开；六类场景实测通过。
+- **日志轮转**: `winston-daily-rotate-file` 按天切分 + 5MB 单文件上限 + 14 天保留。
+- **清理**: git rm 13 个临时调试脚本；npm uninstall face-api.js(卸载后 @tensorflow 仍 287MB, 属 tfjs wasm 本体正常体积)。
+- **README**: 同步人脸栈、WS 鉴权描述。
+
+### Fix 19: 工程化收尾 (P4)
+- **start.bat**: Node.js 可用性检测 + 版本打印 + 依赖缺失时自动 `npm install` + 端口占用检测释放 + 退出码回显; 防止双开撞端口、空 node_modules 盲启动
+- **.gitignore**: 补 `data.db`/`package-lock.json`/`!.npmrc`(锁文件应入库保证复现)；整理 `config/.runtime-port`/`server.log`/临时测试文件; 去重 ssl/*.key|crt 规则
+- **models/README.md**: 说明节点模型目录用途(与 public/models/ CDN 互不干扰), 列 3 个模型文件
+- **CHANGES.md**: 追加 Fix 18、Fix 19 两段记录
+- **git commit**: `865bd4e`(临时清理)、`3860251`(Fix 18)
