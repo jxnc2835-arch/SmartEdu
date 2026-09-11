@@ -123,12 +123,8 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // 挂载 Swagger 文档（在路由注册之前）
-try {
-  const initSwagger = require('./swagger');
-  initSwagger(app);
-} catch (e) {
-  logger.warn('Swagger 初始化失败:', e.message);
-}
+const initSwagger = require('./swagger');
+initSwagger(app);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, verifyClient: wsVerifyClient });
 
@@ -578,12 +574,12 @@ app.use((err, req, res, next) => {
     res.status(403).json({ code: 1, message: '该资源需登录后通过认证接口访问' });
   });
 
-  // 静态文件服务放在路由之后（禁止浏览器缓存）
-  // 注意：HTML 页面/face-api 等资产实际在项目根 public/ 下（server.js 的 __dirname），
-  // 而非 config/PUBLIC_DIR（config/ 仅作数据/日志/备份目录）。这里显式指向根 public。
-  app.use(express.static(path.join(__dirname, 'public'), {
-    maxAge: '0'
-  }));
+  // 静态文件服务
+  // HTML页面禁用缓存(实时获取最新), JS/CSS启用长期缓存提升性能
+  app.use('/js/', express.static(path.join(__dirname, 'public', 'js'), { maxAge: '31536000' }));
+  app.use('/css/', express.static(path.join(__dirname, 'public', 'css'), { maxAge: '31536000' }));
+  app.use('/icons/', express.static(path.join(__dirname, 'public', 'icons'), { maxAge: '31536000' }));
+  app.use(express.static(path.join(__dirname, 'public'), { maxAge: '0' }));
 
   // Favicon handler
   app.get('/favicon.ico', (req, res) => {

@@ -1,6 +1,6 @@
 {
   "name": "smartedu",
-  "version": "3.6.2",
+  "version": "3.6.3",
   "description": "AI智能化学生管理系统 - 人脸签到+数据预测+智能助手",
   "main": "server.js",
   "scripts": {
@@ -23,6 +23,8 @@
     "qrcode": "^1.5.4",
     "sharp": "^0.35.3",
     "sql.js": "^1.14.1",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0",
     "ws": "^8.16.0",
