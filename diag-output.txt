@@ -1,9 +1,0 @@
-CLOSING init() at line 7 (opened at 7)
-CLOSING init() at line 9 (opened at 9)
-CLOSING init() at line 14 (opened at 14)
-CLOSING init() at line 23 (opened at 16)
-CLOSING init() at line 27 (opened at 27)
-CLOSING init() at line 28 (opened at 28)
-Final depth: 1
-Open stack remaining: 1
-  Line 30 (depth=1): function init(opts) {
