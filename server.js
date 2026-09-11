@@ -13,7 +13,7 @@ const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { WebSocketServer } = require('ws');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const express = require('express');
 require('dotenv').config();
 

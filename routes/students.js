@@ -466,83 +466,108 @@ router.get('/api/export/students', authMiddleware, async (req, res) => {
 
 router.get('/api/template/students', authMiddleware, (req, res) => {
     try {
-      const wb = XLSX.utils.book_new();
-      const data = [
-        ['姓名', '学号', '性别', '宿舍', '班级', '年级', '专业', '电话'],
-        ['张三', '2024001', '男', '12栋301', '241测绘', '2024', '测绘工程', '13800138000'],
-        ['李四', '2024002', '女', '12栋3012', '242测绘', '2024', '测绘工程', '13800138001']
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('学生名单');
+      
+      // 添加表头
+      worksheet.addRow(['姓名', '学号', '性别', '宿舍', '班级', '年级', '专业', '电话']);
+      
+      // 添加示例数据
+      worksheet.addRow(['张三', '2024001', '男', '12栋301', '241测绘', '2024', '测绘工程', '13800138000']);
+      worksheet.addRow(['李四', '2024002', '女', '12栋3012', '242测绘', '2024', '测绘工程', '13800138001']);
+      
+      // 设置列宽
+      worksheet.columns = [
+        { key: 'A', width: 10 },
+        { key: 'B', width: 12 },
+        { key: 'C', width: 6 },
+        { key: 'D', width: 15 },
+        { key: 'E', width: 15 },
+        { key: 'F', width: 10 },
+        { key: 'G', width: 15 },
+        { key: 'H', width: 15 }
       ];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!cols'] = [
-        { wch: 10 }, { wch: 12 }, { wch: 6 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }
-      ];
-      XLSX.utils.book_append_sheet(wb, ws, '学生名单');
-      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="students_template.xlsx"');
-      res.setHeader('Content-Length', buf.length);
-      res.end(buf);
+      workbook.xlsx.write(res).then(() => res.end());
     } catch (e) {
       console.error('Template error:', e);
       res.json({ code: 1, message: '生成模板失败: ' + e.message });
     }
   });
 
-  router.post('/api/students/import-excel', upload.single('file'), authMiddleware, (req, res) => {
+  router.post('/api/students/import-excel', upload.single('file'), authMiddleware, async (req, res) => {
     if (!req.file) return res.json({ code: 1, message: '请上传文件' });
-    const wb = XLSX.readFile(req.file.path);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-    if (rows.length < 2) return res.json({ code: 1, message: '文件为空或格式不正确' });
-    const headers = rows[0].map(h => String(h).trim());
-    const nameIdx = headers.findIndex(h => h.includes('姓名') || h.includes('name'));
-    const studentIdIdx = headers.findIndex(h => h.includes('学号') || h.includes('student'));
-    const genderIdx = headers.findIndex(h => h.includes('性别') || h.includes('gender'));
-    const dormIdx = headers.findIndex(h => h.includes('宿舍') || h.includes('dorm'));
-    const clsIdx = headers.findIndex(h => h.includes('班级') || h.includes('class'));
-    const gradeIdx = headers.findIndex(h => h.includes('年级') || h.includes('grade'));
-    const majorIdx = headers.findIndex(h => h.includes('专业') || h.includes('major'));
-    const phoneIdx = headers.findIndex(h => h.includes('电话') || h.includes('phone'));
-    if (nameIdx === -1 || dormIdx === -1) return res.json({ code: 1, message: 'Excel缺少姓名和宿舍列' });
     
-    const classAddCount = {};
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row || !row[nameIdx]) continue;
-      const clsName = clsIdx >= 0 && row[clsIdx] ? String(row[clsIdx]).trim() : '';
-      if (clsName) classAddCount[clsName] = (classAddCount[clsName] || 0) + 1;
-    }
-    const overLimitClasses = [];
-    for (const [clsName, addCount] of Object.entries(classAddCount)) {
-      const currentCount = getClassCount(db, clsName);
-      if (currentCount + addCount > CLASS_SIZE_LIMIT) {
-        overLimitClasses.push(`${clsName}（当前${currentCount}人，新增${addCount}人，上限${CLASS_SIZE_LIMIT}人）`);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(req.file.path);
+      const worksheet = workbook.getWorksheet(1);
+      
+      const rows = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber <= worksheet.rowCount) {
+          rows.push(row.values);
+        }
+      });
+      
+      if (rows.length < 2) return res.json({ code: 1, message: '文件为空或格式不正确' });
+      
+      const headers = Array.from(rows[0]).map(h => String(h || '').trim());
+      const nameIdx = headers.findIndex(h => h.includes('姓名') || h.includes('name'));
+      const studentIdIdx = headers.findIndex(h => h.includes('学号') || h.includes('student'));
+      const genderIdx = headers.findIndex(h => h.includes('性别') || h.includes('gender'));
+      const dormIdx = headers.findIndex(h => h.includes('宿舍') || h.includes('dorm'));
+      const clsIdx = headers.findIndex(h => h.includes('班级') || h.includes('class'));
+      const gradeIdx = headers.findIndex(h => h.includes('年级') || h.includes('grade'));
+      const majorIdx = headers.findIndex(h => h.includes('专业') || h.includes('major'));
+      const phoneIdx = headers.findIndex(h => h.includes('电话') || h.includes('phone'));
+      
+      if (nameIdx === -1 || dormIdx === -1) return res.json({ code: 1, message: 'Excel缺少姓名和宿舍列' });
+
+      const classAddCount = {};
+      for (let i = 1; i < rows.length; i++) {
+        const row = Array.from(rows[i] || []);
+        if (!row[nameIdx]) continue;
+        const clsName = clsIdx >= 0 && row[clsIdx] ? String(row[clsIdx]).trim() : '';
+        if (clsName) classAddCount[clsName] = (classAddCount[clsName] || 0) + 1;
       }
+      const overLimitClasses = [];
+      for (const [clsName, addCount] of Object.entries(classAddCount)) {
+        const currentCount = getClassCount(db, clsName);
+        if (currentCount + addCount > CLASS_SIZE_LIMIT) {
+          overLimitClasses.push(`${clsName}（当前${currentCount}人，新增${addCount}人，上限${CLASS_SIZE_LIMIT}人）`);
+        }
+      }
+      if (overLimitClasses.length > 0) {
+        return res.json({ code: 1, message: `以下班级人数超限，无法导入：\n${overLimitClasses.join('\n')}` });
+      }
+
+      let count = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = Array.from(rows[i] || []);
+        if (!row[nameIdx]) continue;
+        const id = 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        db.run("INSERT INTO students(id, name, student_id, gender, dorm, class_name, phone, grade, major) VALUES(?,?,?,?,?,?,?,?,?)", [
+          id, String(row[nameIdx] || '').trim(),
+          studentIdIdx >= 0 && row[studentIdIdx] ? String(row[studentIdIdx]).trim() : '',
+          genderIdx >= 0 && row[genderIdx] ? String(row[genderIdx]).trim() : '',
+          row[dormIdx] ? String(row[dormIdx]).trim() : '',
+          clsIdx >= 0 && row[clsIdx] ? String(row[clsIdx]).trim() : '',
+          phoneIdx >= 0 && row[phoneIdx] ? String(row[phoneIdx]).trim() : '',
+          gradeIdx >= 0 && row[gradeIdx] ? String(row[gradeIdx]).trim() : '',
+          majorIdx >= 0 && row[majorIdx] ? String(row[majorIdx]).trim() : ''
+        ]);
+        count++;
+      }
+      scheduleSave();
+      addLog('Excel导入学生', `成功导入 ${count} 位学生`);
+      res.json({ code: 0, message: `成功导入 ${count} 位学生` });
+    } catch (e) {
+      console.error('Import error:', e);
+      res.json({ code: 1, message: '导入失败: ' + e.message });
     }
-    if (overLimitClasses.length > 0) {
-      return res.json({ code: 1, message: `以下班级人数超限，无法导入：\n${overLimitClasses.join('\n')}` });
-    }
-    
-    let count = 0;
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row || !row[nameIdx]) continue;
-      const id = 's_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-      db.run("INSERT INTO students(id, name, student_id, gender, dorm, class_name, phone, grade, major) VALUES(?,?,?,?,?,?,?,?,?)", [
-        id, String(row[nameIdx]).trim(),
-        studentIdIdx >= 0 && row[studentIdIdx] ? String(row[studentIdIdx]).trim() : '',
-        genderIdx >= 0 && row[genderIdx] ? String(row[genderIdx]).trim() : '',
-        row[dormIdx] ? String(row[dormIdx]).trim() : '',
-        clsIdx >= 0 && row[clsIdx] ? String(row[clsIdx]).trim() : '',
-        phoneIdx >= 0 && row[phoneIdx] ? String(row[phoneIdx]).trim() : '',
-        gradeIdx >= 0 && row[gradeIdx] ? String(row[gradeIdx]).trim() : '',
-        majorIdx >= 0 && row[majorIdx] ? String(row[majorIdx]).trim() : ''
-      ]);
-      count++;
-    }
-    scheduleSave();
-    addLog('Excel导入学生', `成功导入 ${count} 位学生`);
-    res.json({ code: 0, message: `成功导入 ${count} 位学生` });
   });
 
   // 删除单个查寝记录
