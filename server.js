@@ -79,6 +79,7 @@ const {
 } = require('./middleware/auth');
 const { localDateStr, formatDate, nowTimestamp, saveBase64Photo, beijingStamp, compressImage, setAppDb } = require('./utils/helpers');
 const { createIndexes, optimizeDbConfig, paginate, batchInsert, healthCheck, vacuum } = require('./utils/database');
+const { runMigrations, validateDatabase } = require('./utils/migrations');
 const { rateLimit, loginRateLimit } = require('./middleware/rate-limit');
 const { csrfProtection, csrfGetToken } = require('./middleware/csrf');
 const { initAutoBackup } = require('./utils/auto-backup');
@@ -390,6 +391,17 @@ app.use((err, req, res, next) => {
     
     // 优化数据库性能
     optimizeDbConfig(db);
+    
+    // 执行数据库迁移
+    runMigrations(db, dbFile);
+    
+    // 验证数据库完整性
+    const validation = validateDatabase(db);
+    if (!validation.valid) {
+      logger.error('数据库验证失败:', validation.errors);
+    } else if (validation.warnings.length > 0) {
+      logger.warn('数据库验证警告:', validation.warnings);
+    }
     
     // 创建索引
     createIndexes(db);
