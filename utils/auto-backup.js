@@ -132,4 +132,4 @@ function stopAutoBackup() {
   }
 }
 
-module.exports = { initAutoBackup, performBackup, stopAutoBackup };
+module.exports = { initAutoBackup, performBackup, stopAutoBackup, cleanupOldBackups };

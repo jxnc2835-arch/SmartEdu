@@ -1,4 +1,4 @@
-// Mock bcryptjs 的 compare 方法，使其始终返回 true，避免真实哈希校验
+// Mock bcryptjs 的 compare 方法，使其始终返回 true
 jest.mock('bcryptjs', () => ({
   compare: jest.fn().mockResolvedValue(true),
   compareSync: jest.fn().mockReturnValue(true),
@@ -6,12 +6,8 @@ jest.mock('bcryptjs', () => ({
 
 const request = require('supertest');
 const express = require('express');
-const bcrypt = require('bcryptjs');
-// Ensure bcrypt.compare always resolves true for login tests
-bcrypt.compare = jest.fn().mockResolvedValue(true);
 const { init: initAuthRoutes } = require('../routes/auth');
 
-// 创建一个最小化的 Express 应用用于测试
 function createApp(dbMock) {
   const app = express();
   app.use(express.json());
@@ -46,7 +42,6 @@ describe('Auth API', () => {
         values: [[
           1,
           'admin',
-          // A bcrypt‑compatible hash placeholder that satisfies the regex /^\$[234]\d?\$/
           '$2b$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           'admin',
           'Admin',
@@ -56,7 +51,8 @@ describe('Auth API', () => {
     ]),
   };
 
-  beforeAll(() => {
+  beforeEach(() => {
+    mockDb.exec.mockClear();
     app = createApp(mockDb);
   });
 
@@ -64,9 +60,14 @@ describe('Auth API', () => {
     const res = await request(app)
       .post('/api/login')
       .send({ username: 'admin', password: 'any' });
-    console.log('TEST RESPONSE:', res.body);
     expect(res.statusCode).toBe(200);
     expect(res.body.code).toBe(0);
     expect(res.body).toHaveProperty('token');
+  });
+
+  test('GET /api/users 返回用户列表', async () => {
+    mockDb.exec.mockReturnValue([{ values: [[1, 'admin', '管理员']] }]);
+    const res = await request(app).get('/api/users');
+    expect(res.statusCode).toBe(200);
   });
 });

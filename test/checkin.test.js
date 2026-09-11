@@ -4,30 +4,19 @@ jest.mock('bcryptjs', () => ({
   compareSync: jest.fn().mockReturnValue(true),
 }));
 
+jest.mock('qrcode', () => ({
+  toDataURL: jest.fn().mockResolvedValue('data:image/png;base64,fake')
+}));
+
+jest.mock('multer', () => () => ({ single: () => (req, res, next) => next() }));
+
 const request = require('supertest');
 const express = require('express');
 const { init: initCheckinRoutes } = require('../routes/checkin');
-const { STUDENT_TOKENS } = require('../middleware/auth');
 
 function createApp(dbMock) {
   const app = express();
   app.use(express.json());
-  
-  // Mock multer upload
-  const mockUpload = {
-    single: jest.fn().mockReturnValue((req, res, next) => next())
-  };
-  
-  // Mock validateToken 返回 true
-  jest.mock('../middleware/auth', () => {
-    const actualAuth = jest.requireActual('../middleware/auth');
-    return {
-      ...actualAuth,
-      validateToken: jest.fn().mockReturnValue({ role: 'admin' }),
-      STUDENT_TOKENS: {}
-    };
-  });
-  
   const router = initCheckinRoutes({
     db: dbMock,
     scheduleSave: () => {},
@@ -41,7 +30,12 @@ function createApp(dbMock) {
     beijingStamp: () => new Date().toISOString(),
     broadcast: () => {},
     validateToken: () => ({ role: 'admin' }),
-    upload: mockUpload
+    upload: { single: () => (req, res, next) => next() },
+    QRCode: require('qrcode'),
+    multer: require('multer'),
+    os: require('os'),
+    path: require('path'),
+    fs: require('fs'),
   });
   app.use(router);
   return app;
@@ -59,25 +53,32 @@ describe('Checkin API', () => {
     app = createApp(mockDb);
   });
 
-  test('GET /api/records 查询签到记录', async () => {
+  test('GET /api/records 返回空列表', async () => {
     mockDb.exec.mockReturnValue([{ values: [] }]);
     
     const res = await request(app)
       .get('/api/records')
-      .query({ student_id: '2024001', days: 7 });
+      .query({ page: 1, limit: 10 });
     
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('code');
-    expect(res.body).toHaveProperty('data');
+    expect(res.body.code).toBe(0);
   });
 
-  // 注意：POST /api/checkin 和 POST /api/leaves 需要有效的 token 验证
-  // 这些测试在集成测试中会更合适
-  test.skip('POST /api/checkin 宿舍签到 (需要完整认证)', async () => {
-    // 跳过，需要完整的 JWT 配置
-  });
+  test('POST /api/checkin 接受签到请求', async () => {
+    mockDb.exec
+      .mockReturnValueOnce([{ values: [[1]] }])
+      .mockReturnValue([{ values: [] }]);
 
-  test.skip('POST /api/leaves 提交请假 (需要完整认证)', async () => {
-    // 跳过，需要完整的 JWT 配置
+    const res = await request(app)
+      .post('/api/checkin')
+      .send({
+        student_id: 1,
+        type: 'checkin',
+        dorm: 'A101',
+        lat: 39.9,
+        lng: 116.4
+      });
+
+    expect(res.statusCode).toBe(200);
   });
 });

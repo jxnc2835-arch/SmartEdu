@@ -92,7 +92,8 @@ function init(_db, validateToken) {
       // 支持指定日期查询（前端回退用）；默认“今天”经 clampedToday 锚定，时钟越界时回退到数据冻结日
       const today = reqDate || localDateStr();
 
-      // 辅导�?/ 班主任班级隔离：仅能查所带班级。未指定或越权指定的班级 �?汇总所带全部班�?      const role = req.user && req.user.role;
+      // 辅导员/班主任班级隔离：仅能查所带班级。未指定或越权指定的班级汇总所带全部班级
+      const role = req.user && req.user.role;
       const scope = (req.user && req.user.classScope) || [];
       let clsCond = '';
       let stuClsCond = '';
@@ -177,7 +178,8 @@ function init(_db, validateToken) {
   router.get('/api/course-checkin/public', (req, res) => {
     try {
       const { date } = req.query;
-      // 默认“今天”经 clampedToday 锚定；支持指定日期查�?      const courseDate = date || localDateStr();
+      // 默认“今天”经 clampedToday 锚定；支持指定日期查询
+      const courseDate = date || localDateStr();
       const records = database.exec(`
         SELECT c.name, c.start_time, c.end_time, c.location, s.class_name,
           COUNT(DISTINCT r.student_id) as checked_in,
@@ -233,7 +235,8 @@ function init(_db, validateToken) {
       startD.setDate(startD.getDate() - days + 1);
       const startDateStr = `${startD.getFullYear()}-${String(startD.getMonth()+1).padStart(2,'0')}-${String(startD.getDate()).padStart(2,'0')}`;
 
-      // 按班级过�?      const clsCond = class_name ? " AND r.class_name=?" : "";
+      // 按班级过滤
+      const clsCond = class_name ? " AND r.class_name=?" : "";
       // 在寝(总数) | 缺勤(不在寝/旷课) | 未归 | 请假；上界锁到"今天"，避免未来日期（如跨冻结日的请假记录）污染趋势
       const trend = database.exec(`
         SELECT r.date as date,
@@ -270,7 +273,8 @@ function init(_db, validateToken) {
       const days = parseInt(req.query.days) || 30;
       const { class_name } = req.query;
       const endDate = localDateStr();
-      // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏�?      const [ey, em, ed] = endDate.split('-').map(Number);
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏移
+      const [ey, em, ed] = endDate.split('-').map(Number);
       const es = new Date(ey, em - 1, ed);
       es.setDate(es.getDate() - days + 1);
       const startDate = `${es.getFullYear()}-${String(es.getMonth()+1).padStart(2,'0')}-${String(es.getDate()).padStart(2,'0')}`;
@@ -310,7 +314,8 @@ function init(_db, validateToken) {
       const days = parseInt(req.query.days) || 30;
       const { class_name } = req.query;
       const endDate = localDateStr();
-      // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏�?      const [ey, em, ed] = endDate.split('-').map(Number);
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏移
+      const [ey, em, ed] = endDate.split('-').map(Number);
       const es = new Date(ey, em - 1, ed);
       es.setDate(es.getDate() - days + 1);
       const startDate = `${es.getFullYear()}-${String(es.getMonth()+1).padStart(2,'0')}-${String(es.getDate()).padStart(2,'0')}`;
