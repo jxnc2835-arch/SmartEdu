@@ -29,9 +29,11 @@ if not exist "node_modules\express" (
 )
 echo   ✓ node_modules OK
 
-:: 端口检测与释放(避免双开冲突, 静默清理)
+:: 端口检测与释放(避免双开冲突, 仅杀 node 进程, 不误杀微信等)
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 .* LISTENING"') do (
-    taskkill /pid %%a /f >nul 2>&1
+    for /f "tokens=1 delims= " %%b in ('wmic process where "processid=%%a" get name 2^>nul ^| findstr /i "node.exe"') do (
+        taskkill /pid %%a /f >nul 2>&1
+    )
 )
 
 :: 启动服务
@@ -47,4 +49,3 @@ if %EXIT_CODE% neq 0 (
 )
 
 endlocal
-pause
