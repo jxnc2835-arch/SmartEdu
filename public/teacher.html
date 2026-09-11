@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#4f46e5" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="/manifest.json" />
 <title>学管 SmartEdu — 教师端</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
 <link rel="stylesheet" href="ui-enhance.css" />
@@ -15,6 +19,8 @@
 <script src="js/modules/navigation.js"></script>
 <script src="js/modules/notifications.js"></script>
 <script src="js/modules/dom-safe.js"></script>
+<script src="js/modules/checkin.js"></script>
+<script src="js/modules/students.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif}
 :root{--primary:#4f46e5;--primary-dark:#4338ca;--primary-light:#eef2ff;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--purple:#8b5cf6;--gray:#64748b;--gray-light:#f1f5f9;--border:#e2e8f0;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.06)}
@@ -4910,6 +4916,18 @@ async function testDingtalk() {
   if (j.code === 0) toast('✅ 测试消息发送成功');
   else toast('❌ ' + (j.message || '发送失败'));
 }
+
+// ==================== PWA Service Worker ====================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('[PWA] Service Worker 注册成功', reg.scope))
+      .catch(err => console.error('[PWA] 注册失败:', err));
+  });
+}
+
+// 切换到 sec-settings 时由 loadSection 自动加载语音/围栏/Webhook 配置
+</script>
 
 // 切换到 sec-settings 时由 loadSection 自动加载语音/围栏/Webhook 配置
 </script>

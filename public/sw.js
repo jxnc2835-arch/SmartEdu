@@ -1,136 +1,156 @@
-const CACHE_NAME = 'pwa-v5';
-const STATIC_CACHE = 'static-v5';
+/**
+ * SmartEdu Service Worker
+ * 提供离线缓存、后台同步、推送通知能力
+ */
 
-// 更新日期 - 修改此值将触发 Service Worker 更新，刷新所有缓存
-const BUILD_TIME = '2026-06-28_19:14';
-
-// 需要缓存的资源（仅离线资源，HTML 文件走网络优先）
-const OFFLINE_ASSETS = [
-  '/manifest.json',
+const CACHE_NAME = 'smartedu-v3.6.3';
+const STATIC_ASSETS = [
+  '/',
+  '/teacher.html',
+  '/student.html',
+  '/dashboard.html',
   '/ui-enhance.css',
-  '/sw.js'
+  '/favicon.ico',
+  '/js/modules/base.js',
+  '/js/modules/auth.js',
+  '/js/modules/navigation.js',
+  '/js/modules/notifications.js',
+  '/js/modules/dom-safe.js',
+  '/js/modules/checkin.js',
+  '/js/modules/students.js'
 ];
 
-// 安装Service Worker
-self.addEventListener('install', event => {
+// 安装事件 - 预缓存静态资源
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then(cache => {
-        return cache.addAll(OFFLINE_ASSETS).catch(err => {
-          console.warn('Cache offline assets error:', err);
-        });
-      })
-      .then(() => {
-        // 立即激活新版本
-        return self.skipWaiting();
-      })
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] 缓存静态资源');
+      return cache.addAll(STATIC_ASSETS);
+    })
   );
+  self.skipWaiting();
 });
 
-// 激活Service Worker
-self.addEventListener('activate', event => {
+// 激活事件 - 清理旧缓存
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
-        keys.filter(key => key !== STATIC_CACHE)
-          .map(key => caches.delete(key))
+        cacheNames
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => {
+            console.log('[SW] 删除旧缓存:', name);
+            return caches.delete(name);
+          })
       );
-    }).then(() => {
-      // 立即接管所有客户端
-      return self.clients.claim();
+    })
+  );
+  self.clients.claim();
+});
+
+// 请求拦截 - 优先使用缓存
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  
+  // API 请求使用网络优先
+  if (request.url.includes('/api/')) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+  
+  // 静态资源使用缓存优先
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      return cached || fetch(request).then((response) => {
+        // 成功获取后更新缓存
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone);
+          });
+        }
+        return response;
+      }).catch(() => {
+        // 离线时返回 fallback 页面
+        if (request.destination === 'document') {
+          return caches.match('/teacher.html');
+        }
+        return new Response('Offline', { status: 503 });
+      });
     })
   );
 });
 
-// 拦截请求
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  
-  // API请求：网络优先（离线时返回错误响应）
-  if (request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .catch(() => {
-          return new Response(JSON.stringify({
-            code: 1,
-            message: '离线模式，数据将稍后同步'
-          }), {
-            headers: { 'Content-Type': 'application/json' }
-          });
-        })
-    );
-    return;
+// 网络优先策略
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    // 成功时更新缓存
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, response.clone());
+    return response;
+  } catch (error) {
+    // 失败时返回缓存
+    return caches.match(request);
   }
-  
-  // HTML 页面：网络优先（始终加载最新版，离线时回退到缓存）
-  const isHtml = request.mode === 'navigate' || 
-    request.url.endsWith('.html') || 
-    request.url.endsWith('/');
-  
-  if (isHtml) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          // 缓存最新版本以便离线使用
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then(cache => {
-            cache.put(request, clone);
-          });
-          return response;
-        })
-        .catch(() => {
-          return caches.match(request).then(cached => {
-            return cached || new Response('离线模式', { status: 200 });
-          });
-        })
-    );
-    return;
+}
+
+// 后台同步 - 处理离线提交的签到
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-checkin') {
+    event.waitUntil(syncCheckinRecords());
   }
+});
+
+// 推送通知
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() || {};
+  const options = {
+    body: data.body || '新通知',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/',
+      timestamp: Date.now()
+    },
+    actions: [
+      { action: 'view', title: '查看' },
+      { action: 'dismiss', title: '关闭' }
+    ]
+  };
   
-  // 静态资源（CSS/JS/图片等）：缓存优先，网络更新
-  event.respondWith(
-    caches.match(request)
-      .then(cached => {
-        if (cached) {
-          // 有缓存立即返回，同时后台请求最新版更新缓存
-          fetch(request).then(response => {
-            if (response.status === 200) {
-              caches.open(STATIC_CACHE).then(cache => {
-                cache.put(request, response);
-              });
-            }
-          }).catch(() => {});
-          return cached;
-        }
-        
-        // 没有缓存，从网络获取
-        return fetch(request).then(response => {
-          if (response.status === 200) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then(cache => {
-              cache.put(request, clone);
-            });
-          }
-          return response;
-        }).catch(() => {
-          // 离线且无缓存
-          return new Response('资源不可用', { status: 503 });
-        });
-      })
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'SmartEdu', options)
   );
 });
 
-// 消息处理
-self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-  if (event.data && event.data.type === 'CHECK_VERSION') {
-    // 向页面回复当前版本
-    event.source.postMessage({
-      type: 'VERSION_INFO',
-      buildTime: BUILD_TIME,
-      cacheName: CACHE_NAME
-    });
+// 通知点击
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  if (event.action === 'view') {
+    event.waitUntil(
+      self.clients.openWindow(event.notification.data.url)
+    );
   }
 });
+
+// 消息处理
+self.addEventListener('message', (event) => {
+  const { type, payload } = event.data || {};
+  
+  switch (type) {
+    case 'SKIP_WAITING':
+      self.skipWaiting();
+      break;
+    case 'CLEAR_CACHE':
+      caches.delete(CACHE_NAME);
+      break;
+    case 'REQUEST_SYNC':
+      self.registration.sync.register('sync-checkin');
+      break;
+  }
+});
+
+console.log('[SW] SmartEdu Service Worker loaded');
