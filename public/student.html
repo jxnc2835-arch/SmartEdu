@@ -1,0 +1,2947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#4f46e5" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="学管 SmartEdu" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<title>学管 SmartEdu — 学生端</title>
+<link rel="stylesheet" href="ui-enhance.css" />
+<!-- QR 扫码库 -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- 人脸检测库（本地化） -->
+<script src="face-api.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+body{background:linear-gradient(180deg,#f0f4ff 0%,#f8fafc 100%);padding-bottom:calc(80px + env(safe-area-inset-bottom,0));min-height:100vh;color:#1e293b;-webkit-overflow-scrolling:touch}
+body.keyboard-open{padding-bottom:20px}
+/* 顶部tab栏 */
+.tab-bar{display:flex;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,0.03)}
+.tab-btn{flex:1;text-align:center;padding:10px 4px 8px;font-size:12px;font-weight:500;color:#64748b;border:none;background:none;cursor:pointer;transition:all 0.2s;border-bottom:3px solid transparent;position:relative}
+.tab-btn .icon{font-size:22px;display:block;margin-bottom:1px;transition:transform 0.2s;-webkit-user-select:none;user-select:none}
+.tab-btn:active .icon{transform:scale(0.9)}
+.tab-btn.active{color:#4f46e5;border-bottom-color:#4f46e5}
+/* 页面 */
+.page{display:none;padding:14px 12px;max-width:480px;margin:0 auto;animation:fadeIn 0.3s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* 卡片 */
+.card{background:#fff;border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);border:1px solid rgba(226,232,240,0.5);transition:all 0.2s}
+.card:active{transform:scale(0.99)}
+.card h3{font-size:15px;margin-bottom:12px;color:#0f172a;display:flex;align-items:center;gap:6px;font-weight:600}
+/* 表单 */
+.form-group{margin-bottom:14px}
+.form-group label{font-size:12px;color:#64748b;font-weight:500;display:block;margin-bottom:5px;letter-spacing:0.3px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;outline:none;transition:all 0.2s;background:#fafafa;-webkit-appearance:none;appearance:none;font-family:inherit}
+.form-group input[type="date"]{cursor:pointer}
+.form-group input[type="tel"]{inputmode:numeric;keyboard:auto}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#4f46e5;background:#fff;box-shadow:0 0 0 3px rgba(79,70,229,0.08)}
+.form-group textarea{resize:vertical;min-height:80px;font-family:inherit}
+/* 按钮 - 增强触摸反馈 */
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.15s text-align:center;margin-top:8px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.btn:active{transform:scale(0.98);opacity:0.95}
+.btn-primary{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;box-shadow:0 4px 14px rgba(79,70,229,0.35)}
+.btn-primary:hover{box-shadow:0 6px 20px rgba(79,70,229,0.45)}
+.btn-primary:disabled{background:#cbd5e1;color:#94a3b8;cursor:not-allowed;box-shadow:none;transform:none}
+.btn-success{background:linear-gradient(135deg,#10b981,#34d399);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,0.35)}
+.btn-outline{background:#f8fafc;border:1.5px solid #e2e8f0;color:#475569}
+.btn-outline:hover{background:#f1f5f9}
+/* 定位按钮 */
+.locate-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;border:2px dashed #818cf8;border-radius:10px;background:#eef2ff;color:#4f46e5;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.locate-btn:active{transform:scale(0.98)}
+.locate-btn.success{border-color:#10b981;background:#d1fae5;color:#065f46}
+.locate-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.loc-info{background:#eef2ff;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:8px;display:none;border:1px solid #c7d2fe}
+.loc-info .label{color:#6366f1}
+/* 摄像头 */
+.camera-box{background:#0f172a;border-radius:12px;overflow:hidden;min-height:240px;display:flex;align-items:center;justify-content:center;position:relative;border:2px solid #e2e8f0}
+.camera-box:focus-within{border-color:#4f46e5}
+.camera-box video,.camera-box canvas{width:100%;display:block}
+.camera-box canvas{position:absolute;top:0;left:0}
+.camera-box .placeholder{color:#94a3b8;text-align:center;padding:40px}
+.camera-box .placeholder .icon{font-size:48px;margin-bottom:8px;opacity:0.7}
+.face-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;white-space:nowrap}
+/* 活体检测 UI */
+.camera-box.has-liveness{min-height:300px}
+.liveness-box{position:absolute;top:10px;left:10px;right:10px;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);border-radius:10px;padding:10px 12px;color:#fff;font-size:12px}
+.liveness-title{font-weight:600;font-size:12px;margin-bottom:6px;color:#a5b4fc}
+.liveness-steps{display:flex;gap:8px;margin-bottom:6px}
+.liveness-step{flex:1;text-align:center;padding:5px 4px;border-radius:8px;background:rgba(255,255,255,0.08);color:#cbd5e1;font-size:11px;transition:all 0.25s}
+.liveness-step.active{background:rgba(99,102,241,0.4);color:#fff;box-shadow:0 0 0 1.5px #818cf8}
+.liveness-step.done{background:rgba(16,185,129,0.35);color:#fff;box-shadow:0 0 0 1.5px #34d399}
+.liveness-status{font-size:11px;color:#e2e8f0;margin-bottom:5px;min-height:14px}
+.liveness-progress{height:5px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden}
+.liveness-bar{height:100%;width:0%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:4px;transition:width 0.3s}
+.liveness-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.liveness-badge.pass{background:rgba(16,185,129,0.25);color:#6ee7b7;border:1px solid rgba(16,185,129,0.5)}
+.liveness-badge.fail{background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.4)}
+.cam-controls{display:flex;gap:8px;margin-top:8px}
+.cam-controls button{flex:1;padding:10px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.cam-controls button:active{transform:scale(0.96)}
+.cam-btn{background:#4f46e5;color:#fff;box-shadow:0 2px 6px rgba(79,70,229,0.25)}
+.cam-btn:hover{background:#4338ca}
+.retake-btn{background:#f1f5f9;color:#475569;border:1.5px solid #e2e8f0}
+.retake-btn:hover{background:#e2e8f0}
+.cam-upload-btn{background:#d1fae5;color:#065f46;border:1.5px solid #a7f3d0}
+/* 状态标签 */
+.tag{display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.tag-green{background:#d1fae5;color:#065f46}.tag-red{background:#fce4ec;color:#991b1b}.tag-yellow{background:#fef3c7;color:#92400e}.tag-blue{background:#eef2ff;color:#4338ca}.tag-gray{background:#f1f5f9;color:#475569}
+/* 列表 */
+.list-item{display:flex;padding:10px 0;border-bottom:1px solid #f1f5f9;gap:8px;font-size:14px}
+.list-item:last-child{border:none}
+.list-item .left{flex:1}
+.list-item .left .title{font-weight:600;color:#0f172a}
+.list-item .left .meta{font-size:12px;color:#64748b;margin-top:2px}
+/* 附件预览 */
+.attach-preview{max-width:120px;border-radius:8px;margin-top:6px;cursor:pointer;transition:all 0.2s}
+.attach-preview:hover{transform:scale(1.05)}
+/* 选择身份 */
+.select-wrap{position:relative}
+.select-wrap select{width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;outline:none;appearance:none;background:#fafafa;cursor:pointer;transition:all 0.2s}
+.select-wrap select:focus{border-color:#4f46e5;background:#fff;box-shadow:0 0 0 3px rgba(79,70,229,0.08)}
+.select-wrap::after{content:'▼';position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:12px;pointer-events:none}
+/* Toast */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-20px);background:#1e293b;color:#fff;padding:10px 20px;border-radius:12px;font-size:14px;z-index:999;opacity:0;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);max-width:90%;box-shadow:0 8px 24px rgba(0,0,0,0.15);pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 加载动画 */
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;opacity:0;visibility:hidden;transition:all 0.3s}
+.loading-overlay.active{opacity:1;visibility:visible}
+.spinner{width:48px;height:48px;border:4px solid #e2e8f0;border-top-color:#4f46e5;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{margin-top:16px;font-size:14px;color:#64748b;font-weight:500}
+
+/* 骨架屏 */
+.skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-card{height:120px;border-radius:14px;margin-bottom:12px}
+.skeleton-line{height:16px;border-radius:8px;margin-bottom:8px}
+.skeleton-line.w-50{width:50%}
+.skeleton-line.w-75{width:75%}
+.skeleton-line.w-100{width:100%}
+/* 底部导航 */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;border-top:1px solid #e2e8f0;z-index:100;box-shadow:0 -2px 8px rgba(0,0,0,0.04);padding-bottom:env(safe-area-inset-bottom,0)}
+.bottom-nav button{flex:1;padding:8px 4px;border:none;background:none;cursor:pointer;text-align:center;font-size:11px;color:#64748b;transition:all 0.2s;position:relative}
+.bottom-nav button.active{color:#4f46e5}
+.bottom-nav button .icon{font-size:22px;display:block;margin-bottom:1px;transition:transform 0.2s}
+.bottom-nav button:active .icon{transform:scale(0.9)}
+.bottom-nav button.active::after{content:'';position:absolute;top:0;left:30%;right:30%;height:2.5px;background:#4f46e5;border-radius:0 0 3px 3px}
+/* 已拍照片 */
+.captured-img{width:100%;border-radius:10px;margin-top:4px;border:2px solid #e2e8f0}
+/* 成功页 */
+.success-page{text-align:center;padding:40px 20px}
+.success-page .icon{font-size:64px;margin-bottom:12px}
+.success-page h2{font-size:20px;color:#0f172a}
+.success-page p{color:#64748b;font-size:14px;margin-top:4px}
+.empty-state{text-align:center;padding:30px;color:#64748b;font-size:14px}
+.empty-state .icon{font-size:40px;margin-bottom:8px;opacity:0.6}
+/* 登录页 */
+body.dark{background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);color:#e2e8f0}
+body.dark .tab-bar{background:rgba(15,23,42,0.92);border-color:#334155}
+body.dark .tab-btn{color:#94a3b8}
+body.dark .tab-btn.active{color:#818cf8}
+body.dark .card{background:#1e293b;border-color:#334155}
+body.dark .card h3{color:#f1f5f9}
+body.dark .form-group input,body.dark .form-group select,body.dark .form-group textarea{background:#334155;border-color:#475569;color:#e2e8f0}
+body.dark .form-group input:focus,body.dark .form-group select:focus,body.dark .form-group textarea:focus{border-color:#818cf8;background:#1e293b}
+body.dark .btn-outline{background:#334155;border-color:#475569;color:#94a3b8}
+body.dark .btn-outline:hover{background:#475569}
+body.dark .list-item{border-color:#334155}
+body.dark .list-item .title{color:#f1f5f9}
+body.dark .list-item .meta{color:#94a3b8}
+body.dark .bottom-nav{background:rgba(15,23,42,0.95);border-color:#334155}
+body.dark .bottom-nav button{color:#94a3b8}
+body.dark .bottom-nav button.active{color:#818cf8}
+body.dark .locate-btn{background:#334155;border-color:#475569;color:#a5b4fc}
+body.dark .locate-btn.success{background:#1e3a2f;border-color:#10b981;color:#6ee7b7}
+body.dark .loc-info{background:#334155;border-color:#475569}
+body.dark .select-wrap select{background:#334155;border-color:#475569;color:#e2e8f0}
+body.dark .empty-state{color:#64748b}
+body.dark .success-page h2{color:#f1f5f9}
+body.dark .success-page p{color:#94a3b8}
+body.dark .retake-btn{background:#334155;border-color:#475569;color:#94a3b8}
+body.dark .retake-btn:hover{background:#475569}
+body.dark .cam-upload-btn{background:#1e3a2f;border-color:#10b981;color:#6ee7b7}
+
+/* 操行评分卡片变量 */
+:root{--cs-bg:#eef2ff;--cs-title:#4338ca;--cs-score:#4f46e5;--cs-sub:#6366f1}
+body.dark{--cs-bg:#1e293b;--cs-title:#818cf8;--cs-score:#818cf8;--cs-sub:#a5b4fc}
+body.dark .conduct-score-card{border-color:#4f46e5}
+
+/* 统计小卡片 */
+.stats{display:grid;gap:8px}
+.s-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 8px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;gap:4px}
+.s-card .n{font-size:22px;font-weight:800;color:#0f172a}
+.s-card .l{font-size:12px;font-weight:500;color:#64748b}
+.s-card.green{background:#d1fae5;border-color:#a7f3d0}
+.s-card.green .n{color:#065f46}
+.s-card.red{background:#fee2e2;border-color:#fecaca}
+.s-card.red .n{color:#b91c1c}
+.s-card.blue{background:#dbeafe;border-color:#bfdbfe}
+.s-card.blue .n{color:#1d4ed8}
+body.dark .s-card{background:#273449;border-color:#334155}
+body.dark .s-card .n{color:#f1f5f9}
+body.dark .s-card .l{color:#94a3b8}
+body.dark .s-card.green{background:#064e3b;border-color:#10b981}
+body.dark .s-card.green .n{color:#6ee7b7}
+body.dark .s-card.red{background:#7f1d1d;border-color:#f87171}
+body.dark .s-card.red .n{color:#fca5a5}
+body.dark .s-card.blue{background:#1e3a8a;border-color:#60a5fa}
+body.dark .s-card.blue .n{color:#93c5fd}
+
+/* 标签色 */
+body.dark .tag-green{background:#064e3b;color:#6ee7b7}
+body.dark .tag-red{background:#7f1d1d;color:#fca5a5}
+body.dark .tag-yellow{background:#713f12;color:#fde68a}
+body.dark .tag-blue{background:#1e3a8a;color:#93c5fd}
+body.dark .tag-gray{background:#334155;color:#94a3b8}
+
+/* 用户栏 */
+body.dark .user-bar{background:#1e293b;border-color:#334155;color:#a5b4fc}
+
+/* 加载遮罩 */
+body.dark .loading-overlay{background:rgba(15,23,42,0.9)}
+body.dark .loading-text{color:#94a3b8}
+
+/* QR 遮罩/底部弹出已在上方 */
+.qr-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:10000;display:flex;flex-direction:column;align-items:center;padding-top:env(safe-area-inset-top,20px)}
+.qr-overlay-header{width:100%;max-width:400px;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;margin-bottom:20px}
+.qr-overlay-header span{font-size:16px;font-weight:600}
+#qrScannerContainer video{border-radius:12px;max-width:100%}
+#qrScannerContainer section{background:transparent!important;border:none!important}
+/* 底部弹出式确认框 */
+.bottom-sheet{position:fixed;inset:0;z-index:9999}
+.bottom-sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.5)}
+.bottom-sheet-content{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom,0));animation:sheetUp 0.3s ease;max-height:70vh;overflow-y:auto}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+body.dark .bottom-sheet-content{background:#1e293b}
+body.dark #bottomSheetTitle{color:#f1f5f9}
+body.dark #bottomSheetBody{color:#94a3b8}
+
+/* 响应式 */
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#4f46e5,#7c3aed);z-index:9999;display:flex;align-items:center;justify-content:center}
+.login-box{background:#fff;border-radius:20px;padding:36px 28px;width:340px;max-width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.25);text-align:center;animation:slideUp 0.4s ease}
+.login-box h1{font-size:22px;font-weight:700;color:#0f172a;margin-bottom:4px}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+/* 用户身份栏 */
+.user-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:13px;color:#4338ca;font-weight:500}
+.user-bar::before{content:'👤';margin-right:6px}
+</style>
+</head>
+<body>
+
+<!-- 登录遮罩 -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div style="font-size:40px;margin-bottom:6px">🎓</div>
+    <h1 style="font-size:20px;line-height:1.5;text-align:center">学管 <span style="color:#4f46e5">SmartEdu</span> · 基于多模态感知与深度学习的<br><b>高校学生智能管理平台</b></h1>
+    <p style="color:#64748b;font-size:13px;margin-bottom:16px">学生端 · 请登录您的账号</p>
+    <div class="form-group">
+      <label>选择班级</label>
+      <div class="select-wrap" style="position:relative">
+        <select id="loginClass" onchange="onClassChange()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;appearance:none;background:#fafafa;cursor:pointer">
+          <option value="">— 请选择班级 —</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>搜索学生（输入姓名即可）</label>
+      <input id="loginStudentSearch" type="text" placeholder="输入学生姓名..." oninput="onStudentSearch()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+    </div>
+    <div class="form-group">
+      <label>设置密码（首次登录请设置密码）</label>
+      <input id="loginPassword" type="password" placeholder="输入密码" onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+    </div>
+    <div class="form-group" style="margin-bottom:8px">
+      <label>选择学生</label>
+      <div class="select-wrap" style="position:relative">
+        <select id="loginStudent" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;appearance:none;background:#fafafa;cursor:pointer">
+          <option value="">— 请先选择班级 —</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()" disabled>🔓 进入系统</button>
+    <div style="margin-top:10px;text-align:center">
+      <a href="javascript:void(0)" onclick="showForgotPwd()" style="color:#4f46e5;font-size:13px;text-decoration:none;cursor:pointer">🔑 忘记密码？</a>
+    </div>
+    <div id="loginStudentInfo" style="margin-top:12px;font-size:13px;color:#64748b;text-align:center"></div>
+  </div>
+</div>
+
+<!-- 用户身份栏（登录后显示） -->
+<div class="user-bar" id="userBar" style="display:none">
+  <span id="userBarName"></span>
+  <button onclick="toggleDark()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px;margin:0 4px" title="切换夜间模式">🌙</button>
+  <button onclick="doLogout()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;font-weight:500">退出</button>
+</div>
+
+<!-- 网络状态条 -->
+<div id="networkStatus" style="display:none;background:#dc2626;color:#fff;text-align:center;padding:6px 12px;font-size:12px;font-weight:500;position:sticky;top:42px;z-index:99;backdrop-filter:blur(8px)">
+  📴 网络已断开 · 签到数据将本地保存，联网后自动同步
+</div>
+
+<!-- 强制修改密码遮罩（必须修改密码才能使用系统） -->
+<div class="login-overlay" id="forcePwdOverlay" style="display:none">
+  <div class="login-box">
+    <div style="font-size:56px;margin-bottom:8px">🔑</div>
+    <h1>需要修改密码</h1>
+    <p style="color:#64748b;font-size:14px;margin-bottom:8px;margin-top:4px">管理员已重置了你的密码，请设置新密码</p>
+    <div class="form-group">
+      <label>当前密码（123456）</label>
+      <input id="forceOldPwd" type="password" value="123456" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#f0f0f0;cursor:not-allowed" readonly />
+    </div>
+    <div class="form-group">
+      <label>新密码（6位以上）</label>
+      <input id="forceNewPwd" type="password" placeholder="输入新密码" onkeydown="if(event.key==='Enter')doForceChangePwd()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+    </div>
+    <div class="form-group">
+      <label>确认新密码</label>
+      <input id="forceNewPwd2" type="password" placeholder="再次输入新密码" onkeydown="if(event.key==='Enter')doForceChangePwd()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+    </div>
+    <button class="btn btn-primary" id="forcePwdBtn" onclick="doForceChangePwd()">🔑 修改密码</button>
+    <div id="forcePwdMsg" style="margin-top:8px;font-size:13px;color:#ef4444;text-align:center"></div>
+  </div>
+</div>
+
+<!-- 忘记密码遮罩 -->
+<div class="login-overlay" id="forgotPwdOverlay" style="display:none">
+  <div class="login-box">
+    <div style="font-size:56px;margin-bottom:8px">🔑</div>
+    <h1>忘记密码</h1>
+    <p style="color:#64748b;font-size:14px;margin-bottom:20px;margin-top:4px">验证身份后即可重置密码</p>
+    
+    <!-- 第一步：验证身份 -->
+    <div id="forgotStep1">
+      <div class="form-group">
+        <label>手机号（输入已登记的手机号验证）</label>
+        <input id="forgotPhone" type="tel" placeholder="输入手机号" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+      </div>
+      <div style="text-align:center;font-size:13px;color:#94a3b8;margin:4px 0">— 或 —</div>
+      <div class="form-group">
+        <label>宿舍号（输入已登记的宿舍验证）</label>
+        <input id="forgotDorm" type="text" placeholder="如：7栋206" onkeydown="if(event.key==='Enter')startForgotVerify()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+      </div>
+      <button class="btn btn-primary" id="forgotVerifyBtn" onclick="startForgotVerify()">✅ 验证身份</button>
+      <div id="forgotStep1Msg" style="margin-top:8px;font-size:13px;text-align:center"></div>
+    </div>
+    
+    <!-- 第二步：重置密码 -->
+    <div id="forgotStep2" style="display:none">
+      <div style="background:#d1fae5;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#065f46">
+        ✅ 身份验证通过 <span id="forgotStudentName"></span>
+      </div>
+      <div class="form-group">
+        <label>新密码（6位以上）</label>
+        <input id="forgotNewPwd" type="password" placeholder="输入新密码" onkeydown="if(event.key==='Enter')doForgotResetPwd()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+      </div>
+      <div class="form-group">
+        <label>确认新密码</label>
+        <input id="forgotNewPwd2" type="password" placeholder="再次输入新密码" onkeydown="if(event.key==='Enter')doForgotResetPwd()" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;background:#fafafa" />
+      </div>
+      <button class="btn btn-primary" id="forgotResetBtn" onclick="doForgotResetPwd()">🔑 重置密码</button>
+      <div id="forgotStep2Msg" style="margin-top:8px;font-size:13px;text-align:center"></div>
+    </div>
+    
+    <div style="margin-top:12px;text-align:center">
+      <a href="javascript:void(0)" onclick="hideForgotPwd()" style="color:#64748b;font-size:13px;text-decoration:none;cursor:pointer">← 返回登录</a>
+    </div>
+  </div>
+</div>
+
+<!-- 顶部标签 -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('checkin')"><span class="icon">🏠</span>查寝</button>
+  <button class="tab-btn" onclick="switchTab('leave')"><span class="icon">📝</span>请假</button>
+  <button class="tab-btn" onclick="switchTab('class')"><span class="icon">🏫</span>课堂</button>
+  <button class="tab-btn" onclick="switchTab('my')"><span class="icon">📋</span>我的</button>
+</div>
+
+<!-- ===== 查寝签到 ===== -->
+<div class="page active" id="page-checkin">
+  <div class="card">
+    <h3>🏠 查寝签到 <span style="font-size:12px;color:#6c757d;font-weight:400" id="checkinDate"></span></h3>
+    <div class="form-group"><label>备注（选填）</label><input id="ciNote" placeholder="如：在图书馆自习" style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;width:100%;outline:none" /></div>
+    <button class="locate-btn" id="ciLocate" onclick="startLocate('ci')">📍 获取位置</button>
+    <div class="loc-info" id="ciLocInfo"><div><span class="label">📍 </span><span id="ciAddress"></span></div></div>
+    <!-- 定位进度条 -->
+    <div id="ciLocProgress" style="display:none;margin-top:10px">
+      <div style="background:#e2e8f0;border-radius:10px;height:6px;overflow:hidden">
+        <div id="ciLocProgressBar" style="background:linear-gradient(90deg,#4f46e5,#6366f1);height:100%;width:0%;transition:width 0.3s"></div>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;text-align:center" id="ciLocProgressText">正在获取高精度定位...</div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="camera-box" id="ciCamBox">
+        <div class="placeholder" id="ciCamPlaceholder"><div class="icon">📸</div><p>点击拍照</p></div>
+        <video id="ciVideo" autoplay playsinline style="display:none"></video>
+        <canvas id="ciOverlay" style="display:none"></canvas>
+        <img class="captured-img" id="ciPhoto" style="display:none" />
+        <div class="face-hint" id="ciFaceHint" style="display:none">😊 请将人脸对准框内</div>
+        <!-- 活体检测引导 -->
+        <div class="liveness-box" id="ciLivenessBox" style="display:none">
+          <div class="liveness-title">🔐 活体检测（防照片代签）</div>
+          <div class="liveness-steps" id="ciLivenessSteps">
+            <div class="liveness-step" data-step="face">① 正对人脸</div>
+            <div class="liveness-step" data-step="blink">② 眨眨眼 😉</div>
+          </div>
+          <div class="liveness-status" id="ciLivenessStatus">正在初始化...</div>
+          <div class="liveness-progress"><div class="liveness-bar" id="ciLivenessBar"></div></div>
+        </div>
+      </div>
+      <div class="cam-controls">
+        <button class="cam-btn" id="ciCamBtn" onclick="toggleCam('ci')">📷 拍照</button>
+        <button class="retake-btn" id="ciRetake" style="display:none" onclick="retakeCam('ci')">🔄 重拍</button>
+        <button class="retake-btn" onclick="uploadPhoto('ci')" style="background:#6c757d">📁 上传照片</button>
+      </div>
+      <div id="ciCamMobileHint" style="display:none;font-size:11px;color:#f59e0b;text-align:center;margin-top:6px">📱 手机用户请使用「📁 上传照片」按钮拍照</div>
+    </div>
+    <button class="btn btn-outline" id="ciVoiceBtn" onclick="toggleVoiceCheckin()" style="margin-top:8px">🎤 语音签到（应急模式）</button>
+    <div id="voiceCheckinArea" style="display:none;margin-top:10px">
+      <div class="form-group"><label>说出你的签到口令（自动识别）</label><textarea id="voiceText" placeholder="点击麦克风后说话..." rows="3"></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="voiceRecordBtn" onclick="startVoiceRecord()">🎙️ 开始录音</button>
+        <button class="btn btn-success" id="voiceSubmitBtn" onclick="submitVoiceCheckin()" disabled>✅ 提交语音签到</button>
+      </div>
+      <div id="voiceStatus" style="margin-top:8px;font-size:12px;color:#64748b;text-align:center"></div>
+    </div>
+    <button class="btn btn-outline" id="ciQrBtn" onclick="startQrScan('ci')" style="margin-top:8px">📷 扫码签到</button>
+    <button class="btn btn-primary" id="ciSubmit" disabled>✅ 提交签到</button>
+  </div>
+  
+  <!-- 查寝记录 -->
+  <div class="card" id="ciRecordsSection">
+    <h3>📋 我的查寝记录</h3>
+    <!-- 本周签到统计 -->
+    <div id="ciWeekStats" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;justify-content:center">
+        <div style="background:#d1fae5;border-radius:10px;padding:8px 16px;text-align:center;flex:1">
+          <div style="font-size:20px;font-weight:700;color:#065f46" id="ciWeekChecked">0</div>
+          <div style="font-size:11px;color:#047857">✅ 本周签到</div>
+        </div>
+        <div style="background:#fce4ec;border-radius:10px;padding:8px 16px;text-align:center;flex:1">
+          <div style="font-size:20px;font-weight:700;color:#991b1b" id="ciWeekMissed">0</div>
+          <div style="font-size:11px;color:#dc2626">🔴 未归/请假</div>
+        </div>
+      </div>
+    </div>
+    <div id="ciRecordsList" style="margin-top:8px"><div class="empty-state"><p>请先登录查看</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 请假申请 ===== -->
+<div class="page" id="page-leave">
+  <div class="card">
+    <h3>📝 提交请假申请</h3>
+    <div class="form-group"><label>请假类型</label>
+      <select id="lvType"><option value="事假">事假</option><option value="病假">病假</option><option value="公假">公假</option><option value="其他">其他</option></select>
+    </div>
+    <div class="form-group"><label>开始日期</label><input type="date" id="lvStart" /></div>
+    <div class="form-group"><label>结束日期</label><input type="date" id="lvEnd" /></div>
+    <div class="form-group"><label>请假原因</label><textarea id="lvReason" placeholder="请详细说明请假原因..."></textarea></div>
+    <div class="form-group"><label>证明材料（选填，可拍照或上传图片）</label>
+      <div class="camera-box" style="min-height:160px" id="lvCamBox">
+        <div class="placeholder" id="lvCamPlaceholder"><div class="icon">📎</div><p>拍照或上传图片</p></div>
+        <video id="lvVideo" autoplay playsinline style="display:none"></video>
+        <canvas id="lvOverlay" style="display:none"></canvas>
+        <img class="captured-img" id="lvPhoto" style="display:none" />
+      </div>
+      <div class="cam-controls">
+        <button class="cam-btn" onclick="toggleCam('lv')">📷 拍照</button>
+        <button class="retake-btn" id="lvRetake" style="display:none" onclick="retakeCam('lv')">🔄 重拍</button>
+        <button class="retake-btn cam-upload-btn" id="lvUploadBtn" onclick="document.getElementById('lvFileInput').click()">📁 上传图片</button>
+        <input type="file" id="lvFileInput" accept="image/*" style="display:none" onchange="handleFileUpload(event)" />
+      </div>
+    </div>
+    <button class="btn btn-primary" id="lvSubmit" onclick="submitLeave()" disabled>📤 提交申请</button>
+  </div>
+  <div class="card">
+    <h3>📋 我的请假记录</h3>
+    <div id="lvMyList"><div class="empty-state"><p>暂无请假记录</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 课堂签到 ===== -->
+<div class="page" id="page-class">
+  <div class="card">
+    <h3>🏫 课堂签到</h3>
+    <div class="form-group">
+      <label>选择课程</label>
+      <div class="select-wrap"><select id="clCourse"><option value="">请选择</option></select></div>
+    </div>
+    <button class="locate-btn" id="clLocate" onclick="startLocate('cl')" disabled>📍 获取位置</button>
+    <div class="loc-info" id="clLocInfo"><div><span class="label">📍 </span><span id="clAddress"></span></div></div>
+    <!-- 定位进度条 -->
+    <div id="clLocProgress" style="display:none;margin-top:10px">
+      <div style="background:#e2e8f0;border-radius:10px;height:6px;overflow:hidden">
+        <div id="clLocProgressBar" style="background:linear-gradient(90deg,#4f46e5,#6366f1);height:100%;width:0%;transition:width 0.3s"></div>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;text-align:center" id="clLocProgressText">正在获取高精度定位...</div>
+    </div>
+    <button class="btn btn-outline" id="clQrBtn" onclick="startQrScan('cl')" style="margin-top:8px">📷 扫码签到</button>
+    <button class="btn btn-outline" id="clVoiceBtn" onclick="toggleClVoiceCheckin()" style="margin-top:8px">🎤 语音签到</button>
+    <div id="clVoiceArea" style="display:none;margin-top:10px">
+      <div class="form-group"><label>说出你的签到口令（自动识别）</label><textarea id="clVoiceText" placeholder="点击麦克风后说话..." rows="3"></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="clVoiceRecordBtn" onclick="startClVoiceRecord()">🎙️ 开始录音</button>
+        <button class="btn btn-success" id="clVoiceSubmitBtn" onclick="submitClVoiceCheckin()" disabled>✅ 提交语音签到</button>
+      </div>
+      <div id="clVoiceStatus" style="margin-top:8px;font-size:12px;color:#64748b;text-align:center"></div>
+    </div>
+    <button class="btn btn-primary" id="clSubmit" disabled>✅ 签到</button>
+  </div>
+  <div class="card">
+    <h3>📋 我的课堂签到</h3>
+    <div id="clMyList"><div class="empty-state"><p>暂无课堂签到记录</p></div></div>
+  </div>
+</div>
+
+<!-- ===== 我的记录 ===== -->
+<div class="page" id="page-my">
+  <div class="card conduct-score-card" style="border-left:4px solid #4f46e5;background:var(--cs-bg)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:12px;color:var(--cs-title)">⭐ 操行评分</div>
+        <div style="font-size:32px;font-weight:800;color:var(--cs-score)" id="myConductScore">-</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--cs-title)">等级</div>
+        <div id="myConductLevel" style="font-size:18px;font-weight:700;color:var(--cs-score)">-</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--cs-sub);margin-top:4px">基础100分 · 签到+1 · 缺勤-5 · 请假-1</div>
+  </div>
+  <div class="card">
+    <h3>📊 我的考勤统计</h3>
+    <div class="stats" id="myStats" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
+      <div class="s-card green"><div class="n" id="myChecked">-</div><div class="l">✅ 已签到</div></div>
+      <div class="s-card red"><div class="n" id="myAbsent">-</div><div class="l">🔴 未归次数</div></div>
+      <div class="s-card blue"><div class="n" id="myRate">-%</div><div class="l">📈 出勤率</div></div>
+    </div>
+    <div style="margin-top:12px">
+      <h4 style="font-size:13px;color:var(--gray);margin-bottom:8px">📅 最近7天查寝记录</h4>
+      <div id="myWeeklyChart" style="height:150px;display:flex;align-items:flex-end;gap:4px;padding:10px 0"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>📝 我的请假进度</h3>
+    <div id="myLeaveProgress"><div class="empty-state"><p>暂无请假记录</p></div></div>
+  </div>
+  <div class="card">
+    <h3>📋 历史记录</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('checkin')">🏠 查寝</button>
+      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('leave')">📝 请假</button>
+      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('class')">🏫 课堂</button>
+    </div>
+    <div id="myRecords"><div class="empty-state"><p>请先选择身份，再点击上方筛选</p></div></div>
+  </div>
+</div>
+
+<!-- ===== QR 扫码签到遮罩 ===== -->
+<div id="qrScannerOverlay" class="qr-overlay" style="display:none">
+  <div class="qr-overlay-header">
+    <span style="font-size:16px;font-weight:600">📷 扫码签到</span>
+    <button onclick="closeQrScanner()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:4px">✕</button>
+  </div>
+  <div id="qrScannerContainer" style="width:100%;max-width:400px;margin:0 auto;"></div>
+  <div id="qrScanResult" style="text-align:center;padding:10px;color:#fff;font-size:14px"></div>
+  <div style="text-align:center;padding:8px;color:rgba(255,255,255,0.6);font-size:12px">
+    将二维码置于框内，自动识别<br/>
+    <span id="qrScanMode" style="font-weight:600;color:#a5b4fc">查寝签到</span>
+  </div>
+</div>
+
+<!-- 底部弹出式确认框（替换原生 confirm） -->
+<div id="bottomSheet" class="bottom-sheet" style="display:none">
+  <div class="bottom-sheet-overlay" onclick="closeBottomSheet()"></div>
+  <div class="bottom-sheet-content">
+    <div id="bottomSheetTitle" style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:8px"></div>
+    <div id="bottomSheetBody" style="font-size:14px;color:#64748b;margin-bottom:20px;line-height:1.6"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" id="bottomSheetCancel" style="flex:1;padding:12px;font-size:15px;margin:0" onclick="closeBottomSheet()">取消</button>
+      <button class="btn btn-primary" id="bottomSheetConfirm" style="flex:1;padding:12px;font-size:15px;margin:0" onclick="confirmBottomSheet()">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<link rel="manifest" href="/manifest.json" />
+<script>
+const esc=s=>{if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');};
+// ===== PWA Service Worker 注册 =====
+let deferredPrompt = null; // 安装提示事件
+let myRefreshTimer = null; // "我的"页面自动刷新定时器
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          // 有新版本，提示用户刷新
+          if (confirm('🔄 发现新版本，是否刷新以更新？')) {
+            window.location.reload(true);
+          }
+        }
+      });
+    });
+    reg.update();
+  }).catch(err => {
+    console.warn('SW注册失败:', err);
+  });
+  
+  // 监听新的SW安装后刷新页面
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
+// 学生修改密码
+async function changeMyPassword(){
+  const pwd=document.getElementById('myNewPwd').value;
+  const result=document.getElementById('myPwdResult');
+  if(!pwd||pwd.length<6){result.textContent='⚠️ 密码至少6位';result.style.color='#ef4444';return;}
+  if(!myStudentId){result.textContent='⚠️ 请先登录';return;}
+  try{
+    const r=await fetch('/api/student/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({student_id:myStudentId,password:pwd})
+    });
+    const j=await r.json();
+    if(j.code===0){
+      result.textContent='✅ 密码设置成功！';
+      result.style.color='#22c55e';
+      document.getElementById('myNewPwd').value='';
+    }else{
+      result.textContent='❌ '+j.message;
+      result.style.color='#ef4444';
+    }
+  }catch(e){
+    result.textContent='❌ 设置失败';
+    result.style.color='#ef4444';
+  }
+}
+
+// 学生操行分和日历
+async function loadStudentDashboard(){
+  if(!myStudentId)return;
+  try{
+// 操行评分
+    const r=await fetch('/api/stats/conduct/public?days=30');const j=await r.json();
+    if(j.code===0&&j.data){
+      const me=j.data.find(s=>s.student_id===myStudentId)||j.data.find(s=>String(s.id)===myStudentId);
+      if(me){
+        document.getElementById('myConductScore').textContent=me.score;
+        const lv=me.score>=90?'🌟 优秀':me.score>=75?'👍 良好':me.score>=60?'📖 及格':'💪 需加油';
+        document.getElementById('myConductLevel').textContent=lv;
+      }
+    }
+    // 30天日历
+    const d=new Date();const days=[];
+    for(let i=29;i>=0;i--){const t=new Date(d);t.setDate(t.getDate()-i);days.push(t.toISOString().slice(0,10));}
+    const cr=await fetch('/api/students');const cj=await cr.json();
+    if(cj.code===0&&cj.data){
+      const records=cj.data.filter(s=>s.id===myStudentId);
+      // 简化版日历显示
+      let html='<div style="display:flex;flex-wrap:wrap;gap:3px">';
+      days.forEach(date=>{
+        const day=new Date(date).getDay();
+        const isWeekend=day===0||day===6;
+        html+=`<div style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;background:${isWeekend?'#f1f5f9':'#eef2ff'};color:#64748b">${new Date(date).getDate()}</div>`;
+      });
+      html+='</div>';
+      document.getElementById('myCalendar').innerHTML=html+'<p style="margin-top:8px;font-size:11px;color:var(--gray)">灰色=周末 · 完整签到数据需等待查寝记录对接</p>';
+    }
+  }catch(e){}
+}
+
+// 监听beforeinstallprompt事件
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallPrompt();
+});
+
+// 请求桌面通知权限
+function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.warn('此浏览器不支持桌面通知');
+    return;
+  }
+  
+  // 登录成功后请求权限
+  const originalDoLogin = window.doLogin;
+  window.doLogin = function() {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          toast('✅ 已开启桌面通知');
+        }
+      });
+    }
+    return originalDoLogin.apply(this, arguments);
+  };
+}
+
+// 页面加载完成后请求通知权限
+if ('Notification' in window && Notification.permission === 'default') {
+  // 延迟2秒后请求，避免打扰用户
+  setTimeout(() => {
+    const notifyDiv = document.createElement('div');
+    notifyDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #10b981, #34d399);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+      z-index: 10000;
+      max-width: 90%;
+      width: 340px;
+      font-size: 13px;
+      animation: slideDown 0.3s ease;
+    `;
+    notifyDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔔</span>
+        <div style="flex:1">
+          <div style="font-weight:600;margin-bottom:2px">开启桌面通知</div>
+          <div style="opacity:0.9;font-size:12px">请假审批结果将及时通知您</div>
+        </div>
+        <button id="notifyAllow" style="background:white;color:#10b981;border:none;padding:6px 12px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px">允许</button>
+        <button id="notifyDeny" style="background:transparent;color:white;border:none;padding:4px 8px;font-size:16px;cursor:pointer">✕</button>
+      </div>
+    `;
+    
+    // 添加动画
+    if (!document.getElementById('notify-style')) {
+      const style = document.createElement('style');
+      style.id = 'notify-style';
+      style.textContent = `
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notifyDiv);
+    
+    notifyDiv.querySelector('#notifyAllow').addEventListener('click', async () => {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        toast('✅ 桌面通知已开启');
+      }
+      notifyDiv.remove();
+    });
+    
+    notifyDiv.querySelector('#notifyDeny').addEventListener('click', () => {
+      notifyDiv.remove();
+    });
+    
+    // 8秒后自动消失
+    setTimeout(() => {
+      if (notifyDiv.parentElement) {
+        notifyDiv.style.opacity = '0';
+        notifyDiv.style.transition = 'opacity 0.3s';
+        setTimeout(() => notifyDiv.remove(), 300);
+      }
+    }, 8000);
+  }, 2000);
+}
+
+// 显示安装提示
+function showInstallPrompt() {
+  if (!deferredPrompt) return;
+  
+  // 检查是否已经提示过
+  if (localStorage.getItem('pwa-install-dismissed')) {
+    return;
+  }
+  
+  // 延迟3秒后显示安装提示
+  setTimeout(() => {
+    const installDiv = document.createElement('div');
+    installDiv.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(79,70,229,0.4);
+      z-index: 10000;
+      max-width: 90%;
+      width: 360px;
+      animation: slideUp 0.3s ease;
+    `;
+    installDiv.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:32px">📱</span>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">安装到桌面</div>
+          <div style="font-size:12px;opacity:0.9">像APP一样快速访问</div>
+        </div>
+        <button id="installBtn" style="background:white;color:#4f46e5;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">安装</button>
+        <button onclick="this.parentElement.parentElement.remove();localStorage.setItem('pwa-install-dismissed','1')" style="background:transparent;color:white;border:none;padding:4px 8px;font-size:18px;cursor:pointer">✕</button>
+      </div>
+    `;
+    
+    // 添加动画样式
+    if (!document.getElementById('pwa-install-style')) {
+      const style = document.createElement('style');
+      style.id = 'pwa-install-style';
+      style.textContent = `
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(installDiv);
+    
+    // 安装按钮点击事件
+    installDiv.querySelector('#installBtn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        toast('✅ 安装成功！请在桌面打开');
+      }
+      
+      deferredPrompt = null;
+      installDiv.remove();
+    });
+    
+    // 10秒后自动消失
+    setTimeout(() => {
+      if (installDiv.parentElement) {
+        installDiv.style.opacity = '0';
+        installDiv.style.transition = 'opacity 0.3s';
+        setTimeout(() => installDiv.remove(), 300);
+      }
+    }, 10000);
+  }, 3000);
+}
+
+// ===== 全局状态 =====
+let myStudentId = localStorage.getItem('myStudentId') || '';
+let myClassName = localStorage.getItem('myClassName') || '';
+let myStudentToken = localStorage.getItem('myStudentToken') || '';
+let cameraStream = null, camMode = '', photoData = '', faceDetected = false, modelsLoaded = false, detInterval = null;
+let landmarkLoaded = false;          // 关键点+表情模型是否就绪（活体检测前置）
+let livenessPassed = false;          // 活体检测是否通过
+let livenessScore = 0;               // 活体置信度（基于眨眼动作稳定性）
+let blinkCount = 0;                  // 检测到的眨眼次数
+let eyeState = 'open';               // 当前眼睛状态（用于眨眼边沿检测）
+let livenessActive = false;          // 活体检测循环是否在运行
+let livenessMode = '';               // 当前活体检测所属模式
+const locState = { ci: null, cl: null };
+const OFFLINE_QUEUE = []; // 离线队列
+let isOnline = navigator.onLine; // 网络状态
+
+// ===== IndexedDB 离线存储 =====
+const DB_NAME = 'checkin-offline';
+const DB_VERSION = 1;
+const STORE_NAME = 'pending-submissions';
+let dbConn = null;
+
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    if (dbConn) { resolve(dbConn); return; }
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      dbConn = request.result;
+      resolve(dbConn);
+    };
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('type', 'type', { unique: false });
+        store.createIndex('synced', 'synced', { unique: false });
+      }
+    };
+  });
+}
+
+async function saveOfflineRecord(record) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.add(record);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error('IndexedDB 保存失败:', e);
+    return false;
+  }
+}
+
+async function loadOfflineRecords() {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const index = store.index('synced');
+      const request = index.getAll('false');
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.error('IndexedDB 读取失败:', e);
+    return [];
+  }
+}
+
+async function markAsSynced(recordId) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(recordId);
+      getReq.onsuccess = () => {
+        const record = getReq.result;
+        if (record) {
+          record.synced = true;
+          store.put(record);
+        }
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      };
+      getReq.onerror = () => reject(getReq.error);
+    });
+  } catch (e) {
+    console.error('IndexedDB 标记失败:', e);
+    return false;
+  }
+}
+
+async function deleteOfflineRecord(recordId) {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(recordId);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error('IndexedDB 删除失败:', e);
+    return false;
+  }
+}
+
+async function clearOfflineRecords() {
+  try {
+    const db = await openIndexedDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error('IndexedDB 清除失败:', e);
+    return false;
+  }
+}
+
+// 人脸检测库（本地化）已直接引入
+let faceApiReady = false;
+
+// 检测移动端并显示提示
+(function() {
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isHttp = location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+  if (isMobile && isHttp) {
+    // 显示手机用户提示
+    const hint = document.getElementById('ciCamMobileHint');
+    if (hint) hint.style.display = 'block';
+  }
+})();
+function loadFaceApi() {
+  if (faceApiReady || typeof faceapi !== 'undefined') { faceApiReady = true; return Promise.resolve(); }
+  return new Promise((resolve, reject) => {
+    // 优先使用本地文件
+    const s = document.createElement('script');
+    s.src = 'face-api.min.js';
+    s.onload = () => { faceApiReady = true; resolve(); };
+    s.onerror = () => {
+      // 本地加载失败，尝试 CDN
+      console.warn('⚠️ 本地 face-api.js 加载失败，尝试 CDN');
+      const cdn = document.createElement('script');
+      cdn.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+      cdn.onload = () => { faceApiReady = true; resolve(); };
+      cdn.onerror = () => reject(new Error('face-api.js 加载失败'));
+      document.head.appendChild(cdn);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+// 监听网络状态变化并显示状态条
+window.addEventListener('online', () => {
+  isOnline = true;
+  const bar = document.getElementById('networkStatus');
+  if (bar) bar.style.display = 'none';
+  syncOfflineData();
+});
+window.addEventListener('offline', () => {
+  isOnline = false;
+  const bar = document.getElementById('networkStatus');
+  if (bar) bar.style.display = 'flex';
+  toast('🔴 网络已断开，数据将本地保存');
+});
+
+function syncOfflineData() {
+  if (OFFLINE_QUEUE.length === 0 || !isOnline) return;
+  
+  // 首先同步 IndexedDB 中的离线记录
+  loadOfflineRecords().then(async (records) => {
+    if (records.length === 0) return;
+    
+    let synced = 0;
+    for (const record of records.slice(0, 10)) { // 每次最多同步10条
+      try {
+        const payload = { ...record.data };
+        const headers = {'Content-Type': 'application/json'};
+        if (myStudentToken) headers['x-student-token'] = myStudentToken;
+        
+        let url = '/api/checkin';
+        if (record.type === 'voice') url = '/api/voice-checkin';
+        else if (record.type === 'class') url = '/api/class-checkin';
+        
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+        
+        const j = await res.json();
+        if (j.code === 0) {
+          await markAsSynced(record.id);
+          synced++;
+        }
+      } catch (e) {
+        console.error('同步单条记录失败:', e);
+      }
+    }
+    
+    if (synced > 0) {
+      toast(`✅ 已同步 ${synced} 条离线数据`);
+      // 重新加载当前页面数据
+      refreshCurrentTab();
+    }
+  }).catch(() => {});
+  
+  // 同时同步内存中的 OFFLINE_QUEUE
+  if (OFFLINE_QUEUE.length > 0) {
+    const headers = {'Content-Type': 'application/json'};
+    if (myStudentToken) headers['x-student-token'] = myStudentToken;
+    fetch('/api/offline/sync', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ actions: OFFLINE_QUEUE })
+    }).then(res => res.json()).then(j => {
+      if (j.code === 0) {
+        toast(`✅ 已同步 ${j.synced} 条离线数据`);
+        OFFLINE_QUEUE.length = 0;
+        localStorage.removeItem('offlineQueue');
+      }
+  }).catch(() => {});
+}
+
+// 刷新当前标签页数据
+function refreshCurrentTab() {
+  const pages = document.querySelectorAll('.page');
+  pages.forEach(p => {
+    if (p.classList.contains('active')) {
+      const id = p.id;
+      if (id === 'page-checkin') loadCheckinData();
+      else if (id === 'page-leave') { loadMyLeaves(); }
+      else if (id === 'page-class') { loadMyClass(); }
+      else if (id === 'page-my') { loadMyStatistics(); }
+    }
+  });
+}
+}
+
+// ===== 人脸特征提取 =====
+async function extractFaceEmbedding(base64OrUrl) {
+  if (typeof faceapi === 'undefined') return null;
+  try {
+    // 确保模型已加载
+    if (!modelsLoaded) {
+      await loadFaceModels();
+    }
+    
+    // 如果是base64字符串，先转成Image
+    let img;
+    if (base64OrUrl.startsWith('data:')) {
+      const resp = await fetch(base64OrUrl);
+      const blob = await resp.blob();
+      img = await faceapi.bufferToImage(await blob.arrayBuffer());
+    } else {
+      img = await faceapi.fetchImage(base64OrUrl);
+    }
+    
+    // 检测人脸并提取特征（128维向量）
+    const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions());
+    
+    if (detections.length === 0) {
+      console.warn('未检测到人脸');
+      return null;
+    }
+    
+    // 取最清晰/最大的那张人脸
+    const bestDetection = detections.sort((a, b) => {
+      const scoreA = a.detection.score;
+      const scoreB = b.detection.score;
+      const sizeA = a.detection.box.width * a.detection.box.height;
+      const sizeB = b.detection.box.width * b.detection.box.height;
+      return (scoreB * sizeB) - (scoreA * sizeA);
+    })[0];
+    
+    const faceVector = bestDetection.descriptor;
+    
+    // 转换为普通数组（Float32Array -> Array）
+    return Array.from(faceVector);
+  } catch (e) {
+    console.warn('人脸特征提取失败:', e.message);
+    return null;
+  }
+}
+
+// 保存离线数据到 localStorage
+function saveOfflineQueue() {
+  localStorage.setItem('offlineQueue', JSON.stringify(OFFLINE_QUEUE));
+}
+
+// 从 localStorage 恢复离线队列
+function loadOfflineQueue() {
+  const saved = localStorage.getItem('offlineQueue');
+  if (saved) {
+    try {
+      Object.assign(OFFLINE_QUEUE, JSON.parse(saved));
+    } catch (e) {}
+  }
+}
+
+loadOfflineQueue();
+
+function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2500)}
+
+// ===== 确认对话框 =====
+function confirmDialog(title, message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 10001;
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    `;
+    
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      background: white; border-radius: 16px; padding: 24px;
+      max-width: 320px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: slideUp 0.3s ease;
+    `;
+    dialog.innerHTML = `
+      <h3 style="margin-bottom:12px;font-size:18px;color:#0f172a">${esc(title)}</h3>
+      <p style="margin-bottom:20px;font-size:14px;color:#64748b;line-height:1.6">${esc(message)}</p>
+      <div style="display:flex;gap:10px">
+        <button id="confirmCancel" style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#475569;font-size:14px;font-weight:600;cursor:pointer">取消</button>
+        <button id="confirmOk" style="flex:1;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#4f46e5,#6366f1);color:white;font-size:14px;font-weight:600;cursor:pointer">确定</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    const close = (result) => {
+      overlay.style.opacity = '0';
+      overlay.style.transition = 'opacity 0.2s';
+      setTimeout(() => {
+        overlay.remove();
+        resolve(result);
+      }, 200);
+    };
+    
+    dialog.querySelector('#confirmCancel').onclick = () => close(false);
+    dialog.querySelector('#confirmOk').onclick = () => close(true);
+    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+  });
+}
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// 统一时间格式化：中文年月日格式
+function fmtTime(t, fallbackDate){
+  if(!t) return fallbackDate || '-';
+  try{
+    const d=new Date(t);
+    if(isNaN(d.getTime())){
+      if(/^\d{2}:\d{2}/.test(t)){
+        return fallbackDate ? fallbackDate + ' ' + t : t;
+      }
+      return t;
+    }
+    const y=d.getFullYear();
+    const m=d.getMonth()+1;
+    const day=d.getDate();
+    const h=String(d.getHours()).padStart(2,'0');
+    const mi=String(d.getMinutes()).padStart(2,'0');
+    const s=String(d.getSeconds()).padStart(2,'0');
+    return `${y}年${m}月${day}日 ${h}:${mi}:${s}`;
+  }catch(e){return t;}
+}
+
+// ===== 学生数据 + 登录 =====
+let studentMap = {}; // id → {name, dorm, class_name}
+let classStudents = {}; // class_name → [students]
+let allClasses = []; // 所有班级列表
+
+async function loadStudents() {
+  try {
+    const r = await fetch('/api/students/public');
+    const j = await r.json();
+    if (j.code !== 0 || !j.data || j.data.length === 0) {
+      console.warn('⚠️ 没有学生数据，请先在管理端导入学生');
+      const classSel = document.getElementById('loginClass');
+      classSel.innerHTML = '<option value="">— 暂无数据 —</option>';
+      return;
+    }
+    
+    studentMap = {};
+    classStudents = {};
+    allClasses = [];
+    
+    j.data.forEach(s => { 
+      studentMap[s.id] = s; 
+      // 按班级分组
+      const cls = s.class_name || '未分班';
+      if (!classStudents[cls]) classStudents[cls] = [];
+      classStudents[cls].push(s);
+      if (!allClasses.includes(cls)) allClasses.push(cls);
+    });
+    allClasses.sort();
+    
+    // 填充班级下拉
+    const classSel = document.getElementById('loginClass');
+    classSel.innerHTML = '<option value="">— 请选择班级 —</option>';
+    allClasses.forEach(cls => {
+      classSel.innerHTML += `<option value="${esc(cls)}">${esc(cls)}（${classStudents[cls].length}人）</option>`;
+    });
+    
+    // 如果已登录则直接恢复
+    if (myStudentId && studentMap[myStudentId]) {
+      const s = studentMap[myStudentId];
+      myClassName = s.class_name || '';
+      localStorage.setItem('myClassName', myClassName);
+      const cls = s.class_name || '未分班';
+      document.getElementById('loginClass').value = cls;
+      onStudentSearch(); // 过滤学生列表
+      document.getElementById('loginStudent').value = myStudentId;
+      onStudentSelect();
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('userBar').style.display = 'flex';
+      document.getElementById('userBarName').textContent = `👤 ${esc(s.name)}（${esc(s.dorm)}）`;
+    }
+  } catch(e) {
+    console.error('加载学生数据失败:', e);
+    toast('⚠️ 加载学生数据失败: ' + e.message);
+  }
+}
+
+// 班级改变时，重置学生选择并搜索
+function onClassChange() {
+  const cls = document.getElementById('loginClass').value;
+  const studentSel = document.getElementById('loginStudent');
+  studentSel.innerHTML = '<option value="">— 请选择学生 —</option>';
+  document.getElementById('loginStudentSearch').value = '';
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loginStudentInfo').textContent = '';
+  
+  if (cls && classStudents[cls]) {
+    classStudents[cls].forEach(s => {
+      studentSel.innerHTML += `<option value="${s.id}">${esc(s.name)}（${esc(s.dorm)}）</option>`;
+    });
+  }
+}
+
+// 学生搜索（实时过滤）
+function onStudentSearch() {
+  const keyword = document.getElementById('loginStudentSearch').value.trim().toLowerCase();
+  const cls = document.getElementById('loginClass').value;
+  const studentSel = document.getElementById('loginStudent');
+  
+  studentSel.innerHTML = '<option value="">— 请选择学生 —</option>';
+  
+  if (!cls) return;
+  
+  const students = classStudents[cls] || [];
+  const filtered = students.filter(s => {
+    if (!keyword) return true;
+    return s.name.toLowerCase().includes(keyword) || 
+           s.name.toLowerCase().includes(keyword) ||
+           s.id.toLowerCase().includes(keyword);
+  });
+  
+  filtered.forEach(s => {
+    studentSel.innerHTML += `<option value="${esc(s.id)}">${esc(s.name)}（${esc(s.dorm)}）</option>`;
+  });
+  
+  // 如果只有一个匹配，自动选中
+  if (filtered.length === 1) {
+    studentSel.value = filtered[0].id;
+    onStudentSelect();
+  }
+}
+
+// 学生选择变化
+function onStudentSelect() {
+  const id = document.getElementById('loginStudent').value;
+  document.getElementById('loginBtn').disabled = !id;
+  const s = id ? studentMap[id] : null;
+  document.getElementById('loginStudentInfo').textContent = s ? `${esc(s.name)} · ${esc(s.dorm)}${s.class_name?' · '+esc(s.class_name):''}` : '';
+}
+
+// 监听学生选择变化
+document.addEventListener('DOMContentLoaded', () => {
+  const studentSel = document.getElementById('loginStudent');
+  if (studentSel) {
+    studentSel.onchange = onStudentSelect;
+  }
+});
+
+// ==================== WebSocket 监听 ====================
+// 连接服务器 WebSocket（带认证 token）
+const ws = new WebSocket(`ws://${location.host}`, [myStudentToken || '']);
+ws.onopen = () => {
+  console.log('WebSocket connected');
+};
+ws.onmessage = (event) => {
+  try {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'notification') {
+      // 仅在学生已登录时处理
+      if (myStudentId) {
+        // 弹窗提示（esc 防止 XSS）
+        toast(`📢 ${esc(msg.data.title)}: ${esc(msg.data.message)}`);
+        
+        // 浏览器桌面通知
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(msg.data.title, {
+            body: msg.data.message,
+            icon: '/icons/icon-192.svg',
+            badge: '/icons/icon-96.svg',
+            tag: msg.data.id || 'default'
+          });
+        }
+        
+        // 如果在请假页面，刷新列表
+        if (document.getElementById('page-leave').classList.contains('active')) {
+          loadMyLeaves();
+        }
+        // 无论是否在请假页面，都刷新（因为审批结果需要实时看到）
+        loadMyLeaves();
+      }
+    }
+    if (msg.type === 'leave_updated' && myStudentId && msg.data.student_id === myStudentId) {
+      // 教师审批后，刷新学生端的请假列表
+      const statusText = msg.data.status === 'approved' ? '✅ 已批准' : msg.data.status === 'rejected' ? '❌ 已驳回' : '📋 已更新';
+      toast(`${statusText}：${msg.data.comment || '无备注'}`);
+      
+      // 浏览器桌面通知
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('请假审批结果', {
+          body: `${statusText}：${msg.data.comment || '请查看详情'}`,
+          icon: '/icons/icon-192.svg',
+          tag: msg.data.id || 'leave-update'
+        });
+      }
+      
+      loadMyLeaves();
+    }
+  } catch (e) {
+    console.error('WebSocket message parse error', e);
+  }
+};
+ws.onerror = (e) => console.error('WebSocket error', e);
+ws.onclose = () => console.warn('WebSocket closed');
+function doLogin() {
+  const id = document.getElementById('loginStudent').value;
+  if (!id || !studentMap[id]) { toast('⚠️ 请选择身份'); return; }
+  const password = document.getElementById('loginPassword').value;
+  if (!password) { toast('⚠️ 请输入密码'); return; }
+  
+  // 向后端获取学生身份Token
+  fetch('/api/student/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student_id: id, password: password })
+  }).then(r => r.json()).then(j => {
+    if (j.code !== 0) {
+      toast('⚠️ ' + j.message);
+      return;
+    }
+    myStudentToken = j.token;
+    localStorage.setItem('myStudentToken', myStudentToken);
+    myStudentId = id;
+    myClassName = j.student.class_name || '';
+    localStorage.setItem('myStudentId', id);
+    localStorage.setItem('myClassName', myClassName);
+    document.getElementById('loginOverlay').style.display = 'none';
+    
+    // 如果必须修改密码，显示强制修改密码界面
+    if (j.mustChangePwd) {
+      document.getElementById('forcePwdOverlay').style.display = 'flex';
+      document.getElementById('forceOldPwd').value = '123456';
+      document.getElementById('forceNewPwd').value = '';
+      document.getElementById('forceNewPwd2').value = '';
+      document.getElementById('forcePwdMsg').textContent = '';
+      toast('🔑 密码已重置，请修改密码后使用系统');
+      return;
+    }
+    
+    document.getElementById('userBar').style.display = 'flex';
+    document.getElementById('userBarName').textContent = `👤 ${esc(j.student.name)}（${j.student.dorm}）`;
+    toast(`✅ 欢迎，${j.student.name}`);
+    // 重新加载各模块数据
+    if (document.getElementById('page-checkin').classList.contains('active')) loadCheckinData();
+    if (document.getElementById('page-leave').classList.contains('active')) { loadMyLeaves(); checkLvReady(); }
+    if (document.getElementById('page-class').classList.contains('active')) { loadMyClass(); checkClReady(); }
+    if (document.getElementById('page-my').classList.contains('active')) {}
+  }).catch(e => {
+    toast('❌ 网络错误，请检查连接');
+    console.error('登录失败:', e);
+  });
+}
+// 强制修改密码（首次登录/密码被重置后）
+async function doForceChangePwd(){
+  const oldPwd = document.getElementById('forceOldPwd').value;
+  const newPwd = document.getElementById('forceNewPwd').value;
+  const newPwd2 = document.getElementById('forceNewPwd2').value;
+  const msgEl = document.getElementById('forcePwdMsg');
+  
+  if (!newPwd || newPwd.length < 6) { msgEl.textContent = '⚠️ 新密码至少6位'; return; }
+  if (newPwd !== newPwd2) { msgEl.textContent = '⚠️ 两次密码不一致'; return; }
+  if (newPwd === '123456') { msgEl.textContent = '⚠️ 新密码不能与初始密码相同'; return; }
+  
+  document.getElementById('forcePwdBtn').disabled = true;
+  document.getElementById('forcePwdBtn').textContent = '⏳ 修改中...';
+  
+  try{
+    const r = await fetch('/api/student/change-password', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({student_id: myStudentId, oldPassword: oldPwd, newPassword: newPwd})
+    });
+    const j = await r.json();
+    if(j.code === 0){
+      msgEl.textContent = '';
+      document.getElementById('forcePwdOverlay').style.display = 'none';
+      document.getElementById('userBar').style.display = 'flex';
+      document.getElementById('userBarName').textContent = `👤 ${studentMap[myStudentId]?.name || '用户'}（${studentMap[myStudentId]?.dorm || ''}）`;
+      toast('✅ 密码修改成功！欢迎使用系统');
+      // 重新加载各模块数据
+      if (document.getElementById('page-checkin').classList.contains('active')) loadCheckinData();
+      if (document.getElementById('page-leave').classList.contains('active')) { loadMyLeaves(); checkLvReady(); }
+      if (document.getElementById('page-class').classList.contains('active')) { loadMyClass(); checkClReady(); }
+    } else {
+      msgEl.textContent = '❌ ' + j.message;
+    }
+  } catch(e) {
+    msgEl.textContent = '❌ 修改失败，请检查网络';
+  }
+  document.getElementById('forcePwdBtn').disabled = false;
+  document.getElementById('forcePwdBtn').textContent = '🔑 修改密码';
+}
+// ===== 忘记密码 =====
+let forgotResetToken = '';
+
+function showForgotPwd(){
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('forgotPwdOverlay').style.display = 'flex';
+  document.getElementById('forgotStep1').style.display = 'block';
+  document.getElementById('forgotStep2').style.display = 'none';
+  document.getElementById('forgotPhone').value = '';
+  document.getElementById('forgotDorm').value = '';
+  document.getElementById('forgotNewPwd').value = '';
+  document.getElementById('forgotNewPwd2').value = '';
+  document.getElementById('forgotStep1Msg').textContent = '';
+  document.getElementById('forgotStep2Msg').textContent = '';
+  forgotResetToken = '';
+}
+
+function hideForgotPwd(){
+  document.getElementById('forgotPwdOverlay').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('forgotStep1').style.display = 'block';
+  document.getElementById('forgotStep2').style.display = 'none';
+  forgotResetToken = '';
+}
+
+async function startForgotVerify(){
+  const phone = document.getElementById('forgotPhone').value.trim();
+  const dorm = document.getElementById('forgotDorm').value.trim();
+  const msgEl = document.getElementById('forgotStep1Msg');
+  
+  if (!phone && !dorm) { msgEl.textContent = '⚠️ 请填写手机号或宿舍号'; msgEl.style.color = '#ef4444'; return; }
+  
+  document.getElementById('forgotVerifyBtn').disabled = true;
+  document.getElementById('forgotVerifyBtn').textContent = '⏳ 验证中...';
+  msgEl.textContent = '';
+  
+  try{
+    const r = await fetch('/api/student/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, dorm })
+    });
+    const j = await r.json();
+    if (j.code === 0) {
+      forgotResetToken = j.resetToken;
+      document.getElementById('forgotStudentName').textContent = '👤 ' + (j.studentName || '');
+      document.getElementById('forgotStep1').style.display = 'none';
+      document.getElementById('forgotStep2').style.display = 'block';
+      document.getElementById('forgotStep2Msg').textContent = '';
+    } else {
+      msgEl.textContent = '❌ ' + j.message;
+      msgEl.style.color = '#ef4444';
+    }
+  } catch(e) {
+    msgEl.textContent = '❌ 验证失败，请检查网络';
+    msgEl.style.color = '#ef4444';
+  }
+  document.getElementById('forgotVerifyBtn').disabled = false;
+  document.getElementById('forgotVerifyBtn').textContent = '✅ 验证身份';
+}
+
+async function doForgotResetPwd(){
+  const newPwd = document.getElementById('forgotNewPwd').value;
+  const newPwd2 = document.getElementById('forgotNewPwd2').value;
+  const msgEl = document.getElementById('forgotStep2Msg');
+  
+  if (!newPwd || newPwd.length < 6) { msgEl.textContent = '⚠️ 新密码至少6位'; msgEl.style.color = '#ef4444'; return; }
+  if (newPwd !== newPwd2) { msgEl.textContent = '⚠️ 两次密码不一致'; msgEl.style.color = '#ef4444'; return; }
+  if (!forgotResetToken) { msgEl.textContent = '⚠️ 验证已过期，请重新验证'; msgEl.style.color = '#ef4444'; return; }
+  
+  document.getElementById('forgotResetBtn').disabled = true;
+  document.getElementById('forgotResetBtn').textContent = '⏳ 重置中...';
+  msgEl.textContent = '';
+  
+  try{
+    const r = await fetch('/api/student/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetToken: forgotResetToken, newPassword: newPwd })
+    });
+    const j = await r.json();
+    if (j.code === 0) {
+      msgEl.textContent = '✅ ' + j.message;
+      msgEl.style.color = '#22c55e';
+      setTimeout(() => {
+        hideForgotPwd();
+        toast('✅ 密码已重置，请用新密码登录');
+      }, 1500);
+    } else {
+      msgEl.textContent = '❌ ' + j.message;
+      msgEl.style.color = '#ef4444';
+    }
+  } catch(e) {
+    msgEl.textContent = '❌ 重置失败，请检查网络';
+    msgEl.style.color = '#ef4444';
+  }
+  document.getElementById('forgotResetBtn').disabled = false;
+  document.getElementById('forgotResetBtn').textContent = '🔑 重置密码';
+}
+async function doLogout() {
+  // 显示确认对话框
+  const confirmed = await confirmDialog('确认退出', '确定要退出当前账号吗？');
+  if (!confirmed) return;
+  
+  myStudentId = '';
+  myClassName = '';
+  myStudentToken = '';
+  localStorage.removeItem('myStudentId');
+  localStorage.removeItem('myClassName');
+  localStorage.removeItem('myStudentToken');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('forcePwdOverlay').style.display = 'none';
+  document.getElementById('userBar').style.display = 'none';
+  // 重置所有功能状态
+  resetCi();
+  document.getElementById('lvReason').value = '';
+  document.getElementById('lvMyList').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
+  document.getElementById('clMyList').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
+  document.getElementById('myRecords').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loginStudentInfo').textContent = '';
+  toast('👋 已退出');
+}
+
+// ===== 查寝 =====
+function checkCiReady(){
+  const loc=locState.ci, p=photoData;
+  // 摄像头模式下要求通过活体检测；模型未就绪时降级放行（后端会如实标记 liveness_passed=0）
+  const livenessOk = (camMode==='ci' && photoData && photoData.startsWith('data:image'))
+    ? (landmarkLoaded ? livenessPassed : true)
+    : true;
+  document.getElementById('ciSubmit').disabled = !(myStudentId&&loc&&p&&livenessOk);
+  const hint=document.getElementById('ciLivenessStatus');
+  if(!livenessOk && hint){
+    hint.textContent='⚠️ 请先完成活体检测（眨眨眼）再提交';
+  }
+}
+// 加载查寝记录
+async function loadCheckinData() {
+  const list = document.getElementById('ciRecordsList');
+  if (!list) return;
+  
+  if (!myStudentId) {
+    list.innerHTML = '<div class="empty-state"><p>请先登录查看</p></div>';
+    return;
+  }
+  
+  try {
+    showLoadingAuto('加载查寝记录...', 2000);
+    list.innerHTML = '<div class="empty-state"><p>⏳ 加载中...</p></div>';
+    const r = await fetch(`/api/records?student_id=${myStudentId}&type=checkin&_t=${Date.now()}`);
+    const j = await r.json();
+    hideLoading();
+    
+    if (j.code !== 0 || !j.data || j.data.length === 0) {
+      list.innerHTML = '<div class="empty-state"><p>暂无查寝记录</p></div>';
+      document.getElementById('ciWeekStats').style.display = 'none';
+      return;
+    }
+    
+    // 本周统计
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekStart = weekAgo.toISOString().slice(0, 10);
+    const weekRecords = j.data.filter(r => r.date >= weekStart);
+    const weekChecked = weekRecords.filter(r => r.status === '在寝').length;
+    const leaveStatuses = ['未归','病假','事假','公假','丧假','请假'];
+    const weekMissed = weekRecords.filter(r => leaveStatuses.includes(r.status)).length;
+    document.getElementById('ciWeekChecked').textContent = weekChecked;
+    document.getElementById('ciWeekMissed').textContent = weekMissed;
+    document.getElementById('ciWeekStats').style.display = 'block';
+    
+    list.innerHTML = j.data.map(rec => {
+      const isLeave = ['病假','事假','公假','丧假','请假'].includes(rec.status);
+      const statusColor = rec.status === '在寝' ? '#22c55e' : isLeave ? '#f59e0b' : '#ef4444';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9">
+        <div>
+          <div style="font-size:13px;font-weight:500">${fmtTime(rec.time, rec.date)}</div>
+          <div style="font-size:12px;color:#94a3b8">${rec.status==='在寝' && rec.address ? esc(rec.address) : ''}</div>
+        </div>
+        <span style="font-size:12px;padding:3px 10px;border-radius:12px;background:${statusColor}20;color:${statusColor};font-weight:500">${esc(rec.status)||''}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('加载查寝记录失败:', e);
+    hideLoading();
+    list.innerHTML = '<div class="empty-state"><p>加载失败: ' + e.message + '</p></div>';
+  }
+}
+function startLocate(mode){
+  const btn = document.getElementById(mode+'Locate');
+  if (!navigator.geolocation) { toast('⚠️ 浏览器不支持定位'); return; }
+  
+  btn.disabled=true; btn.textContent='⏳ 高精度定位中...';
+  
+  // 多次采样提高精度
+  let samples = [];
+  let maxSamples = 5; // 最多采样5次
+  let sampleCount = 0;
+  
+  function sampleLocation() {
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          samples.push({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 100
+          });
+          sampleCount++;
+          
+          // 显示进度条
+          const progress = Math.round((sampleCount / maxSamples) * 100);
+          const avgAcc = (samples.reduce((sum, s) => sum + s.accuracy, 0) / samples.length).toFixed(0);
+          
+          const progressDiv = document.getElementById(mode+'LocProgress');
+          const progressBar = document.getElementById(mode+'LocProgressBar');
+          const progressText = document.getElementById(mode+'LocProgressText');
+          
+          if (progressDiv) {
+            progressDiv.style.display = 'block';
+            if (progressBar) progressBar.style.width = progress + '%';
+            if (progressText) progressText.textContent = `采样中... (${sampleCount}/${maxSamples}) 当前精度: ${avgAcc}米`;
+          }
+          
+          document.getElementById(mode+'Address').textContent = `采样中... (${sampleCount}/${maxSamples}) 平均精度: ${avgAcc}米`;
+          
+          if (sampleCount >= maxSamples) {
+            resolve();
+          } else {
+            // 等待1秒后继续采样
+            setTimeout(sampleLocation, 1000);
+          }
+        },
+        (err) => {
+          console.warn('采样失败:', err);
+          resolve(); // 即使失败也继续
+        },
+        {
+          enableHighAccuracy: true, // 启用高精度（使用GPS）
+          timeout: 15000,           // 延长超时时间
+          maximumAge: 0             // 不使用缓存位置
+        }
+      );
+    });
+  }
+  
+  // 开始采样
+  sampleLocation().then(async () => {
+    // 计算平均位置（按精度加权）
+    if (samples.length === 0) {
+      toast('⚠️ 定位失败，请检查GPS权限');
+      btn.disabled=false; 
+      btn.textContent='📍 获取位置';
+      return;
+    }
+    
+    // 加权平均：精度越高（数值越小）权重越大
+    const totalWeight = samples.reduce((sum, s) => sum + (1 / s.accuracy), 0);
+    const avgLat = samples.reduce((sum, s) => sum + (s.lat / s.accuracy), 0) / totalWeight;
+    const avgLng = samples.reduce((sum, s) => sum + (s.lng / s.accuracy), 0) / totalWeight;
+    const avgAccuracy = samples.reduce((sum, s) => sum + s.accuracy, 0) / samples.length;
+    
+    const finalAccuracy = avgAccuracy.toFixed(0);
+    locState[mode] = {lat: avgLat, lng: avgLng, accuracy: parseInt(finalAccuracy)};
+    
+    // 先显示坐标
+    const coordAddr = `${avgLat.toFixed(6)}, ${avgLng.toFixed(6)}`;
+    document.getElementById(mode+'Address').textContent = coordAddr + `（正在获取地址...）`;
+    document.getElementById(mode+'LocInfo').style.display = 'block';
+      
+      // 使用腾讯地图API进行逆地理编码（国内可用）
+      try {
+        // 先从服务器获取地图配置
+        const configRes = await fetch('/api/config/map');
+        const mapConfig = await configRes.json();
+        
+        if (mapConfig.provider === 'tencent' && mapConfig.tencentKey) {
+          // 使用腾讯地图
+          const txUrl = `https://apis.map.qq.com/ws/geocoder/v1/?location=${avgLat},${avgLng}&key=${mapConfig.tencentKey}`;
+          const r = await fetch(txUrl);
+          const d = await r.json();
+          
+          if (d.status === 0 && d.result) {
+            const addr = d.result.address;
+            const precise = d.result.address_detail;
+            const parts = [];
+            if (precise.province) parts.push(precise.province);
+            if (precise.city) parts.push(precise.city);
+            if (precise.district) parts.push(precise.district);
+            if (precise.street) parts.push(precise.street);
+            if (precise.nearby) parts.push(precise.nearby[0]); // 取第一个附近地标
+            
+            const addressText = parts.length > 0 ? parts.join(' ') : addr;
+            document.getElementById(mode+'Address').textContent = addressText + `（精度：${finalAccuracy}米）`;
+          }
+        } else if (mapConfig.provider === 'baidu' && mapConfig.baiduKey) {
+          // 使用百度地图
+          const bdUrl = `https://api.map.baidu.com/reverse_geocoding/v3/?ak=${mapConfig.baiduKey}&location=${avgLat},${avgLng}&output=json&coordtype=wgs84ll`;
+          const r = await fetch(bdUrl);
+          const d = await r.json();
+          
+          if (d.status === 0 && d.result) {
+            const addressText = d.result.formatted_address + `（精度：${finalAccuracy}米）`;
+            document.getElementById(mode+'Address').textContent = addressText;
+          }
+        } else {
+          throw new Error('未配置地图API');
+        }
+      } catch(e) {
+        // 地址解析失败，回退到坐标显示
+        console.warn('地址解析失败:', e);
+        const accText = `（精度：${finalAccuracy}米）`;
+        document.getElementById(mode+'Address').textContent = coordAddr + accText;
+      }
+      
+      // 隐藏进度条
+      const progressDiv = document.getElementById(mode+'LocProgress');
+      if (progressDiv) progressDiv.style.display = 'none';
+      
+      btn.className='locate-btn success'; btn.textContent='✅ 定位成功'; btn.disabled=false;
+      if(mode==='ci') checkCiReady();
+      if(mode==='cl') checkClReady();
+  });
+}
+
+// 人脸模型加载（仅在需要时触发）
+// 优先加载本地模型（离线可用），失败则回退 CDN
+async function loadFaceModels() {
+  if (modelsLoaded) return;
+  await loadFaceApi(); // 先确保 face-api.js 已加载
+  const sources = [
+    '/models/',  // 本地优先（离线/答辩演示稳定）
+    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'
+  ];
+  let lastErr = null;
+  for (const base of sources) {
+    try {
+      await faceapi.nets.tinyFaceDetector.loadFromUri(base);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(base);   // 68点关键点：眨眼检测
+      await faceapi.nets.faceExpressionNet.loadFromUri(base);    // 表情：blink 概率辅助
+      modelsLoaded = true;
+      landmarkLoaded = true;
+      console.log('✓ 人脸模型已加载:', base);
+      return;
+    } catch (e) {
+      lastErr = e;
+      console.warn('模型加载失败，尝试下一个源:', base, e.message);
+    }
+  }
+  modelsLoaded = false;
+  landmarkLoaded = false;
+  throw lastErr || new Error('模型加载失败');
+}
+
+async function toggleCam(mode){
+  const video=document.getElementById(mode+'Video');
+  const ph=document.getElementById(mode+'CamPlaceholder');
+  
+  // 如果摄像头已经在运行，直接拍照
+  if (cameraStream) { 
+    capturePhoto(mode); 
+    return; 
+  }
+  
+  // 检查浏览器是否支持摄像头
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    let msg = '⚠️ 当前浏览器不支持摄像头功能';
+    const ua = navigator.userAgent;
+    
+    if (/MicroMessenger/i.test(ua)) {
+      msg += '（微信内置浏览器限制，请使用手机自带Chrome/Safari）';
+    } else if (/QQ\//i.test(ua) || /MQQBrowser/i.test(ua)) {
+      msg += '（QQ内置浏览器限制，请使用手机自带Chrome/Safari）';
+    } else if (/Android/i.test(ua) || /iPhone|iPad|iPod/i.test(ua)) {
+      // 移动端HTTP下getUserMedia不可用，引导使用上传照片
+      msg += '（手机浏览器通过HTTP访问无法使用摄像头，请点击下方「📁 上传照片」按钮代替）';
+    } else {
+      msg += '（请使用Chrome/Safari浏览器）';
+    }
+    
+    toast(msg);
+    return;
+  }
+  
+  // 检查HTTPS/localhost（移动端必须HTTPS才能使用摄像头）
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    if (isMobile) {
+      toast('⚠️ 手机浏览器摄像头需要HTTPS连接，请点击下方「📁 上传照片」按钮拍照');
+    } else {
+      toast('⚠️ 摄像头功能需要HTTPS连接，请使用HTTPS地址访问');
+    }
+    return;
+  }
+  
+  // 首次使用摄像头时，异步加载人脸检测模型（不阻塞界面）
+  loadFaceModels().catch(() => {}); // 加载失败也不影响拍照功能
+  
+  try{
+    // 简化约束，提高兼容性
+    const constraints = { 
+      video: { 
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+    
+    // 尝试获取摄像头
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // 检查是否成功获取到视频流
+    if (!cameraStream.getVideoTracks().length) {
+      throw new Error('未获取到视频轨道');
+    }
+    
+    video.srcObject = cameraStream;
+    video.style.display = 'block';
+    ph.style.display = 'none';
+    document.getElementById(mode+'Overlay').style.display = 'block';
+    camMode = mode;
+    
+    // 等待视频加载
+    await new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        video.play().then(resolve).catch(resolve);
+      };
+    });
+    
+    if(mode==='ci'){
+      document.getElementById('ciFaceHint').style.display='block';
+      // 启动活体检测引导
+      const lb=document.getElementById('ciLivenessBox');
+      if(lb) lb.style.display='block';
+      document.getElementById('ciCamBox').classList.add('has-liveness');
+      resetLivenessState();
+      livenessActive=true; livenessMode='ci';
+      if(modelsLoaded) detInterval=setInterval(()=>detectFace('ci'),300);
+    }
+  }catch(e){ 
+    let msg = '⚠️ 无法访问摄像头';
+    if (e.name === 'NotAllowedError') {
+      msg = '⚠️ 摄像头权限被拒绝，请在浏览器设置中允许访问摄像头';
+    } else if (e.name === 'NotFoundError') {
+      msg = '⚠️ 未找到摄像头设备';
+    } else if (e.message === '未获取到视频轨道') {
+      msg = '⚠️ 摄像头获取失败';
+    } else if(location.protocol !== 'https:' && location.hostname === 'localhost') {
+      msg += '（本地开发环境请在地址栏右侧点击摄像头图标允许）';
+    } else if(location.protocol !== 'https:') {
+      msg += '；摄像头功能需要HTTPS协议';
+    }
+    toast(msg); 
+    console.error('Camera error:', e);
+  }
+}
+
+// 计算眼睛纵横比 EAR（Eye Aspect Ratio）：闭眼时接近 0，睁眼时约 0.3
+function computeEAR(eyePts){
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const v1=dist(eyePts[1],eyePts[5]); // 垂直
+  const v2=dist(eyePts[2],eyePts[4]); // 垂直
+  const h=dist(eyePts[0],eyePts[3]);  // 水平
+  return (v1+v2)/(2*h);
+}
+
+// 综合人脸检测 + 活体检测（眨眼）
+async function detectFace(mode){
+  const video=document.getElementById(mode+'Video'),overlay=document.getElementById(mode+'Overlay');
+  if(!video.videoWidth)return;
+  overlay.width=video.videoWidth; overlay.height=video.videoHeight;
+  const ctx=overlay.getContext('2d'); ctx.clearRect(0,0,overlay.width,overlay.height);
+  try{
+    let det;
+    if(landmarkLoaded){
+      det=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}))
+        .withFaceLandmarks().withFaceExpressions();
+    } else {
+      det=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}));
+    }
+    if(det){
+      faceDetected=true;
+      ctx.strokeStyle='#00ff88'; ctx.lineWidth=3; ctx.strokeRect(det.box.x,det.box.y,det.box.width,det.box.height);
+      const hint=document.getElementById(mode+'FaceHint');
+      if(hint) hint.textContent='✅ 检测到人脸！';
+      // 活体检测（仅查寝签到场景）
+      if(mode==='ci' && landmarkLoaded && livenessActive) analyzeLiveness(det);
+    } else {
+      faceDetected=false;
+      const hint=document.getElementById(mode+'FaceHint');
+      if(hint) hint.textContent='😊 未检测到人脸';
+    }
+  }catch(e){}
+}
+
+// 活体分析：基于双眼 EAR + 表情 blink 概率做眨眼边沿检测
+function analyzeLiveness(det){
+  let ear=1;
+  try{
+    const left=det.landmarks.getLeftEye();
+    const right=det.landmarks.getRightEye();
+    ear=(computeEAR(left)+computeEAR(right))/2;
+  }catch(e){ ear=1; }
+
+  // 表情模型的 blink 概率（辅助信号）
+  let exprBlink=0;
+  try{ exprBlink=det.expressions?.blink||0; }catch(e){}
+
+  const closed = ear < 0.21 || exprBlink > 0.4;
+  const open = ear > 0.27 && exprBlink < 0.25;
+
+  // 眨眼边沿：闭 -> 开 视为一次有效眨眼
+  if(eyeState==='closed' && open){
+    blinkCount++;
+    livenessScore=Math.min(1, livenessScore+0.5);
+    if(blinkCount>=1){
+      livenessPassed=true;
+      updateLivenessUI();
+    }
+  }
+  if(closed) eyeState='closed';
+  else if(open) eyeState='open';
+
+  // 实时状态文案
+  const st=document.getElementById('ciLivenessStatus');
+  if(st){
+    if(livenessPassed){
+      st.textContent='✅ 活体检测通过（已识别真人眨眼）';
+    } else if(closed){
+      st.textContent='👁️ 检测到闭眼...请自然眨眼';
+    } else if(blinkCount===0){
+      st.textContent='请面向摄像头并眨一下眼睛 😉';
+    } else {
+      st.textContent='继续保持良好的光线...';
+    }
+  }
+}
+
+// 更新活体检测 UI 进度与步骤
+function updateLivenessUI(){
+  const faceStep=document.querySelector('#ciLivenessSteps [data-step="face"]');
+  const blinkStep=document.querySelector('#ciLivenessSteps [data-step="blink"]');
+  const bar=document.getElementById('ciLivenessBar');
+  if(faceStep) faceStep.className='liveness-step '+(faceDetected?'done':'active');
+  if(blinkStep){
+    if(livenessPassed){ blinkStep.className='liveness-step done'; blinkStep.textContent='② 眨眼 ✓'; }
+    else { blinkStep.className='liveness-step active'; }
+  }
+  if(bar){ bar.style.width = livenessPassed ? '100%' : (blinkCount>0?'60%':'30%'); }
+}
+
+// 重置活体检测状态（重拍/重新打开摄像头时）
+function resetLivenessState(){
+  livenessPassed=false; livenessScore=0; blinkCount=0; eyeState='open';
+  const st=document.getElementById('ciLivenessStatus');
+  if(st) st.textContent='请将人脸对准框内并眨眨眼 😉';
+  updateLivenessUI();
+}
+
+// 图片压缩工具
+function compressImage(base64, quality = 0.7, maxWidth = 1200) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      
+      // 计算压缩后的尺寸
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      const compressed = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressed);
+    };
+    img.onerror = () => resolve(base64); // 压缩失败返回原图
+    img.src = base64;
+  });
+}
+
+function capturePhoto(mode){
+  const video=document.getElementById(mode+'Video'),img=document.getElementById(mode+'Photo');
+  const c=document.createElement('canvas'); c.width=video.videoWidth||320; c.height=video.videoHeight||240;
+  const ctx=c.getContext('2d'); ctx.drawImage(video,0,0,c.width,c.height);
+  photoData=c.toDataURL('image/jpeg',0.85);
+  
+  // 异步压缩图片（不阻塞界面）
+  compressImage(photoData, 0.7, 800).then(compressed => {
+    photoData = compressed;
+    img.src = photoData;
+    img.style.display = 'block';
+    video.style.display = 'none';
+    document.getElementById(mode+'Overlay').style.display = 'none';
+    
+    const hint = document.getElementById(mode+'FaceHint');
+    if(hint) hint.style.display = 'none';
+
+    // 更新按钮文字
+    const camBtns = document.getElementById(mode+'CamBox').parentElement.querySelectorAll('.cam-btn');
+    camBtns.forEach(b => b.textContent = '📷 重拍');
+    const retake = document.getElementById(mode+'Retake');
+    if(retake) retake.style.display = 'inline-flex';
+
+    // 查寝场景：拍照后定格活体检测进度，停止实时循环（保留结果）
+    if(mode==='ci'){
+      livenessActive=false;
+      document.getElementById('ciCamBox').classList.remove('has-liveness');
+      const lb=document.getElementById('ciLivenessBox');
+      if(lb) lb.style.display='none';
+      checkCiReady();
+    }
+    if(mode==='lv') checkLvReady();
+    stopCam();
+  });
+}
+
+function retakeCam(mode){
+  photoData=''; faceDetected=false;
+  document.getElementById(mode+'Photo').style.display='none';
+  document.getElementById(mode+'Retake').style.display='none';
+  const fi=document.getElementById(mode+'FileInput');
+  if(fi)fi.value='';
+  resetLivenessState();
+  toggleCam(mode);
+}
+
+function stopCam(){
+  if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}
+  if(detInterval){clearInterval(detInterval);detInterval=null;}
+  document.querySelectorAll('video').forEach(v=>v.style.display='none');
+  document.querySelectorAll('canvas[style*="block"]').forEach(c=>c.style.display='none');
+}
+
+// 提交查寝
+document.getElementById('ciSubmit').onclick=async function(){
+  const btn=this; btn.disabled=true; btn.textContent='⏳ 提交中...';
+  if(!myStudentId){toast('⚠️ 请先登录');btn.disabled=false;btn.textContent='✅ 提交签到';return;}
+  
+  // 显示确认对话框
+  const confirmed = await confirmDialog('确认签到', '确定要提交签到吗？');
+  if (!confirmed) {
+    btn.disabled = false;
+    btn.textContent = '✅ 提交签到';
+    return;
+  }
+  
+  const checkinData = {
+    student_id:myStudentId,date:todayStr(),status:'在寝',
+    note:document.getElementById('ciNote').value.trim(),
+    latitude:locState.ci?.lat,longitude:locState.ci?.lng,
+    address:document.getElementById('ciAddress').textContent,
+    photo:photoData
+  };
+  
+  // 尝试提取人脸特征
+  let faceHash = null;
+  if (typeof faceapi !== 'undefined' && photoData && myStudentId) {
+    try {
+      const faceVec = await extractFaceEmbedding(photoData);
+      if (faceVec) {
+        faceHash = JSON.stringify(faceVec);
+      }
+    } catch (e) {
+      console.warn('人脸特征提取失败，将继续无人脸验证签到:', e.message);
+      faceHash = null;
+    }
+  }
+
+  const checkinPayload = {
+    ...checkinData,
+    face_hash: faceHash,
+    liveness_passed: livenessPassed ? 1 : 0,
+    liveness_score: Math.round(livenessScore * 100) / 100,
+    offline: false
+  };
+
+  // 检测网络状态
+  if(isOnline){
+    const headers = {'Content-Type':'application/json'};
+    if (myStudentToken) headers['x-student-token'] = myStudentToken;
+    const res=await fetch('/api/checkin',{
+      method:'POST',headers,
+      body:JSON.stringify(checkinPayload)
+    });
+    const j=await res.json();
+    if(j.code===0){
+      let msg = '签到成功！';
+      if (faceHash) msg = '✅ 签到成功！人脸识别通过';
+      else msg = '✅ 签到成功！（该学生尚未注册人脸）';
+      toast(msg);
+      resetCi();
+      loadCheckinData();
+    } else {
+      toast('⚠️ '+j.message);
+      btn.disabled=false; btn.textContent='✅ 提交签到';
+    }
+  } else {
+    // 离线模式：同时保存到 IndexedDB 和内存队列
+    const offlineRecord = {
+      type: 'checkin',
+      userId: myStudentId,
+      data: checkinData,
+      synced: false,
+      createdAt: new Date().toISOString()
+    };
+    saveOfflineRecord(offlineRecord).then(() => {
+      OFFLINE_QUEUE.push(offlineRecord);
+      saveOfflineQueue();
+      toast('📴 离线模式：数据已保存，联网后将自动同步');
+    }).catch(() => {
+      // IndexedDB 不可用时回退到 localStorage
+      const offlineAction = { id: 'off_' + Date.now(), type: 'checkin', userId: myStudentId, data: checkinData, timestamp: new Date().toISOString() };
+      OFFLINE_QUEUE.push(offlineAction);
+      saveOfflineQueue();
+      toast('📴 离线模式：数据已保存');
+    });
+    resetCi();
+  }
+};
+
+function resetCi(){
+  photoData=''; locState.ci=null;
+  document.getElementById('ciPhoto').style.display='none';
+  document.getElementById('ciRetake').style.display='none';
+  document.getElementById('ciCamBtn').textContent='📷 拍照';
+  document.getElementById('ciLocate').className='locate-btn'; document.getElementById('ciLocate').textContent='📍 获取位置';
+  document.getElementById('ciLocInfo').style.display='none';
+  document.getElementById('ciLocProgress').style.display='none';
+  document.getElementById('ciSubmit').disabled=true;
+}
+
+// 上传照片功能（摄像头不可用时的备选方案）
+function uploadPhoto(mode) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment'; // 优先调用后置摄像头
+  
+  input.onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // 检查文件大小（最大10MB，压缩后会变小）
+    if (file.size > 10 * 1024 * 1024) {
+      toast('⚠️ 图片大小不能超过10MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const originalData = event.target.result;
+      
+      // 压缩图片
+      compressImage(originalData, 0.7, 800).then(compressed => {
+        photoData = compressed;
+        const img = document.getElementById(mode + 'Photo');
+        img.src = photoData;
+        img.style.display = 'block';
+        
+        // 隐藏摄像头相关元素
+        const video = document.getElementById(mode + 'Video');
+        video.style.display = 'none';
+        document.getElementById(mode + 'Overlay').style.display = 'none';
+        document.getElementById(mode + 'CamPlaceholder').style.display = 'none';
+        
+        // 显示重拍按钮
+        document.getElementById(mode + 'Retake').style.display = 'inline-block';
+        document.getElementById(mode + 'CamBtn').textContent = '📷 重新拍照';
+        
+        // 显示压缩信息
+        const originalSize = Math.round(originalData.length * 0.75 / 1024);
+        const compressedSize = Math.round(compressed.length * 0.75 / 1024);
+        toast(`✅ 照片已加载 (${originalSize}KB → ${compressedSize}KB)`);
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  input.click();
+}
+
+// ===== 请假 =====
+function checkLvReady(){
+  document.getElementById('lvSubmit').disabled=!myStudentId
+    ||!document.getElementById('lvReason').value.trim();
+}
+document.getElementById('lvStart').value=todayStr();
+document.getElementById('lvEnd').value=todayStr();
+document.getElementById('lvReason').oninput=()=>checkLvReady();
+
+function handleFileUpload(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    photoData=ev.target.result;
+    document.getElementById('lvPhoto').src=photoData;
+    document.getElementById('lvPhoto').style.display='block';
+    document.getElementById('lvCamPlaceholder').style.display='none';
+    document.getElementById('lvRetake').style.display='inline-flex';
+    checkLvReady();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitLeave(){
+  const btn=document.getElementById('lvSubmit'); btn.disabled=true; btn.textContent='⏳ 提交中...';
+  
+  // 显示确认对话框
+  const confirmed = await confirmDialog('确认提交', '确定要提交请假申请吗？');
+  if (!confirmed) {
+    btn.disabled = false;
+    btn.textContent = '📤 提交申请';
+    return;
+  }
+  
+  const fd=new FormData();
+  fd.append('student_id', myStudentId);
+  fd.append('type', document.getElementById('lvType').value);
+  fd.append('reason', document.getElementById('lvReason').value.trim());
+  fd.append('start_date', document.getElementById('lvStart').value);
+  fd.append('end_date', document.getElementById('lvEnd').value);
+  // 如果有照片数据(base64)，转为Blob附加到FormData
+  if(photoData){
+    const byteString=atob(photoData.split(',')[1]);
+    const ab=new ArrayBuffer(byteString.length);
+    const ua=new Uint8Array(ab);
+    for(let i=0;i<byteString.length;i++) ua[i]=byteString.charCodeAt(i);
+    const blob=new Blob([ab],{type:'image/jpeg'});
+    fd.append('attachment', blob, 'leave_photo.jpg');
+  }
+  const headers = {};
+  if (myStudentToken) headers['x-student-token'] = myStudentToken;
+  const res=await fetch('/api/leaves',{method:'POST',headers,body:fd});
+  const j=await res.json();
+  if(j.code===0){
+    toast('✅ 请假已提交，等待审批');
+    document.getElementById('lvReason').value='';
+    document.getElementById('lvPhoto').style.display='none';
+    const retake=document.getElementById('lvRetake');
+    if(retake)retake.style.display='none';
+    photoData='';
+    loadMyLeaves();
+    checkLvReady();
+  } else toast('⚠️ '+j.message);
+  btn.disabled=false; btn.textContent='📤 提交申请';
+}
+
+async function loadMyLeaves(){
+  if(!myStudentId) return;
+  const r=await fetch(`/api/leaves?student_id=${myStudentId}&_t=${Date.now()}`);
+  const j=await r.json();
+  const container=document.getElementById('lvMyList');
+  if(!j.data||!j.data.length){container.innerHTML='<div class="empty-state"><p>暂无请假记录</p></div>';return;}
+  container.innerHTML=j.data.map(l=>{
+    const tc=l.status==='已批准'?'tag-green':l.status==='已驳回'?'tag-red':'tag-yellow';
+    const att=l.attachment_path?`<span style="font-size:12px;color:#4f46e5;cursor:pointer" onclick="window.open('${esc(l.attachment_path)}','_blank')">📎 查看附件</span>`:'';
+    return `<div class="list-item"><div class="left">
+      <div class="title">${esc(l.type)} · <span class="tag ${tc}">${esc(l.status)}</span></div>
+      <div class="meta">${esc(l.start_date)} ~ ${esc(l.end_date)} · ${esc(l.reason).slice(0,30)}${l.reason.length>30?'...':''}</div>
+      ${l.comment?`<div class="meta">审批意见：${esc(l.comment)}</div>`:''}
+      ${att?`<div class="meta">${att}</div>`:''}
+    </div></div>`;
+  }).join('');
+}
+
+// ===== 课堂签到 =====
+async function loadCourses(){
+  let url = `/api/courses?date=${todayStr()}&_t=${Date.now()}`;
+  if (myClassName) url += `&class_name=${encodeURIComponent(myClassName)}`;
+  const r=await fetch(url);
+  const j=await r.json();
+  const sel=document.getElementById('clCourse');
+  sel.innerHTML='<option value="">请选择</option>';
+  if(j.data && j.data.length){
+    j.data.forEach(c=>{sel.innerHTML+=`<option value="${c.id}">${esc(c.name)||''} ${esc(c.start_time)||''} ${esc(c.location)||''}</option>`;});
+  } else {
+    // 显示友好提示
+    const tip = myClassName 
+      ? `今日无课程（班级：${myClassName}）`
+      : '今日无课程';
+    const opt = document.createElement('option');
+    opt.value = ''; opt.disabled = true; opt.textContent = tip;
+    sel.appendChild(opt);
+  }
+}
+document.getElementById('clCourse').onchange=()=>checkClReady();
+function checkClReady(){
+  const c=document.getElementById('clCourse').value;
+  const loc=locState.cl;
+  // 启用定位按钮（只要选了课程就可以定位）
+  document.getElementById('clLocate').disabled = !c;
+  // 签到按钮需要：学生ID + 课程 + 位置
+  document.getElementById('clSubmit').disabled=!(myStudentId&&c&&loc);
+}
+document.getElementById('clSubmit').onclick=async function(){
+  const btn=this; btn.disabled=true; btn.textContent='⏳ 签到中...';
+  const headers = {'Content-Type':'application/json'};
+  if (myStudentToken) headers['x-student-token'] = myStudentToken;
+  const res=await fetch('/api/class-checkin',{
+    method:'POST',headers,
+    body:JSON.stringify({
+      student_id:myStudentId,
+      course_id:document.getElementById('clCourse').value,
+      date:todayStr(),
+      latitude:locState.cl.lat,longitude:locState.cl.lng,
+      address:document.getElementById('clAddress').textContent
+    })
+  });
+  const j=await res.json();
+  if(j.code===0){toast('✅ '+j.message);locState.cl=null;document.getElementById('clLocate').className='locate-btn';document.getElementById('clLocate').textContent='📍 获取位置';document.getElementById('clLocInfo').style.display='none';document.getElementById('clSubmit').disabled=true;loadMyClass();}
+  else toast('⚠️ '+j.message);
+  btn.disabled=false; btn.textContent='✅ 签到';
+};
+async function loadMyClass(){
+  if(!myStudentId)return;
+  const r=await fetch(`/api/records?student_id=${myStudentId}&type=class,attendance&_t=${Date.now()}`);
+  const j=await r.json();
+  const my=(j.data||[]).slice(0,10);
+  const container=document.getElementById('clMyList');
+  if(!my.length){container.innerHTML='<div class="empty-state"><p>暂无课堂签到记录</p></div>';return;}
+  container.innerHTML=my.map(d=>`<div class="list-item"><div class="left"><div class="title">🏫 ${esc(d.course_name)||'课堂'} <span class="tag tag-green">${esc(d.status)}</span></div><div class="meta">${fmtTime(d.time, d.date)}</div></div></div>`).join('');
+}
+
+// ===== 我的记录 =====
+async function loadMyRecords(type){
+  if(!myStudentId){toast('⚠️ 请先选择身份');return;}
+  const container=document.getElementById('myRecords');
+  container.innerHTML='<div class="empty-state"><p>⏳ 加载中...</p></div>';
+  
+  const labels={checkin:{icon:'🏠',name:'查寝'},leave:{icon:'📝',name:'请假'},class:{icon:'🏫',name:'课堂'}};
+  const lb=labels[type]||{icon:'📋',name:'记录'};
+  const statusMap={'在寝':'tag-green','未归':'tag-red','请假':'tag-yellow','出勤':'tag-green','旷课':'tag-red','迟到':'tag-yellow','已批准':'tag-green','已驳回':'tag-red','待审批':'tag-yellow'};
+  
+  let data = [];
+  
+  if (type === 'leave') {
+    // 请假记录走单独的 /api/leaves 接口
+    const r = await fetch(`/api/leaves?student_id=${myStudentId}&_t=${Date.now()}`);
+    const j = await r.json();
+    data = (j.data || []).map(l => ({
+      status: l.status,
+      date: l.start_date,
+      time: l.end_date !== l.start_date ? ` ~ ${l.end_date}` : '',
+      course_name: l.type ? `(${l.type})` : '',
+      address: l.reason ? l.reason.slice(0, 40) : ''
+    }));
+  } else {
+    // 查寝和课堂记录走 /api/records 接口
+    const r = await fetch(`/api/records?student_id=${myStudentId}&type=${type}&_t=${Date.now()}`);
+    const j = await r.json();
+    data = j.data || [];
+  }
+  
+  if(!data.length){container.innerHTML='<div class="empty-state"><p>暂无记录</p></div>';return;}
+  
+  container.innerHTML=data.map(d=>{
+    const tc=statusMap[d.status]||'tag-gray';
+    return `<div class="list-item"><div class="left">
+      <div class="title">${lb.icon} ${lb.name} <span class="tag ${tc}">${esc(d.status)}</span></div>
+      <div class="meta">${fmtTime(d.time, d.date)} ${d.course_name?'· '+esc(d.course_name):''}</div>
+      ${d.address?`<div class="meta">📍 ${esc(d.address).slice(0,40)}</div>`:''}
+    </div></div>`;
+  }).join('');
+}
+
+// ===== 标签切换 =====
+function switchTab(name){
+  if(!myStudentId){toast('⚠️ 请先登录');return;}
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector(`.tab-btn[onclick*="'${name}'"]`).classList.add('active');
+  stopCam();
+  if(myRefreshTimer){clearInterval(myRefreshTimer);myRefreshTimer=null;}
+  if(name==='checkin') loadCheckinData();
+  if(name==='leave'){loadMyLeaves();document.getElementById('lvStart').value=todayStr();document.getElementById('lvEnd').value=todayStr();}
+  if(name==='class'){loadCourses();loadMyClass();}
+  if(name==='my'){loadMyStatistics();loadStudentDashboard();myRefreshTimer=setInterval(()=>{loadMyStatistics();loadStudentDashboard();},30000);}
+}
+
+// ===== 我的考勤统计 =====
+async function loadMyStatistics() {
+  if (!myStudentId) return;
+  
+  try {
+    // 加载查寝记录
+    const recR = await fetch(`/api/records?student_id=${myStudentId}&type=checkin&_t=${Date.now()}`);
+    const recJ = await recR.json();
+    const records = recJ.data || [];
+    
+    // 加载请假记录
+    const lvR = await fetch(`/api/leaves?student_id=${myStudentId}&_t=${Date.now()}`);
+    const lvJ = await lvR.json();
+    const leaves = lvJ.data || [];
+    
+    // 计算统计
+    const checked = records.filter(r => r.status === '在寝').length;
+    const absent = records.filter(r => r.status === '未归').length;
+    const total = records.length;
+    const rate = total > 0 ? Math.round((checked / total) * 100) : 0;
+    
+    document.getElementById('myChecked').textContent = checked;
+    document.getElementById('myAbsent').textContent = absent;
+    document.getElementById('myRate').textContent = total > 0 ? rate + '%' : '-';
+    
+    // 最近7天图表
+    const chart = document.getElementById('myWeeklyChart');
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    
+    chart.innerHTML = days.map(date => {
+      const dayRec = records.find(r => r.date === date);
+      const status = dayRec ? dayRec.status : '无';
+      const colors = { '在寝': '#10b981', '未归': '#ef4444', '请假': '#f59e0b', '无': '#e2e8f0' };
+      const heights = { '在寝': 80, '未归': 40, '请假': 55, '无': 10 };
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="width:100%;height:${heights[status]||10}px;background:${colors[status]};border-radius:4px;transition:all 0.3s"></div>
+        <span style="font-size:10px;color:var(--gray)">${date.slice(5)}</span>
+      </div>`;
+    }).join('');
+    
+    // 请假进度
+    const progress = document.getElementById('myLeaveProgress');
+    if (!leaves.length) {
+      progress.innerHTML = '<div class="empty-state"><p>暂无请假记录</p></div>';
+    } else {
+      const statusIcon = { '待审批': '⏳', '已批准': '✅', '已驳回': '❌' };
+      const statusClass = { '待审批': 'tg-yellow', '已批准': 'tg-green', '已驳回': 'tg-red' };
+      progress.innerHTML = leaves.map(l => `
+        <div class="lv-card">
+          <div class="hd">
+            <span class="nm">${statusIcon[l.status]||'📝'} ${esc(l.type)}假</span>
+            <span class="tag ${statusClass[l.status]||'tg-gray'}">${esc(l.status)}</span>
+          </div>
+          <div class="bd">
+            <b>日期：</b>${esc(l.start_date)} ~ ${esc(l.end_date)}<br/>
+            <b>原因：</b>${esc(l.reason)}
+            ${l.comment ? `<br/><b>审批意见：</b>${esc(l.comment)}` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('加载统计失败:', e);
+  }
+}
+
+// ===== 语音签到（应急模式） =====
+let recognition = null;
+let isRecording = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'zh-CN';
+  
+  recognition.onresult = (event) => {
+    let finalTranscript = '';
+    let interimTranscript = '';
+    
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript;
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+    
+    const voiceTextEl = document.getElementById('voiceText');
+    if (voiceTextEl) {
+      voiceTextEl.value = finalTranscript + interimTranscript;
+      document.getElementById('voiceSubmitBtn').disabled = !finalTranscript.trim();
+    }
+  };
+  
+  recognition.onerror = (event) => {
+    console.error('语音识别错误:', event.error);
+    document.getElementById('voiceStatus').textContent = '❌ 识别失败：' + event.error;
+    stopVoiceRecord();
+  };
+  
+  recognition.onend = () => {
+    isRecording = false;
+    const btn = document.getElementById('voiceRecordBtn');
+    if (btn) {
+      btn.textContent = '🎙️ 开始录音';
+      btn.disabled = false;
+    }
+  };
+}
+
+function toggleVoiceCheckin() {
+  const area = document.getElementById('voiceCheckinArea');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+function startVoiceRecord() {
+  if (!recognition) {
+    toast('⚠️ 您的浏览器不支持语音识别，请手动输入签到口令');
+    return;
+  }
+  
+  try {
+    recognition.start();
+    isRecording = true;
+    document.getElementById('voiceRecordBtn').textContent = '⏹️ 停止录音';
+    document.getElementById('voiceStatus').textContent = '🎤 正在录音，请说出签到内容...';
+  } catch (e) {
+    console.error('启动录音失败:', e);
+  }
+}
+
+function stopVoiceRecord() {
+  if (recognition && isRecording) {
+    recognition.stop();
+    isRecording = false;
+    const btn = document.getElementById('voiceRecordBtn');
+    if (btn) btn.textContent = '🎙️ 开始录音';
+    document.getElementById('voiceStatus').textContent = '✅ 录音结束';
+  }
+}
+
+async function submitVoiceCheckin() {
+  const text = document.getElementById('voiceText').value.trim();
+  if (!text) {
+    toast('⚠️ 请输入或说出签到口令');
+    return;
+  }
+  
+  const btn = document.getElementById('voiceSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 提交中...';
+  
+  try {
+    const headers = {};
+    if (myStudentToken) headers['x-student-token'] = myStudentToken;
+    
+    const res = await fetch('/api/voice-checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({
+        student_id: myStudentId,
+        text: text,
+        date: todayStr(),
+        note: '应急语音签到'
+      })
+    });
+    
+    const j = await res.json();
+    if (j.code === 0) {
+      toast('✅ 语音签到成功！');
+      document.getElementById('voiceText').value = '';
+      document.getElementById('voiceSubmitBtn').disabled = true;
+      loadCheckinData();
+    } else {
+      toast('⚠️ ' + j.message);
+      btn.disabled = false;
+      btn.textContent = '✅ 提交语音签到';
+    }
+  } catch (e) {
+    toast('⚠️ 提交失败：' + e.message);
+    btn.disabled = false;
+    btn.textContent = '✅ 提交语音签到';
+  }
+}
+
+// ===== 课堂语音签到 =====
+let clRecognition = null;
+let isClRecording = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  clRecognition = new SR();
+  clRecognition.continuous = true;
+  clRecognition.interimResults = true;
+  clRecognition.lang = 'zh-CN';
+  clRecognition.onresult = (ev) => {
+    let final = '', interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) final += t; else interim += t;
+    }
+    const el = document.getElementById('clVoiceText');
+    if (el) { el.value = final + interim; document.getElementById('clVoiceSubmitBtn').disabled = !final.trim(); }
+  };
+  clRecognition.onerror = () => { stopClVoiceRecord(); document.getElementById('clVoiceStatus').textContent = '❌ 识别失败，请重试'; };
+  clRecognition.onend = () => { isClRecording = false; const b=document.getElementById('clVoiceRecordBtn'); if(b){b.textContent='🎙️ 开始录音';b.disabled=false;} };
+}
+
+function toggleClVoiceCheckin() {
+  const a = document.getElementById('clVoiceArea');
+  a.style.display = a.style.display === 'none' ? 'block' : 'none';
+}
+
+function startClVoiceRecord() {
+  if (!clRecognition) { toast('⚠️ 浏览器不支持语音识别，请手动输入'); return; }
+  try {
+    clRecognition.start(); isClRecording = true;
+    document.getElementById('clVoiceRecordBtn').textContent='⏹️ 停止录音';
+    document.getElementById('clVoiceStatus').textContent='🎤 正在录音，请说出签到内容...';
+  } catch(e) { console.error(e); }
+}
+
+function stopClVoiceRecord() {
+  if (clRecognition && isClRecording) { clRecognition.stop(); isClRecording=false; const b=document.getElementById('clVoiceRecordBtn');if(b)b.textContent='🎙️ 开始录音'; document.getElementById('clVoiceStatus').textContent='✅ 录音结束'; }
+}
+
+async function submitClVoiceCheckin() {
+  const text = document.getElementById('clVoiceText').value.trim();
+  if (!text) { toast('⚠️ 请输入或说出签到口令'); return; }
+  const courseId = document.getElementById('clCourse').value;
+  if (!courseId) { toast('⚠️ 请先选择课程'); return; }
+
+  const btn = document.getElementById('clVoiceSubmitBtn');
+  btn.disabled=true; btn.textContent='⏳ 提交中...';
+  try {
+    const headers = {'Content-Type':'application/json'};
+    if (myStudentToken) headers['x-student-token'] = myStudentToken;
+    const res = await fetch('/api/class-checkin', {
+      method:'POST', headers,
+      body: JSON.stringify({
+        student_id: myStudentId, course_id: courseId,
+        date: todayStr(), note: '语音签到: '+text
+      })
+    });
+    const j = await res.json();
+    if (j.code===0) { toast('✅ 课堂语音签到成功！'); document.getElementById('clVoiceText').value=''; btn.disabled=true; loadMyClass(); }
+    else { toast('⚠️ '+j.message); btn.disabled=false; btn.textContent='✅ 提交语音签到'; }
+  } catch(e) { toast('⚠️ 提交失败：'+e.message); btn.disabled=false; btn.textContent='✅ 提交语音签到'; }
+}
+
+// ===== QR 扫码签到 =====
+let qrScannerInstance = null;
+let currentQrMode = '';
+
+function startQrScan(mode) {
+  if (!myStudentId) { toast('⚠️ 请先登录'); return; }
+  
+  // 检查 html5-qrcode 是否加载
+  if (typeof Html5Qrcode === 'undefined') {
+    toast('⚠️ 扫码库加载中，请稍后重试');
+    return;
+  }
+  
+  currentQrMode = mode;
+  const modeLabel = mode === 'ci' ? '查寝签到' : '课堂签到';
+  document.getElementById('qrScanMode').textContent = modeLabel;
+  document.getElementById('qrScannerOverlay').style.display = 'flex';
+  document.getElementById('qrScanResult').textContent = '正在启动摄像头...';
+  
+  // 创建扫码器
+  try {
+    qrScannerInstance = new Html5Qrcode('qrScannerContainer');
+    qrScannerInstance.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+      },
+      (decodedText) => {
+        // 扫码成功
+        handleQrResult(decodedText, mode);
+      },
+      () => {} // 忽略中间结果
+    ).catch(err => {
+      document.getElementById('qrScanResult').textContent = '❌ 摄像头启动失败: ' + err;
+      setTimeout(closeQrScanner, 3000);
+    });
+  } catch (e) {
+    document.getElementById('qrScanResult').textContent = '❌ 扫码初始化失败';
+    setTimeout(closeQrScanner, 2000);
+  }
+}
+
+function closeQrScanner() {
+  if (qrScannerInstance) {
+    try {
+      qrScannerInstance.stop().catch(() => {});
+    } catch(e) {}
+    qrScannerInstance = null;
+  }
+  document.getElementById('qrScannerOverlay').style.display = 'none';
+}
+
+async function handleQrResult(text, mode) {
+  // 停止扫描
+  if (qrScannerInstance) {
+    try { await qrScannerInstance.stop(); } catch(e) {}
+    qrScannerInstance = null;
+  }
+  
+  const resultEl = document.getElementById('qrScanResult');
+  resultEl.textContent = '✅ 扫码成功！处理中...';
+  
+  try {
+    let data;
+    // 尝试解析 JSON
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      // 如果不是 JSON，当作纯文本 token 处理
+      data = { type: mode === 'ci' ? 'checkin' : 'class', token: text };
+    }
+    
+    if (data.type === 'checkin' || data.type === 'ci' || mode === 'ci') {
+      // 查寝签到 - 直接用扫码结果签到
+      const note = data.note || data.remark || '扫码签到';
+      const headers = {'Content-Type': 'application/json'};
+      if (myStudentToken) headers['x-student-token'] = myStudentToken;
+      
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          student_id: myStudentId,
+          date: todayStr(),
+          status: '在寝',
+          note: note,
+          offline: false
+        })
+      });
+      const j = await res.json();
+      if (j.code === 0) {
+        toast('✅ 扫码签到成功！');
+        closeQrScanner();
+        loadCheckinData();
+      } else {
+        resultEl.textContent = '❌ 签到失败: ' + j.message;
+        setTimeout(closeQrScanner, 2000);
+      }
+    } else if (data.type === 'class' || mode === 'cl') {
+      // 课堂签到 - 获取或选择课程
+      const courseId = data.course_id || data.id || data.token;
+      const courseName = data.course_name || data.name || '';
+      
+      if (courseId) {
+        // 直接签到
+        const headers = {'Content-Type': 'application/json'};
+        if (myStudentToken) headers['x-student-token'] = myStudentToken;
+        
+        const res = await fetch('/api/class-checkin', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            student_id: myStudentId,
+            course_id: courseId,
+            date: todayStr(),
+            class_name: myClassName,
+            note: courseName || '扫码签到'
+          })
+        });
+        const j = await res.json();
+        if (j.code === 0) {
+          toast('✅ 课堂扫码签到成功！');
+          closeQrScanner();
+          loadMyClass();
+        } else {
+          resultEl.textContent = '❌ 签到失败: ' + j.message;
+          setTimeout(closeQrScanner, 2000);
+        }
+      } else {
+        resultEl.textContent = '❌ 无效的课堂二维码';
+        setTimeout(closeQrScanner, 2000);
+      }
+    } else {
+      resultEl.textContent = '❌ 不支持的二维码类型';
+      setTimeout(closeQrScanner, 2000);
+    }
+  } catch (e) {
+    resultEl.textContent = '❌ 处理失败: ' + e.message;
+    setTimeout(closeQrScanner, 2000);
+  }
+}
+
+// ===== 底部弹出确认框（替代原生 confirm）=====
+let _bottomSheetResolve = null;
+
+function showBottomSheet(title, body) {
+  return new Promise((resolve) => {
+    _bottomSheetResolve = resolve;
+    document.getElementById('bottomSheetTitle').textContent = title;
+    document.getElementById('bottomSheetBody').innerHTML = body;
+    document.getElementById('bottomSheet').style.display = 'block';
+  });
+}
+
+function confirmBottomSheet() {
+  document.getElementById('bottomSheet').style.display = 'none';
+  if (_bottomSheetResolve) _bottomSheetResolve(true);
+  _bottomSheetResolve = null;
+}
+
+function closeBottomSheet() {
+  document.getElementById('bottomSheet').style.display = 'none';
+  if (_bottomSheetResolve) _bottomSheetResolve(false);
+  _bottomSheetResolve = null;
+}
+
+// ===== 初始化 =====
+document.getElementById('checkinDate').textContent = '📅 '+todayStr();
+
+// ===== 夜间模式 =====
+if(localStorage.getItem('dark_mode')==='1')document.body.classList.add('dark');
+
+function toggleDark(){
+  document.body.classList.toggle('dark');
+  localStorage.setItem('dark_mode',document.body.classList.contains('dark')?'1':'0');
+}
+
+loadStudents();
+loadCourses();
+
+// ===== 加载动画工具 =====
+const loadingOverlay = document.createElement('div');
+loadingOverlay.className = 'loading-overlay';
+loadingOverlay.innerHTML = `
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">加载中...</div>
+`;
+document.body.appendChild(loadingOverlay);
+
+function showLoading(text = '加载中...') {
+  document.getElementById('loadingText').textContent = text;
+  loadingOverlay.classList.add('active');
+}
+
+function hideLoading() {
+  loadingOverlay.classList.remove('active');
+}
+
+// 自动隐藏加载动画（超时3秒）
+let loadingTimer = null;
+function showLoadingAuto(text = '加载中...', timeout = 3000) {
+  showLoading(text);
+  if (loadingTimer) clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(hideLoading, timeout);
+}
+</script>
+</body>
+</html>

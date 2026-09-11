@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+# 应用项目应锁定依赖版本（CI/复现构建需要）
+# package-lock.json
+
+# Environment variables
+.env
+.env.local
+
+# Data & Database
+data.db
+data/*.db
+data/*.json
+!data/.gitkeep
+config/*.db
+config/backups/
+config/logs/
+config/data.db
+
+# Uploads & Public assets (user-generated content)
+public/uploads/*
+!public/uploads/.gitkeep
+public/reports/
+public/models/
+public/icons/
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+server.log
+
+# SSL 证书（密钥，禁止入库；运行时可自动生成自签证书）
+ssl/*.key
+ssl/*.crt
+ssl/*.pem
+
+# Backups
+backups/
+!backups/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+.cleanup-project.js
+
+# API keys & sensitive configs (should be in .env)
+# SSL 证书（密钥，禁止入库；运行时可自动生成自签证书）
+ssl/*.key
+ssl/*.crt
+ssl/*.pem
+
+# AI 运行时数据（含密钥/会话）
+data/ai_config.json
+data/ai_sessions.json
+**/ai_config.json
+**/ai_sessions.json
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Docker volumes (if any)
+docker/volumes/

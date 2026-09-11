@@ -1,0 +1,39 @@
+/* ===== UI增强：教师端样式优化 ===== */
+
+/* 滚动条美化 */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+/* 导航栏微调 */
+.nav{background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 1px 8px rgba(0,0,0,0.04)}
+.nav::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--primary),transparent);opacity:0.3;pointer-events:none}
+.nav-tab:hover{transform:translateY(-1px)}
+.nav-tab.active{box-shadow:0 2px 8px rgba(79,70,229,0.3)}
+
+/* 按钮增强 */
+.btn:active{transform:scale(0.95)}
+.btn-p{background:linear-gradient(135deg,var(--primary),var(--primary-dark));box-shadow:0 2px 8px rgba(79,70,229,0.3)}
+.btn-p:hover{box-shadow:0 4px 14px rgba(79,70,229,0.4);transform:translateY(-1px)}
+.btn-s{background:linear-gradient(135deg,var(--success),#059669);box-shadow:0 2px 8px rgba(16,185,129,0.3)}
+.btn-s:hover{box-shadow:0 4px 14px rgba(16,185,129,0.4);transform:translateY(-1px)}
+.btn-d{background:linear-gradient(135deg,var(--danger),#dc2626);box-shadow:0 2px 8px rgba(239,68,68,0.3)}
+.btn-d:hover{box-shadow:0 4px 14px rgba(239,68,68,0.4);transform:translateY(-1px)}
+.btn-o:hover{transform:translateY(-1px)}
+
+/* 卡片增强 */
+.card:hover{border-color:#cbd5e1;box-shadow:0 4px 16px rgba(0,0,0,0.06)}
+.s-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+
+/* 登录页 - 玻璃拟态 */
+.login-overlay{background:linear-gradient(135deg,#eef2ff 0%,#f0f4ff 50%,#f8fafc 100%)}
+.login-overlay::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 40%,rgba(79,70,229,0.06) 0%,transparent 60%),radial-gradient(circle at 70% 60%,rgba(139,92,246,0.04) 0%,transparent 50%);pointer-events:none}
+.login-box{background:rgba(255,255,255,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(226,232,240,0.8);padding:36px 40px;border-radius:20px;width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.08);position:relative;animation:slideUp 0.4s ease}
+.login-box h1{font-size:22px;color:#0f172a;margin-bottom:4px}
+.login-box .sub{font-size:13px;color:#94a3b8;margin-bottom:24px}
+.input-group{text-align:left;margin-bottom:14px}
+.input-group label{font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:5px}
+.input-group input{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;outline:none;transition:all 0.2s;background:#fff}
+.input-group input:focus{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,0.08)}
+.err{display:none;background:#fce4ec;color:#991b1b;padding:8px 12px;border-radius:8px;font-size:13px;margin-top:10px}

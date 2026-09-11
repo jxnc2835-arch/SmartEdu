@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>清除缓存并登录</title>
+<script>
+// 强制禁用缓存并重定向
+window.location.href = '/teacher.html?t=' + Date.now();
+</script>
+</head>
+<body>
+<h1>正在清除缓存并重定向...</h1>
+<p>如果页面没有自动跳转，请点击：<a href="/teacher.html?t=<?= Date.now() ?>">teacher.html</a></p>
+</body>
+</html>

@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>学生管理数据大屏 v3.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050816;--card-bg:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.06);
+  --blue:#3b82f6;--cyan:#06b6d4;--green:#10b981;--orange:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--pink:#ec4899;
+  --text:#f1f5f9;--text-dim:#94a3b8;--radius:14px;
+  --bg-grad-1:rgba(59,130,246,0.08);--bg-grad-2:rgba(139,92,246,0.06);--bg-grad-3:rgba(6,182,212,0.05);
+  --header-grad:linear-gradient(180deg,rgba(59,130,246,0.08),transparent);
+  --title-grad:linear-gradient(90deg,var(--cyan),var(--blue),var(--purple),var(--pink));
+  --select-bg:rgba(255,255,255,0.06);--select-option-bg:#0f172a;--select-option-color:#e2e8f0;
+  --bar-color:#3b82f6;
+  --theme-btn:#3b82f6;
+  --bg-overlay:rgba(5,8,22,0.8);
+  --card-bg-grad:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
+  --item-bg:rgba(255,255,255,0.02);
+  --item-border:rgba(255,255,255,0.03);
+  --bar-track-bg:rgba(255,255,255,0.05);
+  --chart-grid:rgba(255,255,255,0.04);
+  --chart-tick:#94a3b8;
+  --refresh-bg:rgba(255,255,255,0.05);
+  --btn-bg:rgba(255,255,255,0.06);
+  --btn-border:rgba(255,255,255,0.15);
+  --btn-hover:rgba(255,255,255,0.12);
+}
+
+/* 主题2：皓月白 */
+[data-theme="moonlight"]:root, [data-theme="moonlight"]{
+  --bg:#f1f5f9;--card-bg:rgba(255,255,255,0.9);--border:rgba(148,163,184,0.35);
+  --blue:#2563eb;--cyan:#0e7490;--green:#16a34a;--orange:#d97706;--red:#dc2626;--purple:#7c3aed;--pink:#db2777;
+  --text:#0f172a;--text-dim:#64748b;
+  --bg-grad-1:rgba(37,99,235,0.04);--bg-grad-2:rgba(124,58,237,0.03);--bg-grad-3:rgba(14,116,144,0.03);
+  --header-grad:linear-gradient(180deg,rgba(37,99,235,0.06),rgba(255,255,255,0.5));
+  --title-grad:linear-gradient(90deg,#0e7490,#2563eb,#7c3aed,#db2777);
+  --select-bg:#ffffff;--select-option-bg:#ffffff;--select-option-color:#0f172a;
+  --bar-color:#2563eb;
+  --theme-btn:#2563eb;
+  --bg-overlay:rgba(241,245,249,0.95);
+  --card-bg-grad:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(255,255,255,0.85));
+  --item-bg:rgba(255,255,255,0.6);
+  --item-border:rgba(148,163,184,0.2);
+  --bar-track-bg:rgba(148,163,184,0.2);
+  --chart-grid:rgba(148,163,184,0.25);
+  --chart-tick:#475569;
+  --refresh-bg:rgba(255,255,255,0.9);
+  --btn-bg:rgba(0,0,0,0.05);
+  --btn-border:rgba(0,0,0,0.12);
+  --btn-hover:rgba(0,0,0,0.1);
+}
+[data-theme="moonlight"] .chart-card{box-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)}
+[data-theme="moonlight"] .metric-card{box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+[data-theme="moonlight"] .header select option{background:#f1f5f9}
+
+/* 主题3：翠冷 */
+[data-theme="emerald"]:root, [data-theme="emerald"]{
+  --bg:#02120a;--card-bg:rgba(255,255,255,0.03);--border:rgba(52,211,153,0.12);
+  --blue:#38bdf8;--cyan:#22d3ee;--green:#34d399;--orange:#fbbf24;--red:#fb7185;--purple:#a78bfa;--pink:#f472b6;
+  --text:#ecfdf5;--text-dim:#6b7280;
+  --bg-grad-1:rgba(52,211,153,0.08);--bg-grad-2:rgba(16,185,129,0.05);--bg-grad-3:rgba(6,182,212,0.04);
+  --header-grad:linear-gradient(180deg,rgba(52,211,153,0.08),transparent);
+  --title-grad:linear-gradient(90deg,#22d3ee,#34d399,#10b981,#059669);
+  --select-bg:rgba(255,255,255,0.06);--select-option-bg:#022c1a;--select-option-color:#ecfdf5;
+  --bar-color:#10b981;
+  --theme-btn:#10b981;
+  --bg-overlay:rgba(2,18,10,0.85);
+  --card-bg-grad:linear-gradient(135deg,rgba(52,211,153,0.04),rgba(255,255,255,0.01));
+  --item-bg:rgba(52,211,153,0.03);
+  --item-border:rgba(52,211,153,0.06);
+  --bar-track-bg:rgba(52,211,153,0.08);
+  --chart-grid:rgba(52,211,153,0.08);
+  --chart-tick:#6ee7b7;
+  --refresh-bg:rgba(2,18,10,0.85);
+  --btn-bg:rgba(52,211,153,0.08);
+  --btn-border:rgba(52,211,153,0.2);
+  --btn-hover:rgba(52,211,153,0.15);
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shine{0%{background-position:-300% center}100%{background-position:300% center}}
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}70%{box-shadow:0 0 0 15px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
+@keyframes glow-pulse{0%,100%{opacity:0.8}50%{opacity:1}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+body{
+  background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC","Segoe UI",sans-serif;
+  height:100vh;display:flex;flex-direction:column;
+  background-image:
+    radial-gradient(ellipse at 10% 20%,var(--bg-grad-1),transparent 60%),
+    radial-gradient(ellipse at 90% 30%,var(--bg-grad-2),transparent 60%),
+    radial-gradient(ellipse at 50% 80%,var(--bg-grad-3),transparent 60%),
+    radial-gradient(ellipse at 50% 50%,var(--bg-overlay),transparent);
+}
+html{height:100%;margin:0;padding:0}
+
+/* Header */
+.header{
+  padding:10px 24px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  background:var(--header-grad);
+  backdrop-filter:blur(12px);
+}
+.header-left{display:flex;align-items:center;gap:14px}
+.header h1{
+  font-size:20px;font-weight:700;letter-spacing:3px;
+  background:var(--title-grad);
+  background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:shine 6s linear infinite;
+}
+.header .subtitle{font-size:12px;color:var(--text-dim);letter-spacing:1px}
+.header-right{display:flex;align-items:center;gap:12px}
+.header .time{font-size:13px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+.theme-switcher{display:flex;gap:4px;background:var(--btn-bg);padding:3px;border-radius:10px;border:1px solid var(--border)}
+.theme-btn{width:20px;height:20px;border-radius:6px;border:2px solid transparent;cursor:pointer;transition:all .3s;padding:0;outline:none}
+.theme-btn:hover{transform:scale(1.15)}
+.theme-btn.active{border-color:var(--text);box-shadow:0 0 8px rgba(255,255,255,0.15),0 0 4px var(--theme-btn)}
+.theme-btn[data-theme="tech"]{background:linear-gradient(135deg,#050816,#1e3a5f)}
+.theme-btn[data-theme="moonlight"]{background:linear-gradient(135deg,#f8fafc,#e2e8f0)}
+.theme-btn[data-theme="emerald"]{background:linear-gradient(135deg,#02120a,#064e3b)}
+.header select{
+  background:var(--select-bg);border:1px solid var(--border);color:var(--text);
+  padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;outline:none;min-width:130px;transition:.3s;
+}
+.header select:hover{opacity:.85}
+.header select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+.header select option{background:var(--select-option-bg);color:var(--select-option-color)}
+
+/* 全局 select 深色主题统一（含卡片内嵌下拉框） */
+select{
+  background-color:var(--select-bg)!important;
+  color:var(--text)!important;
+  border-color:var(--border)!important;
+}
+select option{background-color:var(--select-option-bg)!important;color:var(--select-option-color)!important}
+select:hover{background-color:var(--select-bg)!important}
+
+/* Main Grid - 用户红框布局: 底部三卡片并排 */
+.grid{
+  flex:1;display:grid;
+  grid-template-columns:130px 1fr 1fr 1fr;
+  grid-template-rows:1fr 1fr 1fr;
+  gap:10px;padding:10px;width:100%;height:100%;
+  min-height:0;overflow:hidden;
+}
+
+/* ===== Left Panel - 5 Key Metrics ===== */
+.left-panel{grid-row:1/4;grid-column:1/2;display:flex;flex-direction:column;gap:8px;min-width:0}
+.metric-card{
+  flex:1;background:var(--card-bg-grad);
+  border:1px solid var(--border);border-radius:var(--radius);padding:10px 6px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  position:relative;overflow:hidden;animation:fadeUp .5s ease backwards;
+  transition:all .3s;min-height:0;
+}
+.metric-card:nth-child(1){animation-delay:.05s}
+.metric-card:nth-child(2){animation-delay:.1s}
+.metric-card:nth-child(3){animation-delay:.15s}
+.metric-card:nth-child(4){animation-delay:.2s}
+.metric-card:nth-child(5){animation-delay:.25s}
+.metric-card:hover{transform:translateY(-3px);border-color:rgba(59,130,246,0.25)}
+.metric-card .glow-bar{position:absolute;top:0;left:0;right:0;height:2px;opacity:0.6}
+.metric-card .icon{font-size:20px;margin-bottom:4px}
+.metric-card .num{font-size:24px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.metric-card .label{font-size:11px;color:var(--text-dim);margin-top:4px;font-weight:500;white-space:nowrap}
+
+/* ===== Chart Cards ===== */
+.chart-card{
+  background:var(--card-bg-grad);
+  border:1px solid var(--border);border-radius:var(--radius);padding:12px;
+  display:flex;flex-direction:column;position:relative;overflow:hidden;
+  animation:fadeUp .5s ease backwards;transition:all .3s;
+}
+.chart-card:hover{border-color:rgba(59,130,246,0.2)}
+.chart-card .glow-bar{position:absolute;top:0;left:0;right:0;height:2px;opacity:0.4}
+.chart-card .cc-title{
+  font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.chart-card .cc-body{flex:1;position:relative;min-height:0}
+
+/* Position chart cards - 4列: 三滚动面板置顶 */
+/* Row1: 实时|课程签到|操行评分 三者并排（最上面） */
+#card-realtime{grid-column:2/3;grid-row:1/2}
+#card-rank{grid-column:3/4;grid-row:1/2}
+#card-conduct{grid-column:4/5;grid-row:1/2}
+/* Row2: 趋势(左) | AI预测(右跨2列) */
+#card-trend{grid-column:2/3;grid-row:2/3}
+#card-prediction{grid-column:3/5;grid-row:2/4}
+/* Row3: 请假(左中) | AI延续 */
+#card-leave{grid-column:2/3;grid-row:3/4}
+#card-alerts{display:none}
+
+.chart-card:nth-child(5){animation-delay:.4s}
+.chart-card:nth-child(6){animation-delay:.45s}
+.chart-card:nth-child(7){animation-delay:.5s}
+.chart-card:nth-child(8){animation-delay:.55s}
+.chart-card:nth-child(9){animation-delay:.6s}
+.chart-card:nth-child(10){animation-delay:.65s}
+.chart-card:nth-child(11){animation-delay:.7s}
+
+.chart-wrap{position:absolute;inset:0}
+.realtime-list{height:100%;overflow:hidden}
+/* 风险预警列表 - 每次显示6行，超出滚动播放，每行布满宽度 */
+#atRiskList{
+  display:flex;flex-direction:column;gap:0;padding:0;
+  overflow-y:hidden;position:relative;max-height:180px;
+}
+#atRiskList .realtime-item{
+  flex:none;padding:5px 10px;margin-bottom:0;min-height:28px;
+}
+.realtime-item{
+  display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;
+  margin-bottom:3px;background:var(--item-bg);animation:slideIn .3s ease;font-size:11px;
+}
+.realtime-item .ri-name{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.realtime-item .ri-dorm{color:var(--text-dim);font-weight:400;margin-left:3px}
+.realtime-item .ri-desc{color:var(--text-dim);font-size:10px;white-space:nowrap;flex-shrink:0}
+.realtime-item .ri-time{color:var(--text-dim);font-size:10px;white-space:nowrap;flex-shrink:0}
+
+.rank-list{height:100%;overflow:hidden}
+.rank-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--item-border);font-size:11px;animation:slideIn .35s ease backwards}
+.rank-item:last-child{border-bottom:none}
+.rank-num{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.rank-num.top1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;box-shadow:0 0 10px rgba(251,191,36,0.4)}
+.rank-num.top2{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#000}
+.rank-num.top3{background:linear-gradient(135deg,#d97706,#b45309);color:#fff}
+.rank-num.normal{background:var(--btn-bg);color:var(--text-dim)}
+.rank-info{flex:1;min-width:0}.rank-info .rn{font-weight:500}
+.rank-val{font-weight:600;color:var(--cyan);white-space:nowrap}
+
+.bar-wrap{height:4px;background:var(--bar-track-bg);border-radius:2px;overflow:hidden;margin-top:2px}
+.bar-fill{height:100%;border-radius:2px;transition:width 1s ease;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;height:100%}
+.stat-item{background:var(--item-bg);border-radius:8px;padding:8px;display:flex;flex-direction:column;justify-content:center}
+.stat-item .si-label{font-size:10px;color:var(--text-dim)}
+.stat-item .si-val{font-size:16px;font-weight:700;margin-top:2px}
+
+/* 操行评分柱状图 */
+.conduct-card{display:inline-flex;flex-direction:column;align-items:center;width:60px;height:100%;padding:4px 2px 0;flex-shrink:0;vertical-align:bottom;animation:fadeInUp .4s ease backwards}
+.conduct-score{font-size:12px;font-weight:800;color:#ef4444;text-align:center;line-height:1.3;flex-shrink:0;margin-bottom:3px}
+.conduct-bar-wrap{flex:1;width:36px;display:flex;flex-direction:column;justify-content:flex-end;min-height:0}
+.conduct-bar{width:100%;border-radius:4px 4px 0 0;min-height:2px;transition:height 0.8s ease;cursor:pointer;flex-shrink:0}
+.conduct-bar:hover{opacity:0.8}
+.conduct-name{font-size:11px;color:#e2e8f0;text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;line-height:1.3;padding:2px 0;font-weight:600}
+
+@media(max-width:1400px){
+  .grid{grid-template-columns:110px 1fr 1fr 1fr;gap:8px;padding:8px}
+  .metric-card .num{font-size:20px}
+  .metric-card .label{font-size:10px}
+}
+@media(max-width:1200px){
+  .grid{grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto;overflow-y:auto;height:auto;min-height:auto}
+  .left-panel{grid-row:auto;grid-column:1/3;flex-direction:row;flex-wrap:wrap;gap:8px}
+  .left-panel .metric-card{flex:1 1 18%;min-height:60px}
+  #card-trend,#card-leave,#card-conduct{grid-column:1/3;grid-row:auto}
+  #card-realtime,#card-rank{grid-column:1/2;grid-row:auto}
+  #card-prediction{grid-column:2/3;grid-row:auto}
+  #card-alerts{display:none!important}
+}
+@media(max-width:768px){
+  .grid{grid-template-columns:1fr;padding:6px;gap:6px}
+  .left-panel{flex-direction:row;flex-wrap:wrap}
+  #card-trend,#card-rank,#card-leave,#card-realtime,#card-conduct,#card-prediction,#card-alerts{grid-column:1/2}
+  .header{padding:8px 12px;flex-wrap:wrap;gap:6px}
+  .header h1{font-size:16px}
+}
+
+/* Refresh indicator */
+.refresh-indicator{position:fixed;bottom:10px;right:10px;background:var(--refresh-bg);border:1px solid var(--border);padding:4px 10px;border-radius:12px;font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px);z-index:100}
+.refresh-indicator .dot{width:4px;height:4px;border-radius:50%;background:var(--green);animation:glow-pulse 1.5s infinite}
+
+/* 全局刷新按钮 */
+.refresh-btn{padding:8px 14px;border:1px solid var(--btn-border);border-radius:8px;background:var(--btn-bg);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;transition:all .3s;display:flex;align-items:center;gap:6px}
+.refresh-btn:hover{background:var(--btn-hover);border-color:var(--blue)}
+.refresh-btn.spin .icon{animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* 请假类型分布时间口径切换 */
+.scope-toggle{display:flex;gap:4px;background:var(--btn-bg);border:1px solid var(--btn-border);border-radius:6px;padding:2px}
+.scope-btn{padding:3px 8px;border:none;border-radius:4px;background:transparent;color:var(--text-dim);font-size:11px;cursor:pointer;transition:all .2s}
+.scope-btn.active{background:var(--blue);color:#fff;font-weight:600}
+.scope-btn:hover:not(.active){color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--header-grad);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100">
+  <div style="flex:0 0 auto">
+    <button onclick="closeDashboard()" style="padding:8px 20px;border:1px solid var(--btn-border);border-radius:8px;background:var(--btn-bg);color:var(--text);cursor:pointer;font-size:14px;font-weight:600;transition:all .3s;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='var(--btn-hover)';this.style.transform='translateX(-2px)'" onmouseout="this.style.background='var(--btn-bg)';this.style.transform='translateX(0)'">🔙 返回教师管理端</button>
+  </div>
+  <div style="flex:1;text-align:center">
+    <h1 style="display:inline;font-size:20px;font-weight:700;letter-spacing:3px;background:var(--title-grad);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shine 6s linear infinite;">📊 学生管理数据大屏</h1>
+    <span style="font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-left:12px">实时监控中心</span>
+    <span class="time" id="currentTime" style="margin-left:12px;font-size:13px;color:var(--text-dim);font-variant-numeric:tabular-nums">--:--:--</span>
+  </div>
+  <div class="header-right" style="flex:0 0 auto;display:flex;align-items:center;gap:12px">
+    <button id="refreshBtn" class="refresh-btn" onclick="refreshAll()" title="立即刷新全部数据"><span class="icon">🔄</span><span>刷新</span></button>
+    <div class="theme-switcher" title="切换主题">
+      <button class="theme-btn active" data-theme="tech" onclick="switchTheme('tech')" title="科技蓝主题"></button>
+      <button class="theme-btn" data-theme="moonlight" onclick="switchTheme('moonlight')" title="皓月白主题"></button>
+      <button class="theme-btn" data-theme="emerald" onclick="switchTheme('emerald')" title="翠冷主题"></button>
+    </div>
+    <div style="position:relative;display:flex;align-items:center">
+      <span style="position:absolute;left:10px;font-size:14px;color:var(--text-dim);pointer-events:none">🏫</span>
+      <select id="classFilter" onchange="onClassChange()" style="background:var(--select-bg);border:1px solid var(--border);color:var(--text);padding:8px 14px 8px 30px;border-radius:8px;font-size:13px;cursor:pointer;outline:none;min-width:180px;transition:all .3s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'" title="选择班级查看数据">
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Left Panel: 5 Key Metrics -->
+  <div class="left-panel">
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--blue),transparent)"></div>
+      <div class="icon">👥</div><div class="num" id="mTotal">0</div><div class="label">学生总数</div>
+    </div>
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--green),transparent)"></div>
+      <div class="icon">✅</div><div class="num" id="mCheckin">0</div><div class="label">今日签到人数</div>
+    </div>
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--orange),transparent)"></div>
+      <div class="icon">📈</div><div class="num" id="mRate">0%</div><div class="label">签到率</div>
+    </div>
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--red),transparent)"></div>
+      <div class="icon">🔴</div><div class="num" id="mAbsent">0</div><div class="label">今日未归人数</div>
+    </div>
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--cyan),transparent)"></div>
+      <div class="icon">📝</div><div class="num" id="mLeave">0</div><div class="label">今日请假人数</div>
+    </div>
+    <div class="metric-card"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--purple),transparent)"></div>
+      <div class="icon">⏳</div><div class="num" id="mPending">0</div><div class="label">待审批请假</div>
+    </div>
+  </div>
+
+  <!-- Chart Cards -->
+  <div class="chart-card" id="card-trend"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--blue),transparent)"></div>
+    <div class="cc-title">📈 近7日学生异常数据</div>
+    <div class="cc-body"><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+  </div>
+
+  <div class="chart-card" id="card-rank"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--orange),transparent)"></div>
+    <div class="cc-title">🏫 今日课程签到率排名</div>
+    <div class="cc-body"><div class="realtime-list" id="courseCheckinRank"><div style="text-align:center;color:var(--text-dim);padding:30px 0;font-size:13px;letter-spacing:1px">⏳ 加载中…</div></div></div>
+  </div>
+
+  <div class="chart-card" id="card-leave"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--purple),transparent)"></div>
+    <div class="cc-title">
+      <span>📝 请假类型分布</span>
+      <div class="scope-toggle" id="leaveScopeToggle">
+        <button id="leaveScopeToday" class="scope-btn" onclick="setLeaveScope('today')">今日</button>
+        <button id="leaveScopeAll" class="scope-btn active" onclick="setLeaveScope('all')">全部</button>
+      </div>
+    </div>
+    <div class="cc-body"><div class="chart-wrap"><canvas id="leaveChart"></canvas></div></div>
+  </div>
+
+  <div class="chart-card" id="card-realtime"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--cyan),transparent)"></div>
+    <div class="cc-title">🔔 实时查寝动态</div>
+    <div class="cc-body"><div class="realtime-list" id="realtimeList"><div style="text-align:center;color:var(--text-dim);padding:30px 0;font-size:13px;letter-spacing:1px">⏳ 等待数据更新…</div></div></div>
+  </div>
+
+  <div class="chart-card" id="card-conduct"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--pink),transparent)"></div>
+    <div class="cc-title">⭐ 学生操行评分</div>
+    <div class="cc-body"><div class="realtime-list" id="conductList"><div style="text-align:center;color:var(--text-dim);padding:30px 0;font-size:13px;letter-spacing:1px">⏳ 加载中…</div></div></div>
+  </div>
+
+  <div class="chart-card" id="card-prediction"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,#ec4899,transparent)"></div>
+    <div class="cc-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>🤖 AI 数据预测</span>
+      <select id="predModelSel" onchange="onPredModelChange()" style="background:var(--select-bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 6px;border-radius:6px;cursor:pointer;outline:none">
+        <option value="arima">ARIMA</option>
+        <option value="lstm">LSTM</option>
+      </select>
+    </div>
+    <div class="cc-body" style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+      <div style="display:flex;gap:8px;flex:1;min-height:0">
+        <div style="flex:1;display:flex;flex-direction:column;min-height:120px;min-width:0">
+          <div class="cc-title" style="font-size:11px;margin-bottom:2px;flex-shrink:0">🛏️ 寝室在寝率趋势预测 <span id="predModelBadge" style="font-size:9px;color:#22d3ee;margin-left:4px"></span></div>
+          <div style="flex:1;position:relative;min-height:0"><canvas id="predictionChart" style="width:100%;height:100%"></canvas></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-height:120px;min-width:0">
+          <div class="cc-title" style="font-size:11px;margin-bottom:2px;flex-shrink:0">📚 课堂出勤率趋势预测 <span id="leaveModelBadge" style="font-size:9px;color:#22d3ee;margin-left:4px"></span></div>
+          <div style="flex:1;position:relative;min-height:0"><canvas id="leaveForecastChart" style="width:100%;height:100%"></canvas></div>
+        </div>
+      </div>
+      <div style="flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column">
+        <div class="cc-title" style="font-size:11px;margin-bottom:2px;flex-shrink:0">🔴 风险学生预警</div>
+        <div class="realtime-list" id="atRiskList" style="flex:1;min-height:0"><div style="text-align:center;color:var(--text-dim);padding:30px 0;font-size:13px;letter-spacing:1px">⏳ 加载中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card" id="card-alerts"><div class="glow-bar" style="background:linear-gradient(90deg,transparent,var(--red),transparent)"></div>
+    <div class="cc-title">⚠️ 关注提醒</div>
+    <div class="cc-body"><div class="realtime-list" id="anomalyList"></div></div>
+  </div>
+
+  <!-- AI 智能分析区域 - 已移除 -->
+  
+  <script>
+      // 简化版脚本，确保所有功能正常
+      const esc=s=>{if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');};
+      const api = {
+        classes: '/api/classes/public',
+        dashboard: '/api/dashboard/public',
+        courseCheckin: '/api/course-checkin/public',
+        atRisk: '/api/stats/attention/public?days=30',
+        trend: '/api/class-trend/public',
+        dorms: '/api/dorms/public',
+        conduct: '/api/stats/conduct/public?days=30'
+      };
+      let charts = {}, currentClass = 'all';
+      // 从 teacher.html 登录后遗留的 localStorage 读取 token（用于辅导员/班主任班级隔离）
+      const _token = (() => { try { return localStorage.getItem('admin_token') || ''; } catch(e) { return ''; } })();
+      const _hdrs = _token ? { 'x-auth-token': _token } : {};
+
+      function fmtTime(t){ if(!t)return''; const d=new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+
+      async function loadClasses(){
+        try{ const r=await fetch(api.classes,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const classes=j.data; const sel=document.getElementById('classFilter'); sel.innerHTML='<option value="all">全部班级</option>'+classes.map(c=>`<option value="${c}">${esc(c)}</option>`).join(''); sel.value='all'; currentClass='all'; }catch(e){}}
+
+      function updateTime(){ const n=new Date(); const p2=x=>String(x).padStart(2,'0'); document.getElementById('currentTime').textContent=`${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 ${p2(n.getHours())}:${p2(n.getMinutes())}:${p2(n.getSeconds())}`; }
+
+      async function loadData(){
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.dashboard+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0)return; let d=j.data;
+          // 日期回退：如果当天无签到记录且班级有学生，自动查找最近有数据日期
+          if(((d.today_present||0)+(d.today_absent||0)+(d.today_leave||0)===0)&&(d.total_students||0)>0){
+            for(let off=1;off<=30;off++){const bd=new Date();bd.setDate(bd.getDate()-off);const p=x=>String(x).padStart(2,'0');
+              try{const sep=params?'&':'?';const fr=await fetch(api.dashboard+params+sep+'date='+bd.getFullYear()+'-'+p(bd.getMonth()+1)+'-'+p(bd.getDate()),{headers:_hdrs});const fj=await fr.json();if(fj.code===0&&((fj.data.today_present||0)+(fj.data.today_absent||0)+(fj.data.today_leave||0)>0)){d=fj.data;break;}}catch(e){}}
+          }
+          animateNum('mTotal',d.total_students||0); animateNum('mCheckin',d.today_present||0); document.getElementById('mRate').textContent=(d.checkin_rate||0)+'%'; animateNum('mAbsent',d.today_absent||0); animateNum('mLeave',d.today_leave||0); animateNum('mPending',d.pending_leaves||0); window._dashboardDate=d.date; }catch(e){console.error(e);}}
+
+      function animateNum(id,target){ const el=document.getElementById(id); const start=parseInt(el.textContent)||0; if(start===target)return; const diff=target-start; const dur=800; const t0=performance.now(); function upd(now){ const p=Math.min((now-t0)/dur,1); const e=1-Math.pow(1-p,3); el.textContent=Math.floor(start+diff*e); if(p<1)requestAnimationFrame(upd);} requestAnimationFrame(upd); }
+
+      async function loadTrendChart(){
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.trend+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const data=j.data; const labels=data.map(r=>r.date); const absent=data.map(r=>r.absent_count||0); const notReturn=data.map(r=>r.not_return_count||0); const leave=data.map(r=>r.leave_count||0); if(charts.trend)charts.trend.destroy(); charts.trend=new Chart(document.getElementById('trendChart'),{ type:'line', data:{ labels, datasets:[{label:'缺勤',data:absent,borderColor:'#f59e0b',backgroundColor:'#f59e0b20',fill:false,tension:0.4,pointRadius:4},{label:'未归',data:notReturn,borderColor:'#ef4444',backgroundColor:'#ef444420',fill:false,tension:0.4,pointRadius:4},{label:'请假',data:leave,borderColor:'#a78bfa',backgroundColor:'#a78bfa20',fill:false,tension:0.4,pointRadius:4}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{legend:{labels:{color:'#e2e8f0',font:{size:10},boxWidth:12,padding:8}}}, scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}},beginAtZero:true}}}}); }catch(e){console.error(e);}}
+
+      async function loadCourseCheckinRank(){
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.courseCheckin+params,{headers:_hdrs}); const j=await r.json(); const el=document.getElementById('courseCheckinRank'); if(j.code!==0||!j.data||!j.data.length){el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无课程签到数据</div>';return;} el.innerHTML=j.data.map((c,i)=>{ const present=c.present||0; const total=c.checked_in||0; const rate=total?Math.round((present/total)*100):0; const rc=i===0?'top1':i===1?'top2':i===2?'top3':'normal'; return `<div class="rank-item"><div class="rank-num ${rc}">${i+1}</div><div class="rank-info"><div class="rn">${esc(c.course_name)||'未知课程'}</div><div style="font-size:10px;color:var(--text-dim)">${esc(c.class_name)||''} · ${present}/${total}人</div><div class="bar-wrap"><div class="bar-fill" style="width:${rate}%"></div></div></div><div class="rank-val">${rate}%</div></div>`; }).join(''); }catch(e){console.error(e);}}
+
+      async function loadAtRiskStudents(){ if(typeof window.loadAtRiskStudents==='function')window.loadAtRiskStudents(); }
+
+      async function loadDormStats(){
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.dorms+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const d=j.data; const total=d.length; const cap=d.reduce((s,x)=>s+(x.capacity||0),0); const occ=d.reduce((s,x)=>s+(x.occupied||0),0); document.getElementById('dsTotal').textContent=total; document.getElementById('dsCapacity').textContent=cap; document.getElementById('dsRate').textContent=cap>0?((occ/cap)*100).toFixed(1)+'%':'0%'; document.getElementById('dsFree').textContent=cap-occ; }catch(e){console.error(e);}}
+
+      async function loadConductTop(){ if(typeof window.loadConductTop==='function')window.loadConductTop(); }
+
+      function startConductScroll(){ if(typeof window.startConductScroll==='function')window.startConductScroll(); }
+
+      function closeDashboard(){
+        try {
+          if (window.opener && !window.opener.closed) { window.close(); return; }
+        } catch(e) {}
+        window.location.href = './teacher.html';
+      }
+
+      // 时间更新由 init() 统一管理；数据加载由 DOMContentLoaded → init() 负责（已 await loadClasses）
+
+// ===== AI 预测: 模型切换 =====
+function onPredModelChange() {
+  loadPredictionChart();
+  loadLeaveForecastChart();
+}
+
+// ===== AI 预测: 模型精度对比（滚动回测）=====
+async function loadModelEvaluation() {
+  const box = document.getElementById('modelEvalBox');
+  if (!box) return;
+  try {
+    const cls = currentClass !== 'all' ? '?class_name=' + encodeURIComponent(currentClass) : '';
+    const r = await fetch('/api/predict/evaluate' + cls, {headers:_hdrs});
+    const j = await r.json();
+    if (j.code !== 0 || !j.data || !j.data.results || !j.data.results.length) {
+      box.innerHTML = '<div style="flex:1;text-align:center;color:var(--text-dim);padding:8px 0">' + ((j.data && j.data.message) || '暂无足够数据回测') + '</div>';
+      return;
+    }
+    const best = j.data.best;
+    const colorMap = { 'ARIMA': '#22d3ee', 'LSTM': '#ec4899' };
+    box.innerHTML = j.data.results.map(res => {
+      const isBest = res.model === best;
+      const c = colorMap[res.model] || '#94a3b8';
+      const cell = v => (v == null ? '—' : esc(String(v)));
+      return `<div style="flex:1;border:1px solid ${isBest ? c : 'var(--border)'};border-radius:8px;padding:6px 8px;background:${isBest ? c + '14' : 'transparent'};position:relative">
+        <div style="font-weight:700;color:${c};margin-bottom:4px;display:flex;align-items:center;gap:4px">${esc(res.model)}${isBest ? ' <span style="font-size:8px;background:' + c + ';color:#001018;padding:1px 4px;border-radius:4px">更优</span>' : ''}</div>
+        <div style="display:flex;justify-content:space-between;color:var(--text-dim)"><span>RMSE</span><b style="color:var(--text)">${cell(res.rmse)}</b></div>
+        <div style="display:flex;justify-content:space-between;color:var(--text-dim)"><span>MAE</span><b style="color:var(--text)">${cell(res.mae)}</b></div>
+        <div style="display:flex;justify-content:space-between;color:var(--text-dim)"><span>MAPE</span><b style="color:var(--text)">${res.mape == null ? '—' : esc(String(res.mape)) + '%'}</b></div>
+      </div>`;
+    }).join('') + `<div style="flex:0 0 auto;align-self:center;color:var(--text-dim);font-size:9px;writing-mode:vertical-rl;padding:0 2px">n=${esc(j.data.samples)}</div>`;
+  } catch (e) {
+    box.innerHTML = '<div style="flex:1;text-align:center;color:var(--text-dim);padding:8px 0">回测失败</div>';
+    console.error(e);
+  }
+}
+
+// ===== AI 预测: 通用趋势图（按维度） =====
+async function loadPredictionChartForDim(dim, canvasId, badgeId, chartKey, actualColor, predColor, labelName) {
+  try {
+    const model = (document.getElementById('predModelSel') || {}).value || 'arima';
+    const cls = currentClass !== 'all' ? '&class_name=' + encodeURIComponent(currentClass) : '';
+    const r = await fetch('/api/predict/checkin-trend?model=' + model + '&dim=' + dim + '&days=7' + cls, {headers:_hdrs});
+    const j = await r.json();
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    if (j.code !== 0) {
+      if (charts[chartKey]) { charts[chartKey].destroy(); charts[chartKey] = null; }
+      return;
+    }
+    const d = j.data;
+    if (!d.history || !d.predictions) return;
+
+    const badge = document.getElementById(badgeId);
+    if (badge) {
+      if (model === 'lstm') badge.textContent = '· LSTM';
+      else if (d.order) badge.textContent = '· ARIMA(' + d.order.join(',') + ')';
+      else badge.textContent = '';
+    }
+
+    const historyLabels = d.history.map(h => h.date.slice(5));
+    const historyRates = d.history.map(h => h.rate);
+    const predLabels = d.predictions.map(p => p.date.slice(5));
+    const predRates = d.predictions.map(p => p.predicted_rate);
+    const labels = [...historyLabels, ...predLabels];
+    const actualData = [...historyRates, ...new Array(predLabels.length).fill(null)];
+    // 预测线从历史最后一天开始，与教师端统计分析保持一致
+    const predictedData = historyRates.length
+      ? [...new Array(historyRates.length - 1).fill(null), historyRates[historyRates.length - 1], ...predRates]
+      : [...new Array(predLabels.length).fill(null), ...predRates];
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(148,163,184,0.15)';
+    const tickColor = isDark ? '#94a3b8' : '#64748b';
+
+    if (charts[chartKey]) charts[chartKey].destroy();
+    charts[chartKey] = new Chart(el, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '实际' + labelName, data: actualData, borderColor: actualColor, backgroundColor: actualColor, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: 0.3 },
+          { label: '预测趋势', data: predictedData, borderColor: predColor, backgroundColor: predColor, borderWidth: 2, borderDash: [5, 3], pointRadius: 3, pointHoverRadius: 5, tension: 0.3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            display: true,
+            grid: { display: false, color: gridColor },
+            ticks: { color: tickColor, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }
+          },
+          y: { min: 50, max: 100, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 9 }, callback: v => v + '%' } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => '日期：' + ctx[0].label,
+              label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + '%' : '-')
+            }
+          }
+        }
+      }
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ===== AI 预测: 寝室在寝率趋势预测图表 =====
+async function loadPredictionChart() {
+  await loadPredictionChartForDim('checkin', 'predictionChart', 'predModelBadge', 'prediction', '#3b82f6', '#ec4899', '在寝率');
+}
+
+// ===== AI 预测: 课堂出勤率趋势预测图表 =====
+async function loadLeaveForecastChart() {
+  await loadPredictionChartForDim('class', 'leaveForecastChart', 'leaveModelBadge', 'leaveForecast', '#22d3ee', '#f472b6', '出勤率');
+}
+
+
+// ===== 风险学生预警（对标教师端 重点关注学生） =====
+async function loadAtRiskStudents() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    // 使用公开接口 /api/stats/attention/public，对标教师端「重点关注学生」表
+    const r = await fetch(`/api/stats/attention/public?days=30${cls}`,{headers:_hdrs});
+    const j = await r.json();
+    const el = document.getElementById('atRiskList');
+    if (j.code !== 0 || !j.data || !j.data.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无风险学生数据</div>';
+      return;
+    }
+
+    el.innerHTML = j.data.map((s, i) => {
+      const absent = s.absent_count || 0;
+      const leave = s.leave_count || 0;
+      // 风险等级对标教师端：缺勤>=5高 / >=3中 / 其他低
+      const level = absent >= 5 ? '高' : absent >= 3 ? '中' : '低';
+      const levelTag = level === '高'
+        ? '<span style="color:#dc2626;font-size:10px;background:#fee2e2;padding:1px 6px;border-radius:8px">🔴高</span>'
+        : level === '中'
+        ? '<span style="color:#f59e0b;font-size:10px;background:#fef3c7;padding:1px 6px;border-radius:8px">🟡中</span>'
+        : '<span style="color:#10b981;font-size:10px;background:#d1fae5;padding:1px 6px;border-radius:8px">🟢低</span>';
+      return `<div class="realtime-item" style="animation-delay:${i*0.06}s;display:flex;align-items:center;width:100%;gap:4px">
+        <span style="font-weight:600;font-size:12px;flex:0 0 auto;min-width:48px">${esc(s.name)||'—'}</span>
+        <span style="color:var(--text-dim);font-size:11px;flex:1 1 auto;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.class_name)||'—'}</span>
+        <span style="color:var(--text-dim);font-size:11px;flex:0 0 auto;min-width:52px">${esc(s.dorm)||'—'}</span>
+        <span style="font-size:12px;flex:0 0 auto;min-width:22px;text-align:center;color:#ef4444;font-weight:700">${absent}</span>
+        <span style="font-size:12px;flex:0 0 auto;min-width:22px;text-align:center;color:#a78bfa;font-weight:600">${leave}</span>
+        <span style="flex-shrink:0">${levelTag}</span>
+      </div>`;
+    }).join('');
+    startAtRiskScroll();
+  } catch(e) { console.error(e); }
+}
+
+// ===== 风险学生预警纵向滚动 =====
+let atRiskScrollTimer = null;
+
+function startAtRiskScroll() {
+  if (atRiskScrollTimer) { clearInterval(atRiskScrollTimer); atRiskScrollTimer = null; }
+  const el = document.getElementById('atRiskList');
+  if (!el) return;
+  const items = el.querySelectorAll('.realtime-item');
+  if (items.length <= 6) return; // 不超过6行无需滚动
+  // 克隆实现无缝循环滚动
+  el.innerHTML = el.innerHTML + el.innerHTML;
+  let scrollPos = el.scrollHeight / 2;
+  el.scrollTop = scrollPos;
+  atRiskScrollTimer = setInterval(() => {
+    scrollPos += 0.5;
+    el.scrollTop = scrollPos;
+    if (scrollPos >= el.scrollHeight - el.clientHeight) {
+      scrollPos = el.scrollHeight / 2 - el.clientHeight;
+      el.scrollTop = scrollPos;
+    }
+  }, 30);
+}
+
+// ===== 今日班级课程签到率 =====
+async function loadCourseCheckinRank() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    const r = await fetch(`/api/course-checkin/public?${cls ? cls.slice(1) : ''}`,{headers:_hdrs});
+    const j = await r.json();
+    const el = document.getElementById('courseCheckinRank');
+    if (j.code !== 0 || !j.data || !j.data.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无课程签到数据</div>';
+      return;
+    }
+    // 渲染为纵向列表项
+    const colorMap = {1:'#fbbf24',2:'#d1d5db',3:'#d97706'};
+    el.innerHTML = j.data.map((c, i) => {
+      const rate = c.rate || 0;
+      const medal = i < 3 ? ['🥇','🥈','🥉'][i] : `${i+1}`;
+      const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? 'var(--cyan)' : rate >= 50 ? '#f59e0b' : '#ef4444';
+      return `<div class="realtime-item" style="animation-delay:${i*0.08}s">
+        <span class="ri-name" style="min-width:80px;flex:none">${medal} ${esc(c.course_name)||'未知'}</span>
+        <span style="color:var(--text-dim);font-size:10px;flex:1">${esc(c.class_name)||''} · ${c.checked||0}/${c.total||0}人</span>
+        <div style="width:60px;height:4px;background:var(--bar-track-bg);border-radius:2px;overflow:hidden;flex-shrink:0">
+          <div style="width:${rate}%;height:100%;background:${barColor};border-radius:2px;transition:width .8s ease"></div>
+        </div>
+        <span class="ri-desc" style="color:${barColor};font-weight:600;min-width:36px;text-align:right">${rate}%</span>
+      </div>`;
+    }).join('');
+    startRankScroll();
+  } catch(e) { console.error(e); }
+}
+
+// 请假类型分布口径：'all' 与教师端请假管理默认一致；'today' 只看今日
+let currentLeaveScope = 'all';
+
+function setLeaveScope(scope) {
+  currentLeaveScope = scope;
+  document.getElementById('leaveScopeToday').classList.toggle('active', scope === 'today');
+  document.getElementById('leaveScopeAll').classList.toggle('active', scope === 'all');
+  loadLeaveChart();
+}
+
+// ===== 请假类型分布（饼图/柱状图） =====
+async function loadLeaveChart() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    let dateQs = '';
+    if (currentLeaveScope === 'today') {
+      const date = window._dashboardDate || '';
+      if (date) dateQs = `&from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`;
+    }
+    const r = await fetch(`/api/leaves?${dateQs ? dateQs.slice(1) : ''}${cls}`,{headers:_hdrs});
+    const j = await r.json();
+    const canvas = document.getElementById('leaveChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (j.code !== 0 || !j.data || !j.data.length) {
+      if (window._leaveChartInst) { window._leaveChartInst.destroy(); window._leaveChartInst = null; }
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#64748b'; ctx.font='13px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('暂无请假数据', canvas.width/2, canvas.height/2);
+      return;
+    }
+    // 按type聚合，并把丧假映射为“其他”，与教师端请假管理口径一致
+    const displayType = t => t === '丧假' ? '其他' : t;
+    const typeMap = {};
+    j.data.forEach(l => { const dt = displayType(l.type); typeMap[dt] = (typeMap[dt] || 0) + 1; });
+    // 类型排序：病假、事假、公假、其他，同类型按数量降序
+    const typeOrder = ['病假', '事假', '公假', '其他'];
+    const sorted = Object.entries(typeMap).sort((a, b) => {
+      const ia = typeOrder.indexOf(a[0]);
+      const ib = typeOrder.indexOf(b[0]);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return b[1] - a[1];
+    });
+    const labels = sorted.map(x => x[0]);
+    const values = sorted.map(x => x[1]);
+    // 鲜明差异色，按类型固定映射
+    const colorMap = { '病假': '#ef4444', '事假': '#3b82f6', '公假': '#10b981', '其他': '#f59e0b' };
+    const fallbackColors = ['#06b6d4', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316'];
+    const colors = labels.map((l, i) => colorMap[l] || fallbackColors[i % fallbackColors.length]);
+    // 读取当前主题下的图例/说明文字实际颜色（Chart.js 不支持 CSS 变量字符串）
+    const legendColor = getComputedStyle(document.body).getPropertyValue('--text-dim').trim() || '#94a3b8';
+    // 销毁旧图表
+    if (window._leaveChartInst) window._leaveChartInst.destroy();
+    window._leaveChartInst = new Chart(canvas, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '55%',
+        plugins: {
+          legend: { position: 'right', labels: { color: legendColor, font: { size: 10 }, boxWidth: 12, padding: 6 } },
+          datalabels: { color: '#fff', font: { size: 10, weight: '600' }, formatter: (v, ctx) => v > 0 ? v : '', anchor: 'center', align: 'center' },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} 条 (${(ctx.raw / values.reduce((a,b)=>a+b,0) * 100).toFixed(1)}%)` } }
+        }
+      }
+    });
+  } catch(e) { console.error('loadLeaveChart error:', e); }
+}
+
+// ===== Load Additional Data =====
+async function loadDormStats() {
+  try {
+    const cls = currentClass !== 'all' ? `?class_name=${encodeURIComponent(currentClass)}` : '';
+    const r = await fetch(`/api/dorms/public${cls}`,{headers:_hdrs});
+    const j = await r.json();
+    if (j.code !== 0 || !j.data) return;
+    const d = j.data;
+    const total = d.length;
+    const cap = d.reduce((s,x) => s+(x.capacity||0), 0);
+    const occ = d.reduce((s,x) => s+(x.occupied||0), 0);
+    document.getElementById('dsTotal').textContent = total;
+    document.getElementById('dsCapacity').textContent = cap;
+    document.getElementById('dsRate').textContent = cap > 0 ? ((occ/cap)*100).toFixed(1)+'%' : '0%';
+    document.getElementById('dsFree').textContent = cap - occ;
+  } catch(e) {}
+}
+
+async function loadConductTop() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    const r = await fetch(`/api/stats/conduct/public?days=30${cls}`,{headers:_hdrs});
+    const j = await r.json();
+    const el = document.getElementById('conductList');
+    if (j.code !== 0 || !j.data || !j.data.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无数据</div>';
+      return;
+    }
+
+    // 按分数降序排列（高分在前），对标教师端操行量化评分表
+    const sorted = [...j.data].sort((a,b) => (b.score||0) - (a.score||0));
+
+    el.innerHTML = sorted.map((s, idx) => {
+      const score = s.score || 0;
+      const medal = idx < 3 ? ['🥇','🥈','🥉'][idx] : `${idx+1}`;
+      // 等级对标教师端：>=100优秀 / >=80良好 / >=60一般 / <60较差
+      const levelTag = score >= 100
+        ? '<span style="color:#10b981;font-size:10px;background:#d1fae5;padding:1px 6px;border-radius:8px">优</span>'
+        : score >= 80
+        ? '<span style="color:#3b82f6;font-size:10px;background:#dbeafe;padding:1px 6px;border-radius:8px">良</span>'
+        : score >= 60
+        ? '<span style="color:#f59e0b;font-size:10px;background:#fef3c7;padding:1px 6px;border-radius:8px">中</span>'
+        : '<span style="color:#ef4444;font-size:10px;background:#fee2e2;padding:1px 6px;border-radius:8px">差</span>';
+      return `<div class="realtime-item" style="animation-delay:${idx*0.08}s">
+        <span class="ri-name" style="min-width:28px;flex:none;text-align:center">${medal}</span>
+        <span class="ri-name" style="font-weight:600;min-width:46px;flex:none">${esc(s.name)||'—'}</span>
+        <span style="color:var(--text-dim);font-size:10px;min-width:52px;flex:none">${esc(s.dorm)||'—'}</span>
+        <span style="color:var(--text-dim);font-size:10px;min-width:62px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.class_name)||'—'}</span>
+        <span style="font-size:10px;min-width:22px;flex:none;text-align:center;color:var(--cyan)">${s.normal_count||0}</span>
+        <span style="font-size:10px;min-width:22px;flex:none;text-align:center;color:#f59e0b">${s.absent_count||0}</span>
+        <span style="font-size:10px;min-width:22px;flex:none;text-align:center;color:#a78bfa">${s.leave_count||0}</span>
+        <span class="ri-desc" style="color:${score>=100?'#10b981':score>=80?'#3b82f6':score>=60?'#f59e0b':'#ef4444'};font-weight:700;min-width:34px;text-align:right">${score}分</span>
+        <span style="min-width:26px;flex-none">${levelTag}</span>
+      </div>`;
+    }).join('');
+
+    startConductScroll();
+  } catch(e) { console.error(e); }
+}
+
+// ===== 课程签到纵向滚动动画 =====
+let rankScrollTimer = null;
+
+function startRankScroll() {
+  if (rankScrollTimer) { clearInterval(rankScrollTimer); rankScrollTimer = null; }
+  const el = document.getElementById('courseCheckinRank');
+  if (!el) return;
+  const items = el.querySelectorAll('.realtime-item');
+  if (items.length <= 3) return;
+  // 克隆实现无缝循环
+  el.innerHTML = el.innerHTML + el.innerHTML;
+  let scrollPos = el.scrollHeight / 2;
+  el.scrollTop = scrollPos;
+  rankScrollTimer = setInterval(() => {
+    scrollPos += 0.5;
+    el.scrollTop = scrollPos;
+    if (scrollPos >= el.scrollHeight - el.clientHeight) {
+      scrollPos = el.scrollHeight / 2 - el.clientHeight;
+      el.scrollTop = scrollPos;
+    }
+  }, 30);
+}
+
+// ===== 操行评分纵向滚动动画 =====
+let conductScrollTimer = null;
+
+function startConductScroll() {
+  if (conductScrollTimer) { clearInterval(conductScrollTimer); conductScrollTimer = null; }
+  const el = document.getElementById('conductList');
+  if (!el) return;
+  const items = el.querySelectorAll('.realtime-item');
+  if (items.length <= 3) return;
+  el.innerHTML = el.innerHTML + el.innerHTML;
+  let scrollPos = el.scrollHeight / 2;
+  el.scrollTop = scrollPos;
+  conductScrollTimer = setInterval(() => {
+    scrollPos += 0.5;
+    el.scrollTop = scrollPos;
+    if (scrollPos >= el.scrollHeight - el.clientHeight) {
+      scrollPos = el.scrollHeight / 2 - el.clientHeight;
+      el.scrollTop = scrollPos;
+    }
+  }, 30);
+}
+
+async function loadAnomalyAlerts() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    const [aR, dR] = await Promise.all([
+      fetch(`/api/stats/attention/public?days=7${cls}`,{headers:_hdrs}),
+      fetch(`/api/stats/dorm-anomaly/public${cls ? '?' + cls.slice(1) : ''}`,{headers:_hdrs})
+    ]);
+    const aJ = await aR.json();
+    const dJ = await dR.json();
+    const el = document.getElementById('anomalyList');
+    let html = '';
+    // 重点关注学生（所有缺勤≥2次的）
+    if (aJ.data && aJ.data.length) {
+      aJ.data.forEach((s, i) => {
+        const icon = s.absent_count >= 5 ? '🔴' : s.absent_count >= 3 ? '⚠️' : '⚡';
+        html += `<div class="realtime-item">
+          <div class="ri-name">${icon} ${esc(s.name)}<span class="ri-dorm">${esc(s.dorm)}</span></div>
+          <div class="ri-desc">近7天缺勤${s.absent_count}次${s.class_name ? ' · ' + esc(s.class_name) : ''}</div></div>`;
+      });
+    }
+    // 宿舍异常
+    if (dJ.data && dJ.data.length) {
+      dJ.data.forEach(d => {
+        html += `<div class="realtime-item">
+          <div class="ri-name">🏠 ${esc(d.dorm)}</div>
+          <div class="ri-desc">${d.count}人未归：${(d.names||'').slice(0,20)}</div></div>`;
+      });
+    }
+    el.innerHTML = html || '<div style="text-align:center;color:var(--text-dim);padding:20px 0">✅ 一切正常</div>';
+    
+    // 启动滚动效果
+    startScrollAnomaly();
+  } catch(e) {}
+}
+
+// ===== 关注提醒滚动动画（从下到上循环） =====
+let scrollTimer = null;
+
+function startScrollAnomaly() {
+  if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+  
+  const el = document.getElementById('anomalyList');
+  if (!el) return;
+  
+  const items = el.querySelectorAll('.realtime-item');
+  if (items.length <= 2) return; // 条数太少不需要滚动
+  
+  // 克隆内容以实现无缝循环
+  el.innerHTML = el.innerHTML + el.innerHTML;
+  
+  let scrollPos = el.scrollHeight / 2; // 从克隆内容起点开始
+  el.scrollTop = scrollPos;
+  
+  scrollTimer = setInterval(() => {
+    scrollPos += 0.5; // 每次滚动0.5px，平滑上移
+    el.scrollTop = scrollPos;
+    
+    // 当滚动到克隆内容底部时，跳回原始内容起点
+    if (scrollPos >= el.scrollHeight - el.clientHeight) {
+      scrollPos = el.scrollHeight / 2 - el.clientHeight;
+      el.scrollTop = scrollPos;
+    }
+  }, 30); // ~33fps
+}
+
+// ===== WebSocket =====
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // 大屏是公开页面，不需要认证，但仍发送空协议头
+  ws = new WebSocket(`${proto}//${location.host}`, ['public']);
+  ws.onmessage = (e) => {
+    try { const m = JSON.parse(e.data); if (m.type === 'new_checkin' || m.type === 'notification' || m.type === 'leave_updated') { loadData(); loadRealtime(); } } catch(x) {}
+  };
+  ws.onclose = () => setTimeout(connectWS, 5000);
+}
+
+// ===== 加载实时动态（查寝+请假记录） =====
+async function loadRealtime() {
+  try {
+    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
+    const date = window._dashboardDate || '';
+    const dateParam = date ? `&date=${encodeURIComponent(date)}` : '';
+
+    const [recR, lvR] = await Promise.all([
+      fetch(`/api/records?type=checkin${dateParam}${cls}`,{headers:_hdrs}),
+      fetch(`/api/leaves?${cls ? cls.slice(1) : ''}`,{headers:_hdrs})
+    ]);
+    
+    const recJ = await recR.json();
+    const lvJ = await lvR.json();
+    
+    const recs = recJ.data || [];
+    const lvs = lvJ.data || [];
+    
+    const el = document.getElementById('realtimeList');
+    let html = '';
+    
+    // 取最近10条查寝记录（倒序显示：最新的在最上面）
+    const recentRecs = recs.slice(0, 10);
+    recentRecs.forEach(r => {
+      const statusIcon = r.status === '在寝' ? '✅' : r.status === '未归' ? '🔴' : '⚪';
+      const timeStr = r.time ? r.time.slice(0,5) : '';
+      const dateStr = r.date || '';
+      const cnDate = dateStr ? dateStr.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1年$2月$3日') : '';
+      html += `<div class="realtime-item">
+        <div class="ri-name">${statusIcon} ${esc(r.student_name)||'未知'}<span class="ri-dorm">${esc(r.dorm)||''}</span></div>
+        <div class="ri-desc">${esc(r.status)} · ${esc(r.class_name)||''}${r.address ? ' · ' + esc(r.address) : ''}</div>
+        <div class="ri-time">${cnDate} ${timeStr}</div></div>`;
+    });
+    
+    // 取最近5条请假记录
+    const recentLvs = lvs.slice(0, 5);
+    recentLvs.forEach(l => {
+      const statusIcon = l.status === '已批准' ? '✅' : l.status === '待审批' ? '⏳' : '❌';
+      const rawTime = l.created_at || '';
+      const cnTime = rawTime.replace(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2}:\d{2})/, '$1年$2月$3日 $4').replace(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2}:\d{2})/, '$1年$2月$3日 $4');
+      html += `<div class="realtime-item">
+        <div class="ri-name">📝 ${esc(l.student_name)||'未知'}<span class="ri-dorm">${esc(l.dorm)||''}</span></div>
+        <div class="ri-desc">请假 · ${esc(l.status)}${l.class_name ? ' · ' + esc(l.class_name) : ''}</div>
+        <div class="ri-time">${cnTime}</div></div>`;
+    });
+    
+    el.innerHTML = html || '<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无动态</div>';
+    
+    // 启动从下到上滚动
+    startRealtimeScroll();
+  } catch(e) { console.error('loadRealtime error:', e); }
+}
+
+// ===== 实时动态滚动动画（从下到上循环） =====
+let realtimeScrollTimer = null;
+
+function startRealtimeScroll() {
+  if (realtimeScrollTimer) { clearInterval(realtimeScrollTimer); realtimeScrollTimer = null; }
+  
+  const el = document.getElementById('realtimeList');
+  if (!el) return;
+  
+  const items = el.querySelectorAll('.realtime-item');
+  if (items.length <= 3) return;
+  
+  // 克隆内容实现无缝循环
+  el.innerHTML = el.innerHTML + el.innerHTML;
+  
+  let scrollPos = el.scrollHeight / 2;
+  el.scrollTop = scrollPos;
+  
+  realtimeScrollTimer = setInterval(() => {
+    scrollPos += 0.5;
+    el.scrollTop = scrollPos;
+    
+    if (scrollPos >= el.scrollHeight - el.clientHeight) {
+      scrollPos = el.scrollHeight / 2 - el.clientHeight;
+      el.scrollTop = scrollPos;
+    }
+  }, 30);
+}
+
+// ===== Global Refresh =====
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.classList.add('spin');
+  try {
+    await loadClasses();
+    await loadData();
+    loadTrendChart();
+    loadCourseCheckinRank();
+    loadLeaveChart();
+    loadAtRiskStudents();
+    loadDormStats();
+    loadConductTop();
+    loadPredictionChart();
+    loadLeaveForecastChart();
+    loadModelEvaluation();
+    loadAnomalyAlerts();
+    loadRealtime();
+  } finally {
+    if (btn) setTimeout(() => btn.classList.remove('spin'), 600);
+  }
+}
+
+// ===== Class Filter =====
+function onClassChange() {
+  currentClass = document.getElementById('classFilter').value;
+  loadData();
+  loadTrendChart();
+  loadAnomalyAlerts();
+  loadConductTop();
+  loadRealtime();
+  loadCourseCheckinRank();
+  loadLeaveChart();
+  loadDormStats();
+  loadPredictionChart();
+  loadLeaveForecastChart();
+  loadAtRiskStudents();
+  loadModelEvaluation();
+}
+
+// ===== Init =====
+async function init() {
+  await loadClasses();
+  await loadData();
+  loadTrendChart();
+  loadCourseCheckinRank();
+  loadLeaveChart();
+  loadAtRiskStudents();
+  loadDormStats();
+  loadConductTop();
+  loadPredictionChart();
+  loadLeaveForecastChart();
+  loadModelEvaluation();
+  loadAnomalyAlerts();
+  loadRealtime();
+  connectWS();
+  updateTime(); setInterval(updateTime, 1000);
+  setInterval(loadData, 30000);
+  setInterval(loadDormStats, 60000);
+  setInterval(loadConductTop, 60000);
+  setInterval(loadAnomalyAlerts, 30000);
+  setInterval(loadRealtime, 15000);
+  setInterval(loadCourseCheckinRank, 30000);
+  setInterval(loadLeaveChart, 60000);
+  
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => loadData(), 300); });
+
+  if (location.search.includes('presentation=1')) {
+    document.documentElement.requestFullscreen?.().catch(()=>{});
+    const cards = document.querySelectorAll('.chart-card, .metric-card, .summary-chip');
+    let idx = 0;
+    setInterval(() => {
+      cards.forEach(c => c.style.transform = '');
+      cards[idx]?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+      if (cards[idx]) cards[idx].style.transform = 'scale(1.02)';
+      idx = (idx + 1) % cards.length;
+    }, 12000);
+  }
+}
+// closeDashboard already defined at line 412-420 with postMessage support
+
+// ===== 主题切换 =====
+function switchTheme(theme){
+  document.documentElement.setAttribute('data-theme',theme);
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.toggle('active',b.dataset.theme===theme));
+  if(charts.trend){charts.trend.destroy();charts.trend=null;loadTrendChart()}
+  // 主题切换后图表坐标轴颜色需重新读取
+  loadLeaveChart();
+  loadPredictionChart();
+  loadLeaveForecastChart();
+}
+
+updateTime();
+setInterval(updateTime, 1000);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+});
+</script>
+</body>
+</html>
