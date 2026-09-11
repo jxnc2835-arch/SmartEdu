@@ -1132,6 +1132,15 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
                 <button class="btn btn-o btn-sm" onclick="document.getElementById('customPwdArea').style.display='none'">取消</button>
               </div>
             </div>
+
+            <!-- 修改我的密码：当前登录的超级管理员修改本人密码 -->
+            <div style="border-top:1px solid #eef2f7;margin-top:14px;padding-top:12px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font-size:13px;color:#475569;font-weight:600">🔁 修改我的密码</span>
+                <span style="font-size:12px;color:#94a3b8">当前登录账号</span>
+                <button class="btn btn-p btn-sm" onclick="openChangeMyPwdModal()">修改密码</button>
+              </div>
+            </div>
           </div>
 
           <!-- 主题色 -->
@@ -1168,6 +1177,20 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
     <div class="modal-foot">
       <button class="btn btn-o" onclick="closeModal('resetPwdModal')">取消</button>
       <button class="btn btn-w" onclick="resetPwd()">🔑 重置</button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改我的密码弹窗（当前登录账号） -->
+<div class="modal-mask" id="changeMyPwdModal">
+  <div class="modal" style="width:440px">
+    <h3>🔁 修改我的密码</h3>
+    <div class="form-row"><label>原密码</label><input type="password" id="cmOldPwd" placeholder="输入当前登录密码" /></div>
+    <div class="form-row"><label>新密码（至少 6 位）</label><input type="password" id="cmNewPwd" placeholder="输入新密码" /></div>
+    <div class="form-row"><label>确认新密码</label><input type="password" id="cmNewPwd2" placeholder="再次输入新密码" /></div>
+    <div class="modal-foot">
+      <button class="btn btn-o" onclick="closeModal('changeMyPwdModal')">取消</button>
+      <button class="btn btn-p" onclick="confirmChangeMyPwd()">保存</button>
     </div>
   </div>
 </div>
@@ -4506,7 +4529,7 @@ async function resetPwdTo123456(){
   const u=document.getElementById('pwdMgmtUserSel').value;
   if(!u){alert('请先选择用户');return;}
   if(!confirm(`确认将「${u}」的密码重置为 123456？`))return;
-  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({user_id:u,new_password:'123456'})});
+  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({userId:u,newPassword:'123456'})});
   if(r.code===0)showToast(`已重置 ${u} 密码为 123456`);else showToast(r.message||'重置失败','❌',true);
 }
 function customSetPwd(){
@@ -4520,12 +4543,36 @@ async function confirmCustomPwd(){
   const pwd=document.getElementById('customPwdInput').value.trim();
   if(!u||!pwd){alert('请选择用户并输入密码');return;}
   if(pwd.length<6){alert('密码至少 6 位');return;}
-  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({user_id:u,new_password:pwd})});
+  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({userId:u,newPassword:pwd})});
   if(r.code===0){
     showToast(`已为 ${u} 设置新密码`);
     document.getElementById('customPwdArea').style.display='none';
     document.getElementById('customPwdInput').value='';
   }else showToast(r.message||'设置失败','❌',true);
+}
+
+// ==================== 修改我的密码（当前登录账号，走 /api/change-password） ====================
+function openChangeMyPwdModal(){
+  document.getElementById('cmOldPwd').value='';
+  document.getElementById('cmNewPwd').value='';
+  document.getElementById('cmNewPwd2').value='';
+  showModal('changeMyPwdModal');
+  document.getElementById('cmOldPwd').focus();
+}
+async function confirmChangeMyPwd(){
+  const oldPwd=document.getElementById('cmOldPwd').value;
+  const newPwd=document.getElementById('cmNewPwd').value;
+  const newPwd2=document.getElementById('cmNewPwd2').value;
+  if(!oldPwd||!newPwd){alert('请填写原密码和新密码');return;}
+  if(newPwd.length<6){alert('新密码至少 6 位');return;}
+  if(newPwd!==newPwd2){alert('两次输入的新密码不一致');return;}
+  const r=await apiAuth('/api/change-password',{method:'POST',body:JSON.stringify({oldPwd:oldPwd,newPwd:newPwd})});
+  if(r.code===0){
+    showToast('密码修改成功，下次登录请使用新密码');
+    closeModal('changeMyPwdModal');
+  }else{
+    alert('修改失败：'+(r.message||'原密码可能错误'));
+  }
 }
 
 // ==================== 主题色 ====================

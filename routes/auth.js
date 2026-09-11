@@ -194,7 +194,7 @@ function init(opts) {
   // ==================== 密码管理 ====================
   router.post('/api/change-password', authMiddleware, async (req, res) => {
     const { oldPwd, newPwd } = req.body;
-    const row = db.exec("SELECT * FROM users WHERE id=?", [req.user.userId])[0]?.values?.[0];
+    const row = db.exec("SELECT id, password_hash FROM users WHERE id=?", [req.user.userId])[0]?.values?.[0];
     if (!row) return res.json({ code: 1, message: '用户不存在' });
     const [id, hash] = row;
     const valid = await bcrypt.compare(oldPwd, hash);
