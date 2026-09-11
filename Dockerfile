@@ -5,6 +5,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --only=production && npm cache clean --force
 
+# 第二阶段：复制应用代码
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN mkdir -p public/uploads logs backups ssl
+
 # 第三阶段：运行生产镜像
 FROM node:20-alpine AS production
 # 使用非 root 用户运行
@@ -13,26 +20,23 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# 复制依赖
-COPY --from=deps /app/node_modules ./node_modules
+# 从构建阶段复制产物
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /app/server.js ./server.js
+COPY --from=builder --chown=nodejs:nodejs /app/routes/ ./routes/
+COPY --from=builder --chown=nodejs:nodejs /app/middleware/ ./middleware/
+COPY --from=builder --chown=nodejs:nodejs /app/utils/ ./utils/
+COPY --from=builder --chown=nodejs:nodejs /app/services/ ./services/
+COPY --from=builder --chown=nodejs:nodejs /app/templates/ ./templates/
+COPY --from=builder --chown=nodejs:nodejs /app/swagger.js ./swagger.js
+COPY --from=builder --chown=nodejs:nodejs /app/config/ ./config/
+COPY --from=builder --chown=nodejs:nodejs /app/public/ ./public/
+COPY --from=builder --chown=nodejs:nodejs /app/models/ ./models/
+COPY --from=builder --chown=nodejs:nodejs /app/ssl/ ./ssl/ 2>/dev/null || true
 
-# 复制应用代码
-COPY --chown=nodejs:nodejs package.json ./
-COPY --chown=nodejs:nodejs server.js ./
-COPY --chown=nodejs:nodejs routes/ ./routes/
-COPY --chown=nodejs:nodejs middleware/ ./middleware/
-COPY --chown=nodejs:nodejs utils/ ./utils/
-COPY --chown=nodejs:nodejs services/ ./services/
-COPY --chown=nodejs:nodejs templates/ ./templates/
-COPY --chown=nodejs:nodejs swagger.js ./
-
-# 复制公共静态文件（排除上传目录）
-COPY --chown=nodejs:nodejs public/ ./public/
+# 创建运行时目录
 RUN mkdir -p public/uploads logs backups && \
     chmod -R 755 public/uploads logs backups
-
-# 复制 SSL 证书（如果存在）
-COPY --chown=nodejs:nodejs ssl/ ./ssl/ 2>/dev/null || true
 
 # 切换到非 root 用户
 USER nodejs
@@ -42,7 +46,7 @@ EXPOSE 3000 3443
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 0 ? 0 : 1) })"
 
 # 启动命令
 CMD ["node", "server.js"]
