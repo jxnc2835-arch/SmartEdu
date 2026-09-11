@@ -80,6 +80,7 @@ const {
 const { localDateStr, formatDate, nowTimestamp, saveBase64Photo, beijingStamp, compressImage, setAppDb } = require('./utils/helpers');
 const { createIndexes, optimizeDbConfig, paginate, batchInsert, healthCheck, vacuum } = require('./utils/database');
 const { rateLimit, loginRateLimit } = require('./middleware/rate-limit');
+const { csrfProtection, csrfGetToken } = require('./middleware/csrf');
 const { initAutoBackup } = require('./utils/auto-backup');
 
 // 路由模块导入
@@ -102,6 +103,24 @@ const { init: initMetricsRoutes } = require('./routes/metrics');
 
 // 创建 Express 应用（包含中间件、静态文件、错误处理）
 const app = createApp();
+
+// Trust proxy for reverse proxy deployments (nginx, cloud load balancers)
+app.set('trust proxy', 1);
+
+// ==================== HTTPS 强制重定向中间件 ====================
+// 当 HTTPS 可用时，将 HTTP 请求 301 重定向到 HTTPS
+// 仅在生产环境生效（NODE_ENV !== 'test'）
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    // 如果已有 HTTPS 证书且请求是 HTTP，则重定向
+    if (req.protocol === 'http' && fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
+      const httpsUrl = `https://${req.headers.host}${req.originalUrl}`;
+      logger.info(`HTTP → HTTPS 重定向: ${req.originalUrl}`);
+      return res.redirect(301, httpsUrl);
+    }
+    next();
+  });
+}
 
 // 挂载 Swagger 文档（在路由注册之前）
 try {
@@ -316,8 +335,12 @@ const alertsRouter = initAlertsRoutes({ db, authMiddleware, scheduleSave, addLog
 app.use(alertsRouter);
 const webhookRouter = initWebhookRoutes({ db, authMiddleware, addLog });
 app.use(webhookRouter);
-  
-  logger.info('所有路由模块已挂载');
+
+// CSRF 防护：在所有业务路由挂载后，对写操作进行 CSRF 验证
+// GET/HEAD/OPTIONS 自动跳过，仅 POST/PUT/DELETE/PATCH 需要 token
+app.use(csrfProtection);
+
+logger.info('所有路由模块已挂载');
 
   // 导出全局共享函数（向后兼容）
   global.broadcast = broadcast;
@@ -635,7 +658,7 @@ app.use((err, req, res, next) => {
           const wssHttps = new WebSocketServer({ server: httpsServer, verifyClient: wsVerifyClient });
           wssHttps.on('connection', ws => { ws.on('error', (err) => logger.error('HTTPS WebSocket错误:', err.message)); });
           httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-            logger.info(`HTTPS: https://localhost:${HTTPS_PORT}`);
+            logger.info(`🔒 HTTPS: https://localhost:${HTTPS_PORT}`);
           }).on('error', (err) => logger.error(`HTTPS服务器启动失败: ${err.message}`));
         }
       } catch(e) { logger.error(`HTTPS启动异常: ${e.message}`); }

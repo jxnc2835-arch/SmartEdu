@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const path = require('path');
+const { csrfGetToken } = require('../middleware/csrf');
 
 /**
  * 初始化认证路由模块
@@ -192,6 +193,8 @@ function init(opts) {
   });
 
   // ==================== 密码管理 ====================
+  // CSRF token 获取端点（登录成功后前端调用获取）
+  router.get('/api/csrf-token', csrfGetToken);
   router.post('/api/change-password', authMiddleware, async (req, res) => {
     const { oldPwd, newPwd } = req.body;
     const row = db.exec("SELECT id, password_hash FROM users WHERE id=?", [req.user.userId])[0]?.values?.[0];
