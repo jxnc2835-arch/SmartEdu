@@ -3,6 +3,7 @@
 // 当前活体检测逻辑已集成到 routes/ai.js 中
 
 const express = require('express');
+const path = require('path');
 
 /**
  * 初始化活体检测路由模块
@@ -15,25 +16,46 @@ function init(opts) {
   const router = express.Router();
 
   // POST /api/face/liveness - 活体检测接口（EAR计算）
+  // 说明：原实现依赖 face-api.js(锁 tfjs 1.x，与项目 tfjs 4.22 冲突) + 未安装的 canvas 包，
+  // 实际不可用。改用 @vladmandic/face-api (wasm 构建, 纯 JS) + sharp 解码，与 routes/ai.js 同源。
+  let _faceReady = null;
+  async function ensureLivenessFaceModels() {
+    if (!_faceReady) {
+      _faceReady = (async () => {
+        const faceapi = require('@vladmandic/face-api/dist/face-api.node-wasm.js');
+        await faceapi.tf.setBackend('wasm');
+        await faceapi.tf.ready();
+        const modelDir = path.join(__dirname, '..', 'models');
+        await faceapi.nets.tinyFaceDetector.loadFromDisk(modelDir);
+        await faceapi.nets.faceLandmark68Net.loadFromDisk(modelDir);
+        return faceapi;
+      })().catch(err => { _faceReady = null; throw err; });
+    }
+    return _faceReady;
+  }
+
   router.post('/api/face/liveness', authMiddleware, async (req, res) => {
     try {
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.json({ code: 1, message: '缺少图片数据' });
 
-      const faceapi = require('face-api.js');
-      const { Canvas, Image } = require('canvas');
-      const canvas = new Canvas();
-      const img = new Image();
-      img.src = Buffer.from(imageBase64, 'base64');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      const faceapi = await ensureLivenessFaceModels();
+      const sharp = require('sharp');
 
-      await faceapi.nets.tinyFaceDetector.loadFromDisk('./models');
-      await faceapi.nets.faceLandmark68TinyNet.loadFromDisk('./models');
+      // base64 → Buffer → sharp 解码为 416×416×3 张量（居中裁剪 + 去 alpha）
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      const meta = await sharp(imageBuffer).metadata();
+      const side = Math.min(meta.width, meta.height);
+      const { data } = await sharp(imageBuffer)
+        .extract({ left: Math.floor((meta.width - side) / 2), top: Math.floor((meta.height - side) / 2), width: side, height: side })
+        .resize(416, 416)
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const image = faceapi.tf.tensor3d(data, [416, 416, 3]);
 
-      const detections = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks(true);
+      // withFaceLandmarks() 默认用完整 68 关键点网络（models/ 中为 face_landmark_68_model）
+      const detections = await faceapi.detectSingleFace(image, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks();
       if (!detections) return res.json({ code: 1, message: '未检测到人脸' });
 
       const landmarks = detections.landmarks;

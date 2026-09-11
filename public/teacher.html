@@ -1616,7 +1616,9 @@ function connectWS(){
   try{
     const proto=location.protocol==='https:'?'wss':'ws';
     const token = getToken();
-    ws=new WebSocket(`${proto}://${location.host}`, [token || '']);
+    // WS 已启用鉴权：token 经 URL 查询参数传递（浏览器 WebSocket 无法设自定义 header）；
+    // 未登录时连不上，onclose 会按 3 秒间隔重试（登录完成后 getToken 即有值）
+    ws=new WebSocket(`${proto}://${location.host}/?token=${encodeURIComponent(token||'')}`);
     ws.onmessage=ev=>{try{const m=JSON.parse(ev.data);handleWS(m);}catch(e){}};
     ws.onclose=()=>setTimeout(connectWS,3000);
   }catch(e){}

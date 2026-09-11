@@ -111,7 +111,7 @@ try {
   logger.warn('Swagger 初始化失败:', e.message);
 }
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, verifyClient: wsVerifyClient });
 
 const { PORT, HTTPS_PORT, SSL_DIR, SSL_KEY, SSL_CERT, UPLOAD_DIR, BACKUP_DIR, DB_FILE: dbFile } = config;
 
@@ -120,16 +120,36 @@ function broadcast(msg) {
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(data); });
 }
 
-// WebSocket 认证中间件
-function wsAuthMiddleware(req, socket, head) {
-  const token = req.headers['authorization'] || '';
-  if (!token) return socket.destroy();
+// ==================== WebSocket 认证 ====================
+// 浏览器 WebSocket 无法携带自定义 header，token 通过 URL 查询参数传递：
+//   ws://host/?token=<JWT 或学生token>
+// 通道划分（verifyClient 按 URL 路径 + 子协议判定）：
+// - 公开大屏:  ws://host/ws-public（须带 'public' 子协议，仅大屏页使用）
+// - 教师端:    ?token=<JWT>（/api/login 签发）
+// - 学生端:    ?token=<学生token>（/api/student/login 签发）
+// 说明：曾考虑把 token 放子协议，但 JWT（含 '.' 的 base64url）不是合法子协议
+// 名，浏览器 new WebSocket 会直接失败，故统一改用查询参数。
+// 校验失败返回 401，前端按既有重连逻辑定期重试。
+function wsVerifyClient(info, done) {
   try {
-    const decoded = validateToken(token.replace('Bearer ', ''));
-    if (!decoded) return socket.destroy();
-    req.user = decoded;
+    const req = info.req; // ws 8.x 回调参数为 { origin, secure, req }
+    const u = new URL(req.url, 'http://localhost');
+    const protocols = String(req.headers['sec-websocket-protocol'] || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    // 公开大屏通道：仅 /ws-public 且携带 'public' 子协议放行（认证端点不得借用）
+    if (u.pathname === '/ws-public') {
+      return protocols.includes('public') ? done(true) : done(false);
+    }
+    // 认证通道：?token= 校验（JWT 或学生 token）
+    const candidate = u.searchParams.get('token') || '';
+    if (!candidate) return done(false);
+    if (validateToken(candidate)) return done(true);
+    const studentEntry = STUDENT_TOKENS[candidate];
+    if (studentEntry && Date.now() <= studentEntry.expiresAt) return done(true);
+    return done(false);
   } catch (e) {
-    return socket.destroy();
+    logger.warn('[WS] verifyClient 异常:', e.message);
+    return done(false);
   }
 }
 
@@ -612,7 +632,7 @@ app.use((err, req, res, next) => {
         if (fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
           const https = require('https');
           const httpsServer = https.createServer({ key: fs.readFileSync(SSL_KEY), cert: fs.readFileSync(SSL_CERT) }, app);
-          const wssHttps = new WebSocketServer({ server: httpsServer });
+          const wssHttps = new WebSocketServer({ server: httpsServer, verifyClient: wsVerifyClient });
           wssHttps.on('connection', ws => { ws.on('error', (err) => logger.error('HTTPS WebSocket错误:', err.message)); });
           httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
             logger.info(`HTTPS: https://localhost:${HTTPS_PORT}`);

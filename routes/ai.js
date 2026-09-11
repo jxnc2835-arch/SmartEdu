@@ -33,7 +33,42 @@ const { evaluateModels } = require('../utils/backtest');
  */
 function init(opts) {
   const { db, scheduleSave, upload, fs, path: _path, authMiddleware, nowTimestamp, localDateStr, formatDate, addLog, broadcast, validateToken, ROOT_DIR, STUDENT_TOKENS, sendWebhook } = opts;
-  let faceapi;
+  let faceapi;      // @vladmandic/face-api (wasm 构建, Node 纯 JS 无需 C++)
+  let _sharp;       // sharp (图片解码 → RGBA → tfjs Tensor3D)
+  let _faceModelsPromise = null;
+
+  // 服务端人脸识别模型懒加载：
+  // 原 face-api.js@0.20 锁 tfjs 1.x，与项目顶层 tfjs 4.22 版本冲突（引擎崩溃）。
+  // 改用 @vladmandic/face-api (wasm 构建)：前端已验证同 API，Node 下用 tfjs-backend-wasm 纯 JS 推理，
+  // 无需 @tensorflow/tfjs-node C++ 编译。图片解码复用已装的 sharp（居中裁剪 + 缩放 416×416 + RGB 3 通道）。
+  async function ensureFaceModels() {
+    if (!_faceModelsPromise) {
+      _faceModelsPromise = (async () => {
+        faceapi = faceapi || require('@vladmandic/face-api/dist/face-api.node-wasm.js');
+        _sharp = _sharp || require('sharp');
+        await faceapi.tf.setBackend('wasm');
+        await faceapi.tf.ready();
+        const modelDir = path.join(__dirname, '..', 'models');
+        await faceapi.nets.tinyFaceDetector.loadFromDisk(modelDir);
+        await faceapi.nets.faceLandmark68Net.loadFromDisk(modelDir);
+        await faceapi.nets.faceRecognitionNet.loadFromDisk(modelDir);
+      })().catch(err => { _faceModelsPromise = null; throw err; });
+    }
+    return _faceModelsPromise;
+  }
+
+  // 将图片 Buffer 解码为 tfjs Tensor3D (416×416×3)：居中正方形裁剪 + 缩放 + 去 alpha
+  async function decodeFaceTensor(imageBuffer) {
+    const meta = await _sharp(imageBuffer).metadata();
+    const side = Math.min(meta.width, meta.height);
+    const { data } = await _sharp(imageBuffer)
+      .extract({ left: Math.floor((meta.width - side) / 2), top: Math.floor((meta.height - side) / 2), width: side, height: side })
+      .resize(416, 416)
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return faceapi.tf.tensor3d(data, [416, 416, 3]);
+  }
 
   const router = express.Router();
 
@@ -398,14 +433,11 @@ function init(opts) {
 
       let faceHash = null;
       try {
-        faceapi = faceapi || require('face-api.js');
-        
-        // 读取上传的图片文件
+        await ensureFaceModels(); // 服务端模型懒加载（wasm 后端 + 检测+关键点+128维描述子），失败则抛出
+        // 读取上传的图片文件并解码为 416×416×3 张量
         const imageBuffer = fs.readFileSync(req.file.path);
-        
-        // 加载图片并检测人脸
-        const image = await faceapi.Image.fromBuffer(imageBuffer);
-        const detection = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor();
+        const image = await decodeFaceTensor(imageBuffer);
+        const detection = await faceapi.detectSingleFace(image, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
         
         if (!detection) {
           return res.json({ code: 1, message: '未检测到人脸，请确保照片清晰且包含完整人脸' });

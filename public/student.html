@@ -1347,60 +1347,70 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==================== WebSocket 监听 ====================
-// 连接服务器 WebSocket（带认证 token）
-const ws = new WebSocket(`ws://${location.host}`, [myStudentToken || '']);
-ws.onopen = () => {
-  console.log('WebSocket connected');
-};
-ws.onmessage = (event) => {
-  try {
-    const msg = JSON.parse(event.data);
-    if (msg.type === 'notification') {
-      // 仅在学生已登录时处理
-      if (myStudentId) {
-        // 弹窗提示（esc 防止 XSS）
-        toast(`📢 ${esc(msg.data.title)}: ${esc(msg.data.message)}`);
+// 连接服务器 WebSocket（WS 已启用鉴权：token 经 URL 查询参数传递，浏览器无法设自定义 header。
+// 未登录时服务器拒绝 upgrade，登录成功/掉线后用当前 token 重建连接）
+let ws = null;
+function connectStudentWS() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  ws = new WebSocket(`ws://${location.host}/?token=${encodeURIComponent(myStudentToken || '')}`);
+  ws.onopen = () => {
+    console.log('WebSocket connected');
+  };
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'notification') {
+        // 仅在学生已登录时处理
+        if (myStudentId) {
+          // 弹窗提示（esc 防止 XSS）
+          toast(`📢 ${esc(msg.data.title)}: ${esc(msg.data.message)}`);
+          
+          // 浏览器桌面通知
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(msg.data.title, {
+              body: msg.data.message,
+              icon: '/icons/icon-192.svg',
+              badge: '/icons/icon-96.svg',
+              tag: msg.data.id || 'default'
+            });
+          }
+          
+          // 如果在请假页面，刷新列表
+          if (document.getElementById('page-leave').classList.contains('active')) {
+            loadMyLeaves();
+          }
+          // 无论是否在请假页面，都刷新（因为审批结果需要实时看到）
+          loadMyLeaves();
+        }
+      }
+      if (msg.type === 'leave_updated' && myStudentId && msg.data.student_id === myStudentId) {
+        // 教师审批后，刷新学生端的请假列表
+        const statusText = msg.data.status === 'approved' ? '✅ 已批准' : (msg.data.status === 'rejected' ? '❌ 已驳回' : '📋 已更新');
+        toast(`${statusText}：${esc(msg.data.comment || '无备注')}`);
         
         // 浏览器桌面通知
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(msg.data.title, {
-            body: msg.data.message,
+          new Notification('请假审批结果', {
+            body: `${statusText}：${esc(msg.data.comment || '请查看详情')}`,
             icon: '/icons/icon-192.svg',
-            badge: '/icons/icon-96.svg',
-            tag: msg.data.id || 'default'
+            tag: msg.data.id || 'leave-update'
           });
         }
         
-        // 如果在请假页面，刷新列表
-        if (document.getElementById('page-leave').classList.contains('active')) {
-          loadMyLeaves();
-        }
-        // 无论是否在请假页面，都刷新（因为审批结果需要实时看到）
         loadMyLeaves();
       }
+    } catch (e) {
+      console.error('WebSocket message parse error', e);
     }
-    if (msg.type === 'leave_updated' && myStudentId && msg.data.student_id === myStudentId) {
-      // 教师审批后，刷新学生端的请假列表
-      const statusText = msg.data.status === 'approved' ? '✅ 已批准' : msg.data.status === 'rejected' ? '❌ 已驳回' : '📋 已更新';
-      toast(`${statusText}：${msg.data.comment || '无备注'}`);
-      
-      // 浏览器桌面通知
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('请假审批结果', {
-          body: `${statusText}：${msg.data.comment || '请查看详情'}`,
-          icon: '/icons/icon-192.svg',
-          tag: msg.data.id || 'leave-update'
-        });
-      }
-      
-      loadMyLeaves();
-    }
-  } catch (e) {
-    console.error('WebSocket message parse error', e);
-  }
-};
-ws.onerror = (e) => console.error('WebSocket error', e);
-ws.onclose = () => console.warn('WebSocket closed');
+  };
+  ws.onerror = (e) => console.error('WebSocket error', e);
+  ws.onclose = () => {
+    console.warn('WebSocket closed');
+    // 已登录状态下掉线（含 token 过期/服务器重启）5 秒后用当前 token 重连
+    if (myStudentToken) setTimeout(connectStudentWS, 5000);
+  };
+}
+connectStudentWS();
 function doLogin() {
   const id = document.getElementById('loginStudent').value;
   if (!id || !studentMap[id]) { toast('⚠️ 请选择身份'); return; }
@@ -1439,6 +1449,8 @@ function doLogin() {
     document.getElementById('userBar').style.display = 'flex';
     document.getElementById('userBarName').textContent = `👤 ${esc(j.student.name)}（${j.student.dorm}）`;
     toast(`✅ 欢迎，${j.student.name}`);
+    // 登录成功后用新 token 重建 WebSocket（WS 鉴权后，未登录建立的连接会被服务器拒绝）
+    connectStudentWS();
     // 重新加载各模块数据
     if (document.getElementById('page-checkin').classList.contains('active')) loadCheckinData();
     if (document.getElementById('page-leave').classList.contains('active')) { loadMyLeaves(); checkLvReady(); }
@@ -1599,6 +1611,8 @@ async function doLogout() {
   localStorage.removeItem('myStudentId');
   localStorage.removeItem('myClassName');
   localStorage.removeItem('myStudentToken');
+  // 主动断开 WebSocket 会话（token 已失效，避免服务器侧残留连接）
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.onclose = null; ws.close(); }
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('forcePwdOverlay').style.display = 'none';
   document.getElementById('userBar').style.display = 'none';

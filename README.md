@@ -52,8 +52,8 @@
 ├─────────────────────────────────────────────────────────┤
 │                     AI 引擎层                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐   │
-│  │ face-api.js  │  │simple-stats  │  │ 关键词问答 │   │
-│  │ 人脸检测识别  │  │线性回归预测  │  │ 智能助手   │   │
+│  │ @vladmandic/ │  │simple-stats  │  │ 关键词问答 │   │
+│  │ face-api     │  │线性回归预测  │  │ 智能助手   │   │
 │  └──────────────┘  └──────────────┘  └────────────┘   │
 ├─────────────────────────────────────────────────────────┤
 │                     数据层                               │
@@ -70,7 +70,7 @@
 ### 技术栈
 - **后端**: Node.js + Express + SQLite (sql.js)
 - **前端**: 原生 HTML5/CSS3/JavaScript + Chart.js
-- **AI 功能**: face-api.js + @tensorflow/tfjs + simple-statistics
+- **AI 功能**: @vladmandic/face-api（前端 CDN + 服务端 wasm 构建）+ @tensorflow/tfjs + simple-statistics
 - **通信**: RESTful API + WebSocket 实时推送
 - **部署**: HTTP/HTTPS 双端口 + PWA 离线支持
 
@@ -112,7 +112,7 @@
 3. **双重保障**: 人脸识别 + GPS 定位 + 时间戳
 
 #### 技术细节
-- 使用 `face-api.js` 进行人脸检测和特征提取
+- 使用 `@vladmandic/face-api` 进行人脸检测和特征提取（前端经 CDN 加载，服务端经 tfjs-wasm 纯 JS 推理，两端 128 维特征向量格式一致可互认）
 - 128 维 Face Descriptor（人脸特征向量）
 - 余弦相似度计算匹配度
 - 支持本地模型和 CDN 两种加载方式
