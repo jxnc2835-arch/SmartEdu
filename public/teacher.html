@@ -681,7 +681,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
                 <div>• 添加 / 编辑 / 删除辅导员、班主任、院领导账号</div>
                 <div>• 角色权限：<b>辅导员</b>管理本班、<b>班主任</b>查看班级、<b>院领导</b>只读</div>
                 <div>• 每个用户可绑定多个管理班级（回车添加标签）</div>
-                <div>• <b>🔐 密码管理</b>：选择用户 → 重置为123456 / 自定义密码</div>
+                <div>• <b>🔐 密码管理</b>：选择用户 → 重置为123456；支持管理员修改本人密码</div>
                 <div>• 🎨 主题色：支持6种主题色切换（科技蓝/翠冷/琥珀橙等）</div>
               </div>
 
@@ -1120,16 +1120,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
                 <label style="display:block;font-size:13px;color:#475569;margin-bottom:6px;font-weight:600">操作</label>
                 <div style="display:flex;gap:6px">
                   <button class="btn btn-o btn-sm" onclick="resetPwdTo123456()">重置为 123456</button>
-                  <button class="btn btn-p btn-sm" onclick="customSetPwd()">自定义密码</button>
                 </div>
-              </div>
-            </div>
-            <div id="customPwdArea" style="display:none;margin-top:14px;padding:12px;background:#f8fafc;border-radius:6px">
-              <label style="display:block;font-size:13px;color:#475569;margin-bottom:6px">新密码（至少 6 位）</label>
-              <div style="display:flex;gap:8px">
-                <input type="text" id="customPwdInput" placeholder="输入新密码" style="flex:1;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px"/>
-                <button class="btn btn-p btn-sm" onclick="confirmCustomPwd()">设置</button>
-                <button class="btn btn-o btn-sm" onclick="document.getElementById('customPwdArea').style.display='none'">取消</button>
               </div>
             </div>
 
@@ -4534,25 +4525,6 @@ async function resetPwdTo123456(){
   const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({userId:u,newPassword:'123456'})});
   if(r.code===0)showToast(`已重置 ${u} 密码为 123456`);else showToast(r.message||'重置失败','❌',true);
 }
-function customSetPwd(){
-  const u=document.getElementById('pwdMgmtUserSel').value;
-  if(!u){alert('请先选择用户');return;}
-  document.getElementById('customPwdArea').style.display='block';
-  document.getElementById('customPwdInput').focus();
-}
-async function confirmCustomPwd(){
-  const u=document.getElementById('pwdMgmtUserSel').value;
-  const pwd=document.getElementById('customPwdInput').value.trim();
-  if(!u||!pwd){alert('请选择用户并输入密码');return;}
-  if(pwd.length<6){alert('密码至少 6 位');return;}
-  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({userId:u,newPassword:pwd})});
-  if(r.code===0){
-    showToast(`已为 ${u} 设置新密码`);
-    document.getElementById('customPwdArea').style.display='none';
-    document.getElementById('customPwdInput').value='';
-  }else showToast(r.message||'设置失败','❌',true);
-}
-
 // ==================== 修改我的密码（当前登录账号，走 /api/change-password） ====================
 function openChangeMyPwdModal(){
   document.getElementById('cmOldPwd').value='';
