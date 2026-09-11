@@ -1107,6 +1107,34 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
             <div id="userPag"></div>
           </div>
 
+          <!-- 密码管理 -->
+          <div class="card">
+            <h2>🔐 密码管理</h2>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px;max-width:360px">
+                <label style="display:block;font-size:13px;color:#475569;margin-bottom:6px;font-weight:600">选择用户</label>
+                <select id="pwdMgmtUserSel" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px">
+                  <option value="">-- 请选择用户 --</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:13px;color:#475569;margin-bottom:6px;font-weight:600">操作</label>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-o btn-sm" onclick="resetPwdTo123456()">重置为 123456</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 修改我的密码：当前登录的超级管理员修改本人密码 -->
+            <div style="border-top:1px solid #eef2f7;margin-top:14px;padding-top:12px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font-size:13px;color:#475569;font-weight:600">🔁 修改我的密码</span>
+                <span style="font-size:12px;color:#94a3b8">当前登录账号</span>
+                <button class="btn btn-p btn-sm" onclick="openChangeMyPwdModal()">修改密码</button>
+              </div>
+            </div>
+          </div>
+
           <!-- 主题色 -->
           <div class="card">
             <h2>🎨 主题色</h2>
@@ -1543,6 +1571,7 @@ async function loadSection(sec){
   else if(sec==='ai')initAI();
   else if(sec==='alerts'){loadAlerts();}
   else if(sec==='settings'){loadBackups();loadLogs();loadWebhookConfig();loadAlertRules();loadWebhookHistory();loadVoiceRecords();loadGeofenceRules();loadWebhookSettings();loadStuPwdReset();}
+  else if(sec==='users'){loadUsers();initPwdMgmtUsers();initThemeColors();}
 }
 
 // ==================== 初始化 ====================
@@ -4476,6 +4505,26 @@ async function deleteUser(btn){
   if(!confirm(`确认删除用户「${uname}」？此操作不可恢复！`))return;
   const r=await apiAuth('/api/users/'+id,{method:'DELETE'});
   if(r.code===0){showToast('删除成功');loadUsers();}else showToast(r.message||'删除失败','❌',true);
+}
+
+// ==================== 密码管理 ====================
+async function initPwdMgmtUsers(){
+  try{
+    const j=await apiAuth('/api/users');
+    const sel=document.getElementById('pwdMgmtUserSel');
+    if(!sel)return;
+    sel.innerHTML='<option value="">-- 请选择用户 --</option>'+(j.data||[]).map(u=>{
+      const dn=u.display_name||u.username;
+      return `<option value="${d(u.username||u.id)}">${d(u.username||u.id)}（${d(dn)}）</option>`;
+    }).join('');
+  }catch(e){}
+}
+async function resetPwdTo123456(){
+  const u=document.getElementById('pwdMgmtUserSel').value;
+  if(!u){alert('请先选择用户');return;}
+  if(!confirm(`确认将「${u}」的密码重置为 123456？`))return;
+  const r=await apiAuth('/api/reset-password',{method:'POST',body:JSON.stringify({userId:u,newPassword:'123456'})});
+  if(r.code===0)showToast(`已重置 ${u} 密码为 123456`);else showToast(r.message||'重置失败','❌',true);
 }
 
 // ==================== 修改我的密码（当前登录账号，走 /api/change-password） ====================
