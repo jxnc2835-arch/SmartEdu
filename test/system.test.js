@@ -120,38 +120,59 @@ describe('routes/system', () => {
   });
 
   describe('GET /api/report', () => {
-    test('returns weekly report structure', async () => {
+    // 辅助：创建一个能处理 /api/report 所有 SQL 的 mock
+    const createReportMock = (studentsRows = []) => {
       const dbExec = jest.fn().mockImplementation((sql) => {
-        // 所有查询返回空结果
-        if (sql.includes('FROM students')) return [{ values: [] }];
-        if (sql.includes('FROM records')) return [{ values: [] }];
+        if (sql.includes('FROM students') && !sql.includes('JOIN')) {
+          return [{ values: studentsRows }];
+        }
+        if (sql.includes('FROM records') || sql.includes('JOIN students')) return [{ values: [] }];
         if (sql.includes('FROM leaves')) return [{ values: [] }];
         return [{ values: [] }];
       });
-      const dbMock = { exec: dbExec, run: jest.fn() };
+      return { exec: dbExec, run: jest.fn() };
+    };
+
+    test('returns weekly report structure', async () => {
+      const dbMock = createReportMock();
       const { app } = createApp(dbMock);
-      const res = await request(app).get('/api/report');
-      expect(res.status).toBe(200);
-      expect(res.body.code).toBe(0);
-      expect(res.body.data).toHaveProperty('summary');
-      expect(res.body.data).toHaveProperty('dorms');
+      let err;
+      let res;
+      try {
+        res = await request(app).get('/api/report');
+      } catch (e) {
+        err = e;
+      }
+      console.log('DEBUG report: res=', res ? { status: res.status, body: res.body } : 'no res', 'err=', err ? err.message : 'none');
+      if (res) {
+        expect(res.status).toBe(200);
+        expect(res.body.code).toBe(0);
+        expect(res.body.data).toHaveProperty('summary');
+        expect(res.body.data).toHaveProperty('dorms');
+      } else {
+        throw err;
+      }
     });
 
     test('processes students with dorms', async () => {
-      const dbExec = jest.fn().mockImplementation((sql) => {
-        if (sql.includes('FROM students')) {
-          // 返回学生数据：[id, name, dorm, class_name, phone, grade]
-          return [{ values: [[1, '张三', '101', '计算机1班', '', '2023']] }];
-        }
-        // 其他查询返回空
-        return [{ values: [] }];
-      });
-      const dbMock = { exec: dbExec, run: jest.fn() };
+      // 学生列顺序：[id, name, dorm, class_name, phone, grade]
+      const dbMock = createReportMock([[1, '张三', '101', '计算机1班', '', '2023']]);
       const { app } = createApp(dbMock);
-      const res = await request(app).get('/api/report');
-      expect(res.status).toBe(200);
-      expect(res.body.code).toBe(0);
-      expect(res.body.data.summary.total_students).toBe(1);
+      let err;
+      let res;
+      try {
+        res = await request(app).get('/api/report');
+      } catch (e) {
+        err = e;
+      }
+      console.log('DEBUG students: res=', res ? { status: res.status, body: res.body } : 'no res', 'err=', err ? err.message : 'none');
+      if (res) {
+        expect(res.status).toBe(200);
+        expect(res.body.code).toBe(0);
+        expect(res.body.data.summary.total_students).toBe(1);
+      } else {
+        throw err;
+      }
     });
   });
 
