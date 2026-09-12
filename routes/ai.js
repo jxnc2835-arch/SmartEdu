@@ -692,6 +692,7 @@ function init(opts) {
       .filter(Boolean).sort((a, b) => b.length - a.length);
     for (const e of entities) { if (!e) continue; text = text.split(e).join('\u0000'.repeat(e.length)); }
     for (const w of SAFE_WORDS) { text = text.split(w).join(''); }
+    // eslint-disable-next-line no-control-regex -- 故意用控制字符作实体占位/剥离
     text = text.replace(/[\u0000-\u001f\s\dA-Za-z%.,，。、；：:！!？?（）()""''《》<>\[\]【】\n\r#*+\-=/\\|_`~@#$^&]/g, '');
     const runs = text.match(/[一-鿿]{2,3}/g) || [];
     const suspicious = runs.filter(r => {

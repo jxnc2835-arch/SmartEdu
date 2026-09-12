@@ -580,12 +580,15 @@ app.use((err, req, res, next) => {
     res.status(404).json({ code: 1, message: '接口不存在' });
   });
 
-  server.listen(PORT, '0.0.0.0', () => {
+  // HTTP 实际监听端口：可随 EADDRINUSE 自增（PORT 本身是 const，不能改）
+  let listeningPort = PORT;
+
+  server.listen(listeningPort, '0.0.0.0', () => {
     logger.info(`\n🎓 学管 SmartEdu v3.6 (模块化 + AI预测/问答) 已启动！`);
-    logger.info(`📡 服务器:      http://localhost:${PORT}`);
-    logger.info(`📱 学生端:      http://localhost:${PORT}/student.html`);
-    logger.info(`💻 教师端:      http://localhost:${PORT}/teacher.html`);
-    logger.info(`📊 数据大屏:    http://localhost:${PORT}/dashboard.html`);
+    logger.info(`📡 服务器:      http://localhost:${listeningPort}`);
+    logger.info(`📱 学生端:      http://localhost:${listeningPort}/student.html`);
+    logger.info(`💻 教师端:      http://localhost:${listeningPort}/teacher.html`);
+    logger.info(`📊 数据大屏:    http://localhost:${listeningPort}/dashboard.html`);
     logger.info(`🤖 AI 能力:     数据预测 + 人脸识别 + 智能问答`);
     logger.info(`📁 数据:        ${config.ROOT_DIR}`);
     logger.info(`💾 备份:        ${config.BACKUP_DIR}`);
@@ -594,10 +597,12 @@ app.use((err, req, res, next) => {
     Object.keys(ifaces).forEach(ifname => {
       ifaces[ifname].forEach(iface => {
         if (iface.family === 'IPv4' && !iface.internal) {
-          logger.info(`🔗 局域网: http://${iface.address}:${PORT}`);
+          logger.info(`🔗 局域网: http://${iface.address}:${listeningPort}`);
         }
       });
     });
+    // 实际端口确定后持久化，确保 stop.bat 能准确定位（含 EADDRINUSE 递增后的端口）
+    persistRuntimePort();
     
     setTimeout(() => {
       try {
@@ -650,11 +655,13 @@ app.use((err, req, res, next) => {
   });
 
   server.on('error', async (err) => {
-    if (err.code === 'EADDRINUSE' && PORT < 3100) {
-      PORT++;
-      logger.warn(`端口 ${PORT-1} 被占用，尝试端口 ${PORT}...`);
+    if (err.code === 'EADDRINUSE' && listeningPort < 3100) {
+      // 端口被占用则递增重试（上限 3100），listeningPort 为可变变量，
+      // 实际端口确定后由 listen 回调持久化到 .runtime-port
+      listeningPort += 1;
+      logger.warn(`端口 ${listeningPort - 1} 被占用，尝试端口 ${listeningPort}...`);
       await new Promise(resolve => setTimeout(resolve, 500));
-      server.listen(PORT, '0.0.0.0');
+      server.listen(listeningPort, '0.0.0.0');
     }
   });
 
@@ -663,10 +670,9 @@ app.use((err, req, res, next) => {
   function persistRuntimePort() {
     try {
       const runtimePortFile = path.join(config.ROOT_DIR, '.runtime-port');
-      fs.writeFileSync(runtimePortFile, String(PORT));
+      fs.writeFileSync(runtimePortFile, String(listeningPort));
     } catch (e) { /* 写失败不影响运行 */ }
   }
-  persistRuntimePort();
   process.on('exit', () => {
     try { fs.unlinkSync(path.join(config.ROOT_DIR, '.runtime-port')); } catch (e) {}
   });

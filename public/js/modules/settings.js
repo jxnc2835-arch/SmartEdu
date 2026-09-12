@@ -17,7 +17,8 @@ window.doBackup = async function() {
 };
 
 window.showBackupDialog = function(title, desc, isClear = false) {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
+    (async () => {
     let classes = [];
     try {
       const r = await apiAuth('/api/classes/public');
@@ -54,6 +55,7 @@ window.showBackupDialog = function(title, desc, isClear = false) {
       resolve(v);
     };
     mask.onclick = () => { mask.remove(); resolve(null); };
+    })();
   });
 };
 
