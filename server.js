@@ -109,13 +109,14 @@ const app = createApp();
 app.set('trust proxy', 1);
 
 // ==================== HTTPS 强制重定向中间件 ====================
-// 当 HTTPS 可用时，将 HTTP 请求 301 重定向到 HTTPS
-// 仅在生产环境生效（NODE_ENV !== 'test'）
-if (process.env.NODE_ENV !== 'test') {
+// 默认关闭。仅在显式设置 FORCE_HTTPS=true 且证书存在时，将 HTTP 301 重定向到 HTTPS。
+// 说明：本项目证书默认为自签名，浏览器会提示"不安全"，因此本地/内网部署保持 HTTP 直连。
+// 生产环境使用正式证书后，可设置 FORCE_HTTPS=true 开启强制加密。
+if (process.env.NODE_ENV !== 'test' && process.env.FORCE_HTTPS === 'true') {
   app.use((req, res, next) => {
     // 如果已有 HTTPS 证书且请求是 HTTP，则重定向
     if (req.protocol === 'http' && fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
-      const httpsUrl = `https://${req.headers.host}${req.originalUrl}`;
+      const httpsUrl = `https://${req.headers.host.replace(':3000', ':3443')}${req.originalUrl}`;
       logger.info(`HTTP → HTTPS 重定向: ${req.originalUrl}`);
       return res.redirect(301, httpsUrl);
     }
