@@ -257,7 +257,7 @@ function mountRoutes() {
 
   const studentsRouter = initStudentsRoutes({
     db, scheduleSave, nowTimestamp, authMiddleware, requireRole, bcrypt,
-    upload, XLSX, addLog, CLASS_SIZE_LIMIT: 40,
+    upload, addLog, CLASS_SIZE_LIMIT: 40,
     getClassCount: (db, cn) => db.exec("SELECT COUNT(*) FROM students WHERE class_name=?", [cn])[0]?.values?.[0]?.[0] || 0,
     limitPerClass: (students) => {
       const counts = {};
@@ -272,7 +272,7 @@ function mountRoutes() {
   app.use(studentsRouter);
 
   const checkinRouter = initCheckinRoutes({
-    db, scheduleSave, generateToken, upload, XLSX, fs, path, QRCode, multer, os,
+    db, scheduleSave, generateToken, upload, fs, path, QRCode, multer, os,
     addLog, CLASS_SIZE_LIMIT: 40,
     getClassCount: (db, cn) => db.exec("SELECT COUNT(*) FROM students WHERE class_name=?", [cn])[0]?.values?.[0]?.[0] || 0,
     limitPerClass: (students) => {
@@ -305,12 +305,12 @@ function mountRoutes() {
 
   const systemRouter = initSystemRoutes(
     db, scheduleSave, addLog, broadcast, sendWebhook,
-    upload, XLSX, QRCode, multer, os, config.ROOT_DIR, config.UPLOAD_DIR, config.BACKUP_DIR
+    upload, QRCode, multer, os, config.ROOT_DIR, config.UPLOAD_DIR, config.BACKUP_DIR
   );
   app.use(systemRouter);
 
   // Register export routes for Excel and PDF reports
-  const exportRouter = initExportRoutes({ db, scheduleSave, authMiddleware, XLSX, PDFDocument, addLog });
+  const exportRouter = initExportRoutes({ db, scheduleSave, authMiddleware, PDFDocument, addLog });
   app.use(exportRouter);
 const monitorRouter = initMonitorRoutes({db, dbFile, authMiddleware, addLog, sendWebhook});
 app.use(monitorRouter);

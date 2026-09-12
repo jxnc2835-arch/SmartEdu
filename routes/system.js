@@ -9,7 +9,7 @@ const { nowTimestamp, localDateStr, formatDate, beijingStamp, saveBase64Photo, c
 const ExcelJS = require('exceljs');
 
 /** @type {object} */
-let XLSX, upload, QRCode, multer, os;
+let upload, QRCode, multer, os;
 /** @type {object} */
 let db, scheduleSave, addLog, broadcast, sendWebhook;
 /** @type {string} */
@@ -68,7 +68,7 @@ function createBackup(className) {
   return info;
 }
 
-function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _XLSX, _QRCode, _multer, _os, _ROOT_DIR, _UPLOAD_DIR, _BACKUP_DIR) {
+function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _QRCode, _multer, _os, _ROOT_DIR, _UPLOAD_DIR, _BACKUP_DIR) {
   const router = express.Router();
   
   db = _db;
@@ -77,7 +77,6 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _X
   broadcast = _broadcast;
   sendWebhook = _sendWebhook;
   upload = _upload;
-  if (_XLSX) XLSX = _XLSX;
   QRCode = _QRCode;
   multer = _multer;
   os = _os;
@@ -389,7 +388,7 @@ router.get('/api/export/records', authMiddleware, async (req, res) => {
 });
 
 // ==================== 导出请假记录 ====================
-router.get('/api/export/leaves', authMiddleware, (req, res) => {
+router.get('/api/export/leaves', authMiddleware, async (req, res) => {
   try {
     const { class_name, status, from, to } = req.query;
     let sql = `
@@ -411,24 +410,25 @@ router.get('/api/export/leaves', authMiddleware, (req, res) => {
     const rows = result[0]?.values || [];
     const cols = result[0]?.columns || [];
     
-    const wb = XLSX.utils.book_new();
-    const data = rows.map(r => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('请假记录');
+    worksheet.addRow(['学生','学号','宿舍','班级','事由','开始日期','结束日期','状态','提交时间']);
+    rows.forEach(r => {
       const obj = {};
       cols.forEach((col, i) => { obj[col] = r[i]; });
-      return {
-        '学生': obj['student_name'] || '',
-        '学号': obj['student_id'] || '',
-        '宿舍': obj['dorm'] || '',
-        '班级': obj['class_name'] || '',
-        '事由': obj['reason'] || '',
-        '开始日期': obj['start_date'] || '',
-        '结束日期': obj['end_date'] || '',
-        '状态': obj['status'] || '',
-        '提交时间': obj['created_at'] || ''
-      };
+      worksheet.addRow([
+        obj['student_name'] || '',
+        obj['student_id'] || '',
+        obj['dorm'] || '',
+        obj['class_name'] || '',
+        obj['reason'] || '',
+        obj['start_date'] || '',
+        obj['end_date'] || '',
+        obj['status'] || '',
+        obj['created_at'] || ''
+      ]);
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), '请假记录');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buf = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     const filename = encodeURIComponent('请假记录.xlsx');
     res.setHeader('Content-Disposition', `attachment; filename="leaves_records.xlsx"; filename*=UTF-8''${filename}`);
@@ -444,7 +444,7 @@ router.get('/api/export/leaves', authMiddleware, (req, res) => {
 });
 
 // ==================== 导出课堂记录 ====================
-router.get('/api/export/class-records', authMiddleware, (req, res) => {
+router.get('/api/export/class-records', authMiddleware, async (req, res) => {
   try {
     const { course_id, from, to, class_name, status } = req.query;
     let sql = `
@@ -467,24 +467,25 @@ router.get('/api/export/class-records', authMiddleware, (req, res) => {
     const rows = result[0]?.values || [];
     const cols = result[0]?.columns || [];
     
-    const wb = XLSX.utils.book_new();
-    const data = rows.map(r => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('课堂记录');
+    worksheet.addRow(['日期','时间','课程','姓名','学号','宿舍','班级','状态','地址']);
+    rows.forEach(r => {
       const obj = {};
       cols.forEach((col, i) => { obj[col] = r[i]; });
-      return {
-        '日期': obj['date'] || '',
-        '时间': obj['time'] || '',
-        '课程': obj['course_name'] || '',
-        '姓名': obj['student_name'] || '',
-        '学号': obj['student_id'] || '',
-        '宿舍': obj['dorm'] || '',
-        '班级': obj['class_name'] || '',
-        '状态': obj['status'] || '',
-        '地址': obj['address'] || ''
-      };
+      worksheet.addRow([
+        obj['date'] || '',
+        obj['time'] || '',
+        obj['course_name'] || '',
+        obj['student_name'] || '',
+        obj['student_id'] || '',
+        obj['dorm'] || '',
+        obj['class_name'] || '',
+        obj['status'] || '',
+        obj['address'] || ''
+      ]);
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), '课堂记录');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buf = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="class_records.xlsx"');
     res.setHeader('Content-Length', buf.length);
@@ -499,7 +500,7 @@ router.get('/api/export/class-records', authMiddleware, (req, res) => {
 });
 
 // ===== 操行评分导出 =====
-router.get('/api/export/conduct', authMiddleware, (req, res) => {
+router.get('/api/export/conduct', authMiddleware, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     const { class_name } = req.query;
@@ -543,35 +544,47 @@ router.get('/api/export/conduct', authMiddleware, (req, res) => {
       };
     });
     
-    const wb = XLSX.utils.book_new();
-    const data = scores.map((s, i) => ({
-      '排名': i + 1,
-      '姓名': s.name,
-      '宿舍': s.dorm,
-      '班级': s.class_name,
-      '在寝次数': s.normal_count,
-      '缺勤次数': s.absent_count,
-      '请假次数': s.leave_count,
-      '签到天数': s.checkin_days,
-      '评分': s.score,
-      '等级': s.score >= 90 ? '优秀' : s.score >= 75 ? '良好' : s.score >= 60 ? '及格' : '不及格'
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), '操行评分');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('操行评分');
+    worksheet.addRow(['排名','姓名','宿舍','班级','在寝次数','缺勤次数','请假次数','签到天数','评分','等级']);
+    scores.forEach((s, i) => {
+      worksheet.addRow([
+        i + 1,
+        s.name,
+        s.dorm,
+        s.class_name,
+        s.normal_count,
+        s.absent_count,
+        s.leave_count,
+        s.checkin_days,
+        s.score,
+        s.score >= 90 ? '优秀' : s.score >= 75 ? '良好' : s.score >= 60 ? '及格' : '不及格'
+      ]);
+    });
+    const buf = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="操行评分.xlsx"');
     res.end(buf);
   } catch (e) { res.json({ code: 1, message: '导出失败: ' + e.message }); }
 });
 
-router.get('/api/export-all', authMiddleware, (req, res) => {
+router.get('/api/export-all', authMiddleware, async (req, res) => {
   try {
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
+
+    // 学生
     const sr = db.exec("SELECT id,name,student_id,gender,dorm,class_name,phone,grade,major FROM students ORDER BY class_name,name")[0]?.values || [];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sr.map(r=>({'学号':r[2],'姓名':r[1],'性别':r[3],'宿舍':r[4],'班级':r[5],'电话':r[6],'年级':r[7],'专业':r[8]}))), '学生');
+    const ws1 = workbook.addWorksheet('学生');
+    ws1.addRow(['学号','姓名','性别','宿舍','班级','电话','年级','专业']);
+    sr.forEach(r => ws1.addRow([r[2]||'', r[1]||'', r[3]||'', r[4]||'', r[5]||'', r[6]||'', r[7]||'', r[8]||'']));
+
+    // 查寝记录
     const rr = db.exec("SELECT SUBSTR(r.time,1,10) as record_date,r.time,s.name,s.dorm,s.class_name,r.status FROM records r LEFT JOIN students s ON r.student_id=s.student_id WHERE r.type='checkin' ORDER BY SUBSTR(r.time,1,10) DESC")[0]?.values || [];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rr.map(r=>({'日期':r[0],'时间':r[1],'姓名':r[2],'宿舍':r[3],'班级':r[4],'状态':r[5]}))), '查寝记录');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const ws2 = workbook.addWorksheet('查寝记录');
+    ws2.addRow(['日期','时间','姓名','宿舍','班级','状态']);
+    rr.forEach(r => ws2.addRow([r[0]||'', r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'']));
+
+    const buf = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="all_data.xlsx"');
     res.end(buf);
@@ -602,42 +615,39 @@ router.post('/api/cleanup-photos', authMiddleware, (req, res) => {
 });
 
 // ==================== 导出全部数据（多Sheet Excel）====================
-router.get('/api/export/all', authMiddleware, (req, res) => {
+router.get('/api/export/all', authMiddleware, async (req, res) => {
   try {
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
     // 辅助函数：SQL查询转sheet
-    const sqlToSheet = (sql, params, sheetName, headers) => {
+    const sqlToSheet = async (sql, params, sheetName, headers) => {
       try {
         const result = db.exec(sql, params || []);
         if (!result[0]) return;
         const cols = result[0].columns;
         const rows = result[0].values;
-        const wsData = [headers || cols, ...rows];
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const ws = workbook.addWorksheet(sheetName.substring(0, 31));
+        ws.addRow(headers || cols);
+        for (const row of rows) ws.addRow(row);
         // 设置列宽
         const colWidths = (headers || cols).map(h => ({ wch: Math.min(Math.max(String(h).length * 2 + 4, 10), 40) }));
-        ws['!cols'] = colWidths;
-        XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // Excel sheet名最长31字符
+        ws.columns = colWidths;
       } catch (e) { console.error(`Sheet [${sheetName}] error:`, e.message); }
     };
 
-    // 1. 学生信息（性别翻译）
-    sqlToSheet(
+    await sqlToSheet(
       "SELECT s.student_id, s.name, CASE WHEN s.gender='male' THEN '男' WHEN s.gender='female' THEN '女' ELSE s.gender END as gender, s.class_name, s.dorm, s.phone FROM students s ORDER BY s.class_name, s.student_id",
       [], '学生信息',
       ['学号', '姓名', '性别', '班级', '宿舍', '手机']
     );
 
-    // 2. 宿舍信息（性别翻译）
-    sqlToSheet(
+    await sqlToSheet(
       "SELECT building, room, floor, capacity, occupied, CASE WHEN gender='male' THEN '男' WHEN gender='female' THEN '女' ELSE gender END as gender FROM dorms ORDER BY building, room",
       [], '宿舍信息',
       ['楼栋', '房号', '楼层', '容量', '已住', '性别']
     );
 
-    // 3. 查寝记录（状态翻译）
-    sqlToSheet(
+    await sqlToSheet(
       `SELECT s.name, s.student_id, s.class_name, s.dorm,
               CASE r.status
                 WHEN '在寝' THEN '在寝' WHEN '未归' THEN '未归'
@@ -651,8 +661,7 @@ router.get('/api/export/all', authMiddleware, (req, res) => {
       ['姓名', '学号', '班级', '宿舍', '状态', '位置', '日期', '时间']
     );
 
-    // 4. 请假记录（状态翻译）
-    sqlToSheet(
+    await sqlToSheet(
       `SELECT s.name, s.student_id, s.class_name, l.reason, l.start_date, l.end_date,
               CASE l.status
                 WHEN 'approved' THEN '已批准' WHEN 'pending' THEN '待审批'
@@ -664,15 +673,13 @@ router.get('/api/export/all', authMiddleware, (req, res) => {
       ['姓名', '学号', '班级', '事由', '开始日期', '结束日期', '状态', '提交时间']
     );
 
-    // 5. 课程列表
-    sqlToSheet(
+    await sqlToSheet(
       "SELECT name, date, start_time, end_time, location, class_name FROM courses ORDER BY date DESC, start_time DESC",
       [], '课程列表',
       ['课程名称', '日期', '开始时间', '结束时间', '地点', '班级']
     );
 
-    // 6. 异常告警（状态翻译）
-    sqlToSheet(
+    await sqlToSheet(
       `SELECT student_name, student_id, class_name, date,
               CASE status WHEN 'open' THEN '处理中' WHEN 'closed' THEN '已关闭' ELSE status END as status,
               reason, note, closed_at
@@ -681,8 +688,7 @@ router.get('/api/export/all', authMiddleware, (req, res) => {
       ['姓名', '学号', '班级', '日期', '状态', '关闭原因', '备注', '关闭时间']
     );
 
-    // 7. 操作日志（级别翻译）
-    sqlToSheet(
+    await sqlToSheet(
       `SELECT time, action, detail, operator,
               CASE level WHEN 'error' THEN '错误' WHEN 'warn' THEN '警告' WHEN 'info' THEN '信息' ELSE level END as level
        FROM logs ORDER BY id DESC LIMIT 500`,
@@ -690,7 +696,7 @@ router.get('/api/export/all', authMiddleware, (req, res) => {
       ['时间', '操作', '详情', '操作人', '级别']
     );
 
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buf = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('学生管理系统全量数据_' + new Date().toISOString().slice(0, 10))}.xlsx`);
     res.send(Buffer.from(buf));
