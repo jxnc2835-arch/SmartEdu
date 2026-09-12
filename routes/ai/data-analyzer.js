@@ -112,3 +112,66 @@ module.exports = {
   getRecentRecords,
   getAlertSummary
 };
+
+
+/**
+ * 根据意图加载数据
+ */
+function loadDataForIntent(intentResult, sessionCtx) {
+  const intent = intentResult.intent;
+  const classFilter = intentResult.classFilter || '';
+  const dateRef = intentResult.dateRef || { kind: 'today', date: new Date().toISOString().slice(0, 10) };
+  
+  // 简化版：返回结构化数据
+  const result = { intent, classFilter, dateRef };
+  
+  switch(intent) {
+    case 'today':
+      result.today = analyzeTodayCheckin(classFilter);
+      break;
+    case 'absent_list':
+      result.absent = analyzeAbsentList(classFilter);
+      break;
+    case 'high_risk':
+      result.risk = analyzeHighRisk(classFilter);
+      break;
+    case 'trend':
+      result.trend = analyzeAbsentTrend(30);
+      break;
+    case 'class_compare':
+      result.classes = analyzeClassCompare(classFilter);
+      break;
+    case 'general':
+      // 通用模式，返回空数据
+      break;
+    default:
+      result.today = analyzeTodayCheckin(classFilter);
+  }
+  
+  return result;
+}
+
+module.exports = {
+  analyzeTodayCheckin,
+  analyzeAbsentList,
+  analyzeHighRisk,
+  analyzeAbsentTrend,
+  analyzeAbsentRange,
+  analyzeStudentPeriodSummary,
+  analyzePeriodOverview,
+  analyzeClassCompare,
+  analyzeClassCompareRange,
+  analyzeLeave,
+  analyzeDormAnomaly,
+  analyzeDormAbsence,
+  analyzeDormMates,
+  analyzeCourseAttendance,
+  analyzeClassCourseStats,
+  analyzeLateStudents,
+  searchStudent,
+  getStudentProfile,
+  getFullDataSnapshot,
+  getRecentRecords,
+  getAlertSummary,
+  loadDataForIntent
+};
