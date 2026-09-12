@@ -534,92 +534,9 @@ function init(opts) {
   const chatRouter = initChatSubRouter({ db, fs, ROOT_DIR, authMiddleware, localDateStr, addLog, broadcast, STUDENT_TOKENS, sendWebhook, scheduleSave });
   router.use(chatRouter);
 
-
-  // ==================== AI 智能问答引擎 ====================
-  const dateUtils = require('./ai/date-utils');
-  const sessionMgr = require('./ai/session');
-  const dataAnalyzer = require('./ai/data-analyzer');
-  const llmClient = require('./ai/llm-client');
-  const promptBuilder = require('./ai/prompt-builder');
-
-  // 注册 AI 聊天路由
-  router.get('/ai/smart', authMiddleware, async (req, res) => {
-  const { question, session_id: sid } = req.query;
-  if (!question) return res.json({ code: 1, message: '请输入问题' });
-  try {
-    const result = await llmClient.handleAiQuestion(question, sid, {
-      db, runtimeConfig: { enableLLM: true, piiMask: false },
-      getSessionHistory: sessionMgr.getSessionHistory,
-      addMessage: sessionMgr.addMessage,
-      updateSessionContext: sessionMgr.updateSessionContext,
-      routeIntent: promptBuilder.routeIntent,
-      loadDataForIntent: dataAnalyzer.loadDataForIntent,
-      formatLocalAnswer: promptBuilder.formatLocalAnswer,
-      getSuggestions: promptBuilder.getSuggestions
-    });
-    res.json(result);
-  } catch (err) {
-    console.error('[AI Smart] 错误:', err.message?.substring(0, 200));
-    res.json({ code: 0, data: { answer: 'AI 服务暂时不可用，请稍后重试。', source: 'local_engine', suggestions: [] } });
-  }
-});
-
-router.get('/ai/capabilities', (req, res) => {
-  res.json({
-    code: 0,
-    data: {
-      capabilities: [
-        { icon: '📊', label: '今日签到总览', example: '今天签到情况怎么样？' },
-        { icon: '⚠️', label: '未归学生分析', example: '现在谁没回来？' },
-        { icon: '🔴', label: '高风险学生', example: '哪些学生最近缺勤多？' },
-        { icon: '📈', label: '趋势预测', example: '近30天缺勤趋势？' },
-        { icon: '🏆', label: '班级对比', example: '各班签到率排名？' },
-        { icon: '💡', label: '智能建议', example: '我该怎么管理？' },
-        { icon: '🔍', label: '学生搜索', example: '查一下张三的情况' }
-      ]
-    }
-  });
-});
-
-// AI 配置管理
-const aiRuntimeConfig = { enableLLM: true, piiMask: false, modelName: 'glm-4-flash' };
-
-router.post('/api/ai/config', authMiddleware, (req, res) => {
-  const { enableLLM, piiMask, modelName } = req.body || {};
-  if (enableLLM !== undefined) aiRuntimeConfig.enableLLM = enableLLM;
-  if (piiMask !== undefined) aiRuntimeConfig.piiMask = piiMask;
-  if (modelName !== undefined) aiRuntimeConfig.modelName = modelName;
-  res.json({ code: 0, message: '配置已更新', data: aiRuntimeConfig });
-});
-
-router.get('/api/ai/config', authMiddleware, (req, res) => {
-  res.json({ code: 0, data: aiRuntimeConfig });
-});
-
-router.get('/api/ai/test', authMiddleware, async (req, res) => {
-  if (!aiRuntimeConfig.enableLLM) {
-    return res.json({ code: 1, message: '大模型功能已关闭' });
-  }
-  try {
-    const answer = await llmClient.callLLM(
-      '你好，请用一句话介绍自己',
-      '',
-      [],
-      process.env.ZHIPU_AI_API_KEY || '',
-      'https://open.bigmodel.cn/api/paas/v4',
-      aiRuntimeConfig.modelName || 'glm-4-flash',
-      10000,
-      true
-    );
-    if (answer) {
-      res.json({ code: 0, message: `连接成功！模型 ${aiRuntimeConfig.modelName || 'glm-4-flash'} 已就绪` });
-    } else {
-      res.json({ code: 1, message: '连接失败：未收到有效回复' });
-    }
-  } catch (err) {
-    res.json({ code: 1, message: `连接失败: ${err.message?.substring(0, 100)}` });
-  }
-});
+  // 旧版问答引擎已弃用：/ai/smart、/ai/capabilities、/api/ai/config、/api/ai/test
+  // 现全部由 ai-chat.js 子路由统一实现（chatRouter 先挂载，端点以其为准）。
+  // 旧块会与 ai-chat.js 产生同名路由冲突 + 两套会话格式(ts/time)混写 ai_sessions.json，故移除。
 
   return router;
 }
