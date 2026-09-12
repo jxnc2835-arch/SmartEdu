@@ -57,8 +57,8 @@ function init(opts) {
     const limitNum = Math.min(parseInt(limit) || 50, 200);
     const offset = (pageNum - 1) * limitNum;
 
-    let whereClauses = ['1=1'];
-    let params = [];
+    const whereClauses = ['1=1'];
+    const params = [];
 
     ensureUser(req);
     const sc = req.user && req.user.classScope;
@@ -344,7 +344,7 @@ function init(opts) {
         // 枚举 [leaveStart, leaveEnd] 闭区间每一天，请假全量日期同步（不再只同步“今天”）
         const days = [];
         if (leaveStart && leaveEnd) {
-          let cur = new Date(leaveStart + 'T00:00:00');
+          const cur = new Date(leaveStart + 'T00:00:00');
           const last = new Date(leaveEnd + 'T00:00:00');
           if (!isNaN(cur.getTime()) && !isNaN(last.getTime()) && cur <= last) {
             while (cur <= last) {

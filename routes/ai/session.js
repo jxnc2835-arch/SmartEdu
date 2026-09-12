@@ -5,7 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 
-const SESSIONS_FILE = path.join(__dirname, '..', 'data', 'ai_sessions.json');
+const SESSIONS_FILE = path.join(__dirname, '..', '..', 'config', 'data', 'ai_sessions.json');
 const MAX_HISTORY = 100;
 
 function loadSessions() {

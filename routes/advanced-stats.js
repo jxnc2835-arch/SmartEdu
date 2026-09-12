@@ -37,7 +37,7 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
       const endDate = localDateStr();
       const d = new Date(); d.setDate(d.getDate() - days);
       const startDate = beijingDateStr(d);
-      let sql = `
+      const sql = `
         SELECT s.id, s.name, s.dorm, s.class_name,
           COUNT(DISTINCT CASE WHEN r.status='在寝' THEN r.date END) as normal_days,
           COUNT(DISTINCT CASE WHEN r.status IN ('未归','不在寝') THEN r.date END) as absent_days,
@@ -170,7 +170,7 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
       const endDate = localDateStr();
       const d = new Date(); d.setDate(d.getDate() - days);
       const startDate = (() => { const utc = d.getTime() + d.getTimezoneOffset() * 60000; const bj = new Date(utc + 8 * 3600 * 1000); return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`; })();
-      let sql = `
+      const sql = `
         SELECT s.id, s.name, s.dorm, s.class_name,
           COUNT(CASE WHEN r.status IN ('未归','不在寝') THEN 1 END) as absent_count,
           COUNT(CASE WHEN r.status IN ('病假','事假','公假','丧假') THEN 1 END) as leave_count
@@ -212,7 +212,7 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
     try {
       const { class_name } = req.query;
       const today = localDateStr();
-      let sql = `
+      const sql = `
         SELECT s.dorm, COUNT(DISTINCT r.student_id) as count, GROUP_CONCAT(DISTINCT s.name) as names
         FROM students s
         LEFT JOIN records r ON s.student_id = r.student_id AND r.date = ? AND r.type='checkin' AND r.status IN ('未归','不在寝')
@@ -246,7 +246,7 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
     try {
       const { class_name } = req.query;
       const today = localDateStr();
-      let sql = `
+      const sql = `
         SELECT s.dorm, COUNT(DISTINCT r.student_id) as count, GROUP_CONCAT(DISTINCT s.name) as names
         FROM students s
         LEFT JOIN records r ON s.student_id = r.student_id AND r.date = ? AND r.type='checkin' AND r.status IN ('未归','不在寝')
@@ -279,7 +279,7 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   router.get('/api/stats/leave-trend', authMiddleware, (req, res) => {
     try {
       const { class_name } = req.query;
-      let sql = `
+      const sql = `
         SELECT strftime('%Y-%m', l.start_date) as month,
           COALESCE(SUM(CASE WHEN l.type='事假' THEN 1 ELSE 0 END),0) as 事假,
           COALESCE(SUM(CASE WHEN l.type='病假' THEN 1 ELSE 0 END),0) as 病假,

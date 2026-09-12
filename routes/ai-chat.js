@@ -143,9 +143,9 @@ function initChatSubRouter(deps) {
     Object.assign(sess, updates);
   }
 
-  // 启动时恢复会话（定时清理在测试环境下禁用）
-  if (typeof setInterval !== 'undefined') {
-    loadSessions();
+  // 启动时恢复会话（测试环境禁用定时清理避免 jest 卡住）
+  loadSessions();
+  if (process.env.NODE_ENV !== 'test') {
     setInterval(() => {
       const now = Date.now();
       for (const [sid, sess] of sessionMemory.entries()) {
@@ -155,13 +155,11 @@ function initChatSubRouter(deps) {
       persistSessions();
     }, 5 * 60 * 1000);
     setInterval(() => { persistSessions(); }, 60 * 1000);
-  } else {
-    loadSessions();
   }
 
   // ===== AI 配置持久化 =====
   const AI_CONFIG_FILE = path.join(ROOT_DIR, 'data', 'ai_config.json');
-  let runtimeConfig = { baseUrl: null, apiKey: null, modelName: null, enableLLM: true, piiMask: false, fastModel: null };
+  const runtimeConfig = { baseUrl: null, apiKey: null, modelName: null, enableLLM: true, piiMask: false, fastModel: null };
 
   try {
     if (fsDep.existsSync(AI_CONFIG_FILE)) {

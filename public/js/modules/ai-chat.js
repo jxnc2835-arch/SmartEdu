@@ -34,7 +34,7 @@ window.saveAIHistory = function () {
 window.bubble = function (role, text, source, modelInfo) {
   const d = document.createElement('div');
   d.className = 'bubble ' + (role === 'user' ? 'b-user' : 'b-ai');
-  let html = esc(text)
+  const html = esc(text)
     .replace(/&amp;/g, '&')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');

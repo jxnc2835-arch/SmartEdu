@@ -147,7 +147,7 @@ router.get('/api/report', authMiddleware, (req, res) => {
     const endDateStr = bjDateStr(endDate);
 
     let studentsSql = "SELECT * FROM students";
-    let studentsParams = [];
+    const studentsParams = [];
     if (className) { studentsSql += " WHERE class_name=?"; studentsParams.push(className); }
     studentsSql += " ORDER BY class_name";
     const studentsRows = db.exec(studentsSql, studentsParams)[0]?.values || [];
@@ -172,7 +172,7 @@ router.get('/api/report', authMiddleware, (req, res) => {
 
     const dormList = Object.values(dorms).map(d => ({...d, absentRate: d.total > 0 ? Math.round((d.absentCount/(d.total*days))*100) : 0}));
     let pendingSql = "SELECT COUNT(*) FROM leaves l LEFT JOIN students s ON l.student_id=s.student_id WHERE l.status='待审批'";
-    let pendingParams = [];
+    const pendingParams = [];
     if (className) { pendingSql += " AND s.class_name=?"; pendingParams.push(className); }
     const pendingLeaves = db.exec(pendingSql, pendingParams)[0]?.values?.[0]?.[0] || 0;
 
@@ -262,7 +262,7 @@ router.delete('/api/logs/:id', authMiddleware, (req, res) => {
 router.post('/api/clear-data', authMiddleware, (req, res) => {
   const className = req.query.class_name || null;
   try {
-    let ds=0, dr=0, dl=0;
+    const ds=0, dr=0, dl=0;
     if (className) {
       const ids = db.exec("SELECT id FROM students WHERE class_name=?", [className])[0]?.values?.map(r=>r[0]) || [];
       if (ids.length > 0) {
@@ -348,7 +348,7 @@ router.get('/api/export/records', authMiddleware, async (req, res) => {
     let whereClause = "WHERE r.type='checkin'";
     if (cond.length) whereClause += " AND " + cond.join(" AND ");
 
-    let sql = `
+    const sql = `
       SELECT s.name, s.student_id, s.dorm, s.class_name, r.status, r.address, SUBSTR(r.time,1,10) as record_date, SUBSTR(r.time,12) as record_time
       FROM records r
       JOIN students s ON r.student_id = s.student_id
@@ -513,7 +513,7 @@ router.get('/api/export/conduct', authMiddleware, async (req, res) => {
     const d = new Date(); d.setDate(d.getDate() - days);
     const startDate = d.toISOString().slice(0, 10);
     
-    let sql = `
+    const sql = `
       SELECT s.student_id as id, s.name, s.dorm, s.class_name,
         COUNT(DISTINCT CASE WHEN r.status='在寝' THEN SUBSTR(r.time,1,10) END) as normal_count,
         COUNT(DISTINCT CASE WHEN r.status IN ('未归','不在宿') THEN SUBSTR(r.time,1,10) END) as absent_count,

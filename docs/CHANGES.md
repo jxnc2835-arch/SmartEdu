@@ -284,7 +284,7 @@
 ### Fix 16: 安全基线 + 构建修复 (P2/P4)
 - `.gitignore`: 补 `ssl/*.key|crt`、`config/backups/`、`config/data.db`、`public/reports/`，恢复 `package-lock.json` 跟踪
 - `swagger.js` 补建（原缺失：Docker `COPY` 必失败、本地 Swagger 一直初始化失败）
-- `stop.bat` 读取 `config/.runtime-port`，修复 EADDRINUSE 端口漂移后停止脚本失效
+- `server.bat` 集成停止功能，读取 `config/.runtime-port`，修复 EADDRINUSE 端口漂移后停止失效
 |-- SSL 自动生成加能力检测降级（Node 构建缺 `createSelfSignedCertificate` 时不再抛错）
 |-- 执行 `git init`（初始提交待确认）
 
@@ -303,3 +303,12 @@
 - **models/README.md**: 说明节点模型目录用途(与 public/models/ CDN 互不干扰), 列 3 个模型文件
 - **CHANGES.md**: 追加 Fix 18、Fix 19 两段记录
 - **git commit**: `865bd4e`(临时清理)、`3860251`(Fix 18)
+
+### v3.8 工程清理: 路径统一 + 遗留物移除
+- **start.bat / stop.bat 已合并入 `server.bat`**(v3.8), 上方 Fix 19 中 start.bat 条目为历史记录, 现运行入口统一为 `server.bat`
+- **AI 数据路径统一**: `routes/ai/session.js` 的 `ai_sessions.json` 由项目根 `data/` 迁移至 `config/data/`(与 `ai-chat.js` 的 `ROOT_DIR` 口径一致), 消除双写分裂
+- **移除遗留目录 `data/`**: 旧 `data/data.db`(v3.6 前旧库, 14MB) 及旧 AI json 已删(活跃库为 `config/data.db`); `ai_config.json` 已先迁移保全至 `config/data/`
+- **移除死文件 `.eslintrc.json`**: ESLint 10 仅识别 flat config(`eslint.config.js`), 旧文件规则已全部等价迁移, 删除避免误导
+- **测试不再污染仓库**: `test/auto-backup.test.js` 备份目录改 `os.tmpdir()`, 清理根 `backups/` 累积的 273 个 4 字节测试垃圾文件
+- **.gitignore**: 移除已失效的根 `data/` 目录规则
+- **日志清理**: 移除一次性调试日志(fix5x / restart_* / server_*), 保留 winston 轮转日志

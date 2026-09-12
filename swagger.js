@@ -16,7 +16,7 @@ function initSwagger(app) {
       openapi: '3.0.0',
       info: {
         title: '学管 SmartEdu API',
-        version: '3.6.2',
+        version: '3.8.0',
         description: 'AI 智能化学生管理系统 REST API\n\n## 认证说明\n- 所有需要认证的接口需在请求头中携带 `x-auth-token`\n- CSRF 保护：POST/PUT/DELETE 请求需在请求体或 Header 中携带 `_csrf` token\n- Token 获取：POST /api/login 成功后返回\n- CSRF Token 获取：GET /api/csrf-token（需先登录）\n\n## 安全特性\n- JWT Token 认证\n- CSRF Token 防护\n- HTTPS 强制重定向\n- SQL 参数化查询\n- 文件上传白名单校验',
         contact: {
           name: 'SmartEdu Team',

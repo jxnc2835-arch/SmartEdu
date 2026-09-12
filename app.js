@@ -5,6 +5,8 @@
 
 const express = require('express');
 const path = require('path');
+const helmet = require('helmet');
+const cors = require('cors');
 const { rateLimit, loginRateLimit } = require('./middleware/rate-limit');
 const { getAppDb } = require('./utils/helpers');
 const logger = require('./utils/logger');
@@ -22,19 +24,40 @@ function createApp() {
   const app = express();
 
   // ==================== 基础中间件 ====================
+  // Helmet: 设置安全 HTTP 头（允许内联脚本和外部 CDN）
+  // 注意：必须允许 script-src-attr 和 style-src-attr，否则 onclick/onchange 等内联事件会失效
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        scriptSrcAttr: ["'unsafe-inline'"],   // 允许 onclick, onchange 等内联事件
+        styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        styleSrcAttr: ["'unsafe-inline'"],    // 允许 inline style 属性
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        workerSrc: ["'self'"],
+        frameSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  }));
+  // CORS: 允许前端跨域访问
+  app.use(cors());
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // HTTPS 安全头（仅在 HTTPS 模式下生效）
-  if (process.env.HTTPS_MODE === 'true' || process.env.NODE_ENV === 'production') {
-    app.use((req, res, next) => {
-      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('X-Frame-Options', 'DENY');
-      res.setHeader('X-XSS-Protection', '1; mode=block');
-      next();
-    });
-  }
+  // HSTS 安全头（始终启用，不依赖 HTTPS_MODE）
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
+  });
 
   // API 限流（全局）
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 200 }));

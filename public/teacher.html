@@ -617,7 +617,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
 
         <section class="section" id="sec-manual">
           <div class="card" style="padding:18px 20px">
-            <h2 style="padding:0;margin:0 0 14px">📖 操作手册 <span class="sub">v3.5 完整版</span></h2>
+            <h2 style="padding:0;margin:0 0 14px">📖 操作手册 <span class="sub">v3.8 完整版</span></h2>
             <div style="font-size:14px;line-height:1.8;color:#475569">
 
               <!-- 快速开始 -->
@@ -730,7 +730,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
                 <div>• <b>数据清除</b>：按班级选择性清除签到记录</div>
                 <div>• <b>智能预警规则</b>：设置缺勤次数/请假天数/连续未归阈值</div>
                 <div>• <b>Webhook 通知</b>：配置通用 Webhook 地址</div>
-                <div>• <b>操作提示</b>：启动脚本 start.bat，停止脚本 stop.bat</div>
+                <div>• <b>操作提示</b>：双击 server.bat 管理（启动/停止/重启/查状态）</div>
                 <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #cbd5e1;font-size:12px;color:#94a3b8">
                   ⚡ 学生端离线签到：断网时签到数据本地保存（IndexedDB），联网自动同步<br>
                   ⚡ 扫码签到：学生端「📷 扫码签到」可扫码快速完成查寝/课堂签到
@@ -852,12 +852,12 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
             <div id="dormAnomalyTable"></div>
           </div>
 
-          <!-- 重点关注学生 - 中性口径：缺勤频次≠心理状态，仅提示优先了解情况 -->
+          <!-- 重点关注学生 - 中性口径：缺勤频次≠状态评估，仅提示优先了解情况 -->
           <div class="card" id="focusStudentCard" style="display:none">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
               <h2 style="margin:0;font-size:15px">👀 重点关注学生 <span class="sub" style="font-size:11px;color:#94a3b8;font-weight:400">近30天缺勤频次≥5次自动列入</span></h2>
             </div>
-            <div class="sub" style="margin-bottom:10px;color:#64748b;font-size:12px">近30天缺勤≥5次自动列入，仅作为优先了解情况的提示，**不代表心理状态评估**。是否约谈/家访请结合实际判断</div>
+            <div class="sub" style="margin-bottom:10px;color:#64748b;font-size:12px">近30天缺勤≥5次自动列入，仅作为优先了解情况的提示，**不代表状态评估**。是否约谈/家访请结合实际判断</div>
             <div id="focusStudentTable"></div>
             <div id="focusStudentPag"></div>
           </div>

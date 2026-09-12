@@ -48,7 +48,7 @@ window.pageBtns = function(totalPages, currentPage) {
   let btns = '';
   const maxVisible = 5;
   let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages, start + maxVisible - 1);
+  const end = Math.min(totalPages, start + maxVisible - 1);
   if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
   
   if (currentPage > 1) {
@@ -169,7 +169,7 @@ window.loadWeeklyTrend = async function() {
   }
   
   const labels = days.map(ds => ds.slice(5));
-  let counts = [0, 0, 0, 0, 0, 0, 0];
+  const counts = [0, 0, 0, 0, 0, 0, 0];
   
   try {
     const j = await api('/api/class-trend/public?days=7' + (cls ? '&class_name=' + encodeURIComponent(cls) : ''));

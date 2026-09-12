@@ -3,17 +3,20 @@
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 describe('auto-backup utility', () => {
   let cleanupOldBackups;
   let initAutoBackup;
   let originalSetTimeout;
-  const backupDir = path.join(__dirname, '..', 'backups');
+  // 用临时目录做备份目录，避免污染项目根 backups/（历史 bug：曾写入根目录产生 200+ 个 4 字节 junk 文件）
+  let backupDir;
 
   beforeEach(() => {
     jest.useFakeTimers();
     originalSetTimeout = global.setTimeout;
     global.setTimeout = jest.fn();
+    backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartedu-backup-test-'));
     const backupModule = require('../utils/auto-backup');
     cleanupOldBackups = backupModule.cleanupOldBackups;
     initAutoBackup = backupModule.initAutoBackup;
@@ -22,12 +25,13 @@ describe('auto-backup utility', () => {
   afterEach(() => {
     jest.useRealTimers();
     global.setTimeout = originalSetTimeout;
+    if (backupDir && fs.existsSync(backupDir)) fs.rmSync(backupDir, { recursive: true, force: true });
   });
 
   describe('cleanupOldBackups', () => {
     test('should remove backups older than retention days', () => {
       const db = { run: jest.fn(), export: () => Buffer.from('test') };
-      const dbFile = path.join(__dirname, '..', 'data.db');
+      const dbFile = path.join(backupDir, 'data.db');
       if (!fs.existsSync(dbFile)) {
         fs.writeFileSync(dbFile, 'dummy');
       }
@@ -56,7 +60,7 @@ describe('auto-backup utility', () => {
   describe('initAutoBackup', () => {
     test('should initialize backup schedule', () => {
       const db = { run: jest.fn(), export: () => Buffer.from('test') };
-      const dbFile = path.join(__dirname, '..', 'data.db');
+      const dbFile = path.join(backupDir, 'data.db');
       if (!fs.existsSync(dbFile)) {
         fs.writeFileSync(dbFile, 'dummy');
       }

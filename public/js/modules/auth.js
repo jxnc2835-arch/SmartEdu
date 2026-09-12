@@ -39,4 +39,4 @@ window.doLogout = function() {
 };
 
 // ==================== 静态资源缓存版本 ====================
-window.APP_VERSION = 'v3.6.2';
+window.APP_VERSION = 'v3.8.0';

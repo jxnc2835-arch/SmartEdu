@@ -338,7 +338,7 @@ window.loadLeaveTrend = async function() {
 };
 
 // ==================== 重点关注学生（近30天缺勤≥5次）====================
-// 注意：缺勤频次仅作"优先了解情况"的提示，不代表心理状态评估，避免心理化措辞
+// 注意：缺勤频次仅作"优先了解情况"的提示，不代表状态评估，避免倾向性措辞
 window.loadFocusStudentAlert = async function(cls) {
   const el = document.getElementById('focusStudentTable');
   const rows = window._attentionCache || [];

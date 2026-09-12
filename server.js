@@ -627,7 +627,7 @@ app.use((err, req, res, next) => {
   let listeningPort = PORT;
 
   server.listen(listeningPort, '0.0.0.0', () => {
-    logger.info(`\n🎓 学管 SmartEdu v3.6 (模块化 + AI预测/问答) 已启动！`);
+    logger.info(`\n🎓 学管 SmartEdu v3.8 (模块化 + AI预测/问答) 已启动！`);
     logger.info(`📡 服务器:      http://localhost:${listeningPort}`);
     logger.info(`📱 学生端:      http://localhost:${listeningPort}/student.html`);
     logger.info(`💻 教师端:      http://localhost:${listeningPort}/teacher.html`);
@@ -644,7 +644,7 @@ app.use((err, req, res, next) => {
         }
       });
     });
-    // 实际端口确定后持久化，确保 stop.bat 能准确定位（含 EADDRINUSE 递增后的端口）
+    // 实际端口确定后持久化，确保 server.bat 能准确定位（含 EADDRINUSE 递增后的端口）
     persistRuntimePort();
     
     setTimeout(() => {
@@ -709,7 +709,7 @@ app.use((err, req, res, next) => {
   });
 
   // P4 修复：把实际监听端口持久化到 config/.runtime-port，
-  // 供 stop.bat 在端口因 EADDRINUSE 自动递增后仍能准确定位并停止进程。
+  // 供 server.bat 在端口因 EADDRINUSE 自动递增后仍能准确定位并停止进程。
   function persistRuntimePort() {
     try {
       const runtimePortFile = path.join(config.ROOT_DIR, '.runtime-port');

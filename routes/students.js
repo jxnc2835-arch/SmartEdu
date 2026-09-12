@@ -86,8 +86,8 @@ function init(opts) {
       const limitNum = Math.min(parseInt(limit) || 50, 200); // 最大200条
       const offset = (pageNum - 1) * limitNum;
 
-      let whereClauses = ['1=1'];
-      let params = [];
+      const whereClauses = ['1=1'];
+      const params = [];
 
       if (class_name) {
         whereClauses.push('class_name=?');
@@ -110,31 +110,36 @@ function init(opts) {
       if (sc.clause) { whereClauses.push(sc.clause); params.push(...sc.params); }
 
       const whereSql = whereClauses.join(' AND ');
-      const orderBy = sort.split(',').map(s => {
+      // SQL注入防护：ORDER BY 只允许白名单字段
+      const ALLOWED_ORDER_FIELDS = ['id', 'name', 'student_id', 'gender', 'dorm', 'class_name', 'phone', 'grade', 'major'];
+      const cleanSort = (sort || 'class_name,name').split(',').map(s => {
         const [field, dir] = s.trim().split(' ');
-        return `s.${field || 'name'} ${dir ? dir.toUpperCase() : 'ASC'}`;
+        if (!ALLOWED_ORDER_FIELDS.includes(field) || !['ASC', 'DESC'].includes((dir || 'ASC').toUpperCase())) {
+          return 's.name ASC';
+        }
+        return `s.${field} ${dir.toUpperCase()}`;
       }).join(', ');
 
-      const query = `SELECT s.id, s.name, s.student_id, s.gender, s.dorm, s.class_name, s.phone, s.grade, s.major 
-                     FROM students s 
-                     WHERE ${whereSql} 
-                     ORDER BY ${orderBy || 's.class_name, s.name'} 
+      const query = `SELECT s.id, s.name, s.student_id, s.gender, s.dorm, s.class_name, s.phone, s.grade, s.major
+                     FROM students s
+                     WHERE ${whereSql}
+                     ORDER BY ${cleanSort}
                      LIMIT ? OFFSET ?`;
 
       const finalParams = [...params, limitNum, offset];
       let rows = [];
       let columns = [];
-      
+
       try {
         const result = db.exec(query, finalParams);
         rows = result[0]?.values || [];
         columns = result[0]?.columns || [];
       } catch (e) {
         // 如果查询失败，尝试不使用 grade 和 major 列
-        const fallbackQuery = `SELECT s.id, s.name, s.student_id, s.gender, s.dorm, s.class_name, s.phone 
-                     FROM students s 
-                     WHERE ${whereSql} 
-                     ORDER BY ${orderBy || 's.class_name, s.name'} 
+        const fallbackQuery = `SELECT s.id, s.name, s.student_id, s.gender, s.dorm, s.class_name, s.phone
+                     FROM students s
+                     WHERE ${whereSql}
+                     ORDER BY ${cleanSort}
                      LIMIT ? OFFSET ?`;
         const result = db.exec(fallbackQuery, [...params, limitNum, offset]);
         rows = result[0]?.values || [];

@@ -46,6 +46,8 @@ module.exports = [
       globals: {
         ...globals.node,
         ...globals.commonjs,
+        // JWT_SECRET 从 process.env 读取，ESLint 需知道此全局变量
+        JWT_SECRET: 'readonly',
       },
     },
     rules: {

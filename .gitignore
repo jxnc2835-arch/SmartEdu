@@ -11,12 +11,6 @@ package-lock.json
 config/data.db
 config/backups/
 config/logs/
-data.db
-data/*.db
-data/*.json
-!data/.gitkeep
-data/ai_config.json
-data/ai_sessions.json
 **/ai_config.json
 **/ai_sessions.json
 
@@ -72,3 +66,4 @@ ehthumbs.db
 
 # Docker volumes
 docker/volumes/
+_debug_system.js

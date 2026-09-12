@@ -41,7 +41,7 @@ async function handleAiQuestion(question, sid, ctx) {
       session ? session.messages : [], runtimeConfig);
   }
   
-  let aiAnswer = llmResult?.answer || null;
+  const aiAnswer = llmResult?.answer || null;
   
   // 生成最终答案
   let finalAnswer;
@@ -83,7 +83,7 @@ async function askZhipu(question, dataContext, history, runtimeConfig) {
   }
   
   const isGeneral = !!(dataContext && dataContext.intent === 'general');
-  let contextText = isGeneral ? '' : JSON.stringify(dataContext).slice(0, 2000);
+  const contextText = isGeneral ? '' : JSON.stringify(dataContext).slice(0, 2000);
   
   const modelsToTry = [
     { model: userModel, timeout: 60000, retries: 0 },

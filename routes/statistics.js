@@ -85,7 +85,7 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook) {
 
     // 学生总数
     let studentSql = "SELECT COUNT(*) FROM students";
-    let studentParams = [];
+    const studentParams = [];
     if (class_name) { studentSql += " WHERE class_name=?"; studentParams.push(class_name); }
     const totalStudents = database.exec(studentSql, studentParams)[0]?.values?.[0]?.[0] || 0;
 

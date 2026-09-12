@@ -74,7 +74,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'SmartEdu', {
       body: data.body || '',
-      icon: '/icons/icon-192.png',
+      icon: '/icons/icon-192.svg',
       data: { url: data.url || '/teacher.html' }
     })
   );

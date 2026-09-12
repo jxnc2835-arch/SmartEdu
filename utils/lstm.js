@@ -208,7 +208,7 @@ function backward(net, fwd, yTarget) {
   for (let k = 0; k < H; k++) grads.Wo_out[0][k] += dOut * hs[T - 1][k];
   grads.bo_out[0] += dOut;
 
-  let dh_next = new Array(H).fill(0);
+  const dh_next = new Array(H).fill(0);
   let dc_next = new Array(H).fill(0);
 
   for (let t = T - 1; t >= 0; t--) {

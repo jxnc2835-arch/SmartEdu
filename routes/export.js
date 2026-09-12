@@ -123,7 +123,7 @@ module.exports = {
         const doc = new PDFDocument({ margin: 40, size: 'A4' });
         doc.registerFont('Chinese','C:/Windows/Fonts/simhei.ttf');
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="chamber_report_${type}_${end}.pdf"`);
+        res.setHeader('Content-Disposition', 'attachment; filename="chamber_report.pdf"');
         doc.pipe(res);
 
         doc.font('Chinese').fontSize(20).text('学生查寝管理系统', { align: 'center' });
@@ -264,7 +264,7 @@ module.exports = {
 
         const buf = await workbook.xlsx.writeBuffer();
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="class_report_${type}_${end}.xlsx"`);
+        res.setHeader('Content-Disposition', 'attachment; filename="class_report.xlsx"');
         res.end(buf);
       } catch (e) {
         console.error('班级分表导出失败:', e);
