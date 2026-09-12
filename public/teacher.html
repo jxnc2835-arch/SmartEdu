@@ -1523,12 +1523,27 @@ function connectWS(){
   try{
     const proto=location.protocol==='https:'?'wss':'ws';
     const token = getToken();
-    // WS 已启用鉴权：token 经 URL 查询参数传递（浏览器 WebSocket 无法设自定义 header）；
-    // 未登录时连不上，onclose 会按 3 秒间隔重试（登录完成后 getToken 即有值）
-    ws=new WebSocket(`${proto}://${location.host}/?token=${encodeURIComponent(token||'')}`);
-    ws.onmessage=ev=>{try{const m=JSON.parse(ev.data);handleWS(m);}catch(e){}};
-    ws.onclose=()=>setTimeout(connectWS,3000);
+    // 优先使用一次性 WS ticket（2分钟有效），避免主 JWT 长期暴露在 URL 中
+    // 获取失败则降级使用长 token（向后兼容）
+    if(token){
+      fetch('/api/ws-ticket',{headers:{'x-auth-token':token}})
+        .then(r=>r.json()).then(j=>{
+          if(j.code===0&&j.data&&j.data.ticket){
+            ws=new WebSocket(`${proto}://${location.host}/?ticket=${encodeURIComponent(j.data.ticket)}`);
+          }else{
+            ws=new WebSocket(`${proto}://${location.host}/?token=${encodeURIComponent(token)}`);
+          }
+          initWS();
+        }).catch(()=>{ ws=new WebSocket(`${proto}://${location.host}/?token=${encodeURIComponent(token)}`); initWS(); });
+    }else{
+      ws=new WebSocket(`${proto}://${location.host}/`);
+      initWS();
+    }
   }catch(e){}
+}
+function initWS(){
+  ws.onmessage=ev=>{try{const m=JSON.parse(ev.data);handleWS(m);}catch(e){}};
+  ws.onclose=()=>setTimeout(connectWS,3000);
 }
 function handleWS(m){
   if(!m||!m.type)return;
