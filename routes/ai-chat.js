@@ -143,20 +143,21 @@ function initChatSubRouter(deps) {
     Object.assign(sess, updates);
   }
 
-  // 启动时恢复会话
-  loadSessions();
-
-  // 定期清理过期会话
-  setInterval(() => {
-    const now = Date.now();
-    for (const [sid, sess] of sessionMemory.entries()) {
-      const hist = sess.messages || [];
-      if (hist.length > 0 && now - (hist[hist.length - 1].ts || 0) > SESSION_TTL_MS) sessionMemory.delete(sid);
-    }
-    persistSessions();
-  }, 5 * 60 * 1000);
-
-  setInterval(() => { persistSessions(); }, 60 * 1000);
+  // 启动时恢复会话（定时清理在测试环境下禁用）
+  if (typeof setInterval !== 'undefined') {
+    loadSessions();
+    setInterval(() => {
+      const now = Date.now();
+      for (const [sid, sess] of sessionMemory.entries()) {
+        const hist = sess.messages || [];
+        if (hist.length > 0 && now - (hist[hist.length - 1].ts || 0) > SESSION_TTL_MS) sessionMemory.delete(sid);
+      }
+      persistSessions();
+    }, 5 * 60 * 1000);
+    setInterval(() => { persistSessions(); }, 60 * 1000);
+  } else {
+    loadSessions();
+  }
 
   // ===== AI 配置持久化 =====
   const AI_CONFIG_FILE = path.join(ROOT_DIR, 'data', 'ai_config.json');
