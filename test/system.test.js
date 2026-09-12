@@ -46,6 +46,7 @@ function createApp(dbMock, overrides = {}) {
     broadcast: jest.fn(),
     sendWebhook: jest.fn(),
     upload: { single: jest.fn().mockReturnValue((req, res, next) => next()) },
+        XLSX: require('exceljs'),
     QRCode: { toString: jest.fn().mockResolvedValue('data:image/png;base64,MOCK') },
     multer: { single: jest.fn().mockReturnValue((req, res, next) => next()) },
     os: { platform: () => 'win32', cpus: () => [{ model: 'CPU' }], totalmem: () => 8e9, freemem: () => 4e9 },
@@ -58,7 +59,7 @@ function createApp(dbMock, overrides = {}) {
   app.use(express.json());
   const router = initSystem(
     deps.db, deps.scheduleSave, deps.addLog, deps.broadcast, deps.sendWebhook,
-    deps.upload, deps.QRCode, deps.multer, deps.os, deps.ROOT_DIR, deps.UPLOAD_DIR, deps.BACKUP_DIR
+    deps.upload, deps.XLSX, deps.QRCode, deps.multer, deps.os, deps.ROOT_DIR, deps.UPLOAD_DIR, deps.BACKUP_DIR
   );
   app.use(router);
   return { app, deps };
@@ -126,8 +127,14 @@ describe('routes/system', () => {
         if (sql.includes('FROM students') && !sql.includes('JOIN')) {
           return [{ values: studentsRows }];
         }
-        if (sql.includes('FROM records') || sql.includes('JOIN students')) return [{ values: [] }];
-        if (sql.includes('FROM leaves')) return [{ values: [] }];
+        // records 查询（含 JOIN students 或 LEFT JOIN students）
+        if (sql.includes('FROM records') || sql.includes('JOIN students') || sql.includes('LEFT JOIN students')) {
+          return [{ values: [] }];
+        }
+        // leaves 查询（含 JOIN/LEFT JOIN students）
+        if (sql.includes('FROM leaves') || sql.includes('JOIN students') || sql.includes('LEFT JOIN students')) {
+          return [{ values: [] }];
+        }
         return [{ values: [] }];
       });
       return { exec: dbExec, run: jest.fn() };
