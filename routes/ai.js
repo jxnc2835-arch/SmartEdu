@@ -1698,6 +1698,18 @@ function init(opts) {
       return finalIntent(intent, classFilter, lastClassFilter, dateRef, lastIntent, lastParam, lastParam, courseFilter, lastCourseFilter);
     }
 
+    // ==================== 通用问题检测（非平台业务 → 交给大模型自由作答）====================
+    // 放在所有业务意图路由之后：平台业务问题（签到/缺勤/学生/宿舍/课程/告警…）已被上面的
+    // 关键词路由拦截，不会落进这里。只有"既不含任何业务关键词、又不是上下文追问/指代"的
+    // 新话题（闲聊、通用知识、编程、写作等）才走 general —— 不注入系统数据、跳过防幻觉
+    // 校验，让 LLM 像通用大模型一样针对性回答。
+    const BUSINESS_KEYWORDS = /(签到|查寝|在寝|未归|缺席|缺勤|缺课|旷课|逃课|出勤|到课|课堂|上课|课程|请假|休假|销假|宿舍|寝室|住校|住宿|熄灯|晚归|归寝|晚自习|学生|班级|辅导员|班主任|考勤|风险|预警|告警|异常|趋势|预测|记录|档案|名单|统计|汇总|排名|对比|建议|报告|高风险|高危|关注|管理|处理|闭环|台账|月报|周报|日报|学年|学期|学业|缺考|补考|考试|成绩|作业|学习|心理|情绪|抑郁|健康|生病|体检|发烧|体温|出行|离校|返校|入校|门禁|打卡|定位|围栏|外宿|自习|早读|晨读|点名|军训|实习|实践|社团|活动|讲座|就业|创业|考公|考研|论文|毕业设计)/.test(q);
+    const refersContext = /(该生|这个学生|那个学生|此学生|该同学|这位同学|这些学生|那批|这些|那些|这批|哪位|那位|这位)/.test(q);
+    const isFollowUpPhrase = /(刚才|刚刚|上一|上个|上一轮|这些|那些|这批|那批|哪个|哪位|再说|继续|接着)/.test(q);
+    if (!BUSINESS_KEYWORDS && !refersContext && !isFollowUpPhrase && qPlain.length > 0) {
+      return finalIntent('general', classFilter, lastClassFilter, dateRef, lastIntent, lastParam, undefined, courseFilter, lastCourseFilter);
+    }
+
     return finalIntent('clarify', classFilter, lastClassFilter, dateRef, lastIntent, lastParam, question, courseFilter, lastCourseFilter);
   }
 
@@ -1834,6 +1846,10 @@ function init(opts) {
       }
       case 'self_intro':
         return { subTopic: 'self', today: analyzeTodayCheckin(classFilter, dateRefDate(ir)) };
+      case 'general':
+        // 通用问答（非学管数据问题）：不注入学生名单/数字，避免 LLM 借数据编造、
+        // 也避免防幻觉校验把通用回答误判为未 grounded 而回退本地模板
+        return { intent: 'general' };
       default:
         // general 回退：仅含汇总与今日签到率，不含任何具体姓名（防止大模型借名编造）
         const t = analyzeTodayCheckin(classFilter, dateRefDate(ir));
@@ -2613,6 +2629,17 @@ function init(opts) {
           `💡 如果您想知道具体某个数字的含义，可以直接告诉我，比如"这个签到率怎么算的"。`;
       }
 
+      case 'general': {
+        // 通用问答无 LLM 可用时的本地兜底：诚实说明 + 引导回到平台能力
+        return `🙏 这个问题超出了我当前能调用的大模型范围（大模型服务暂未连接或不可用）。\n\n` +
+          `我可以正常处理这些学生管理问题：\n` +
+          `• "今天签到率怎么样？"\n` +
+          `• "哪些学生是高风险？"\n` +
+          `• "查一下张三的情况"\n` +
+          `• "近30天缺勤趋势？"\n\n` +
+          `💡 通用知识/闲聊类问题，请先在右侧"模型配置"里填好大模型 API，我会像真人一样回答~`;
+      }
+
       default: {
         // 通用/打招呼类问题 → 友好能力介绍，不堆数据
         const q = (_rawQuestion || '').toLowerCase();
@@ -2671,16 +2698,21 @@ function init(opts) {
     const baseUrl = cfg.baseUrl || process.env.ZHIPU_AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4';
     const userModel = cfg.modelName || process.env.ZHIPU_AI_MODEL || 'glm-4-flash';
 
+    // 通用问答模式：非学管数据问题，不注入系统数据，允许 LLM 自由作答
+    const isGeneral = !!(dataContext && dataContext.intent === 'general');
+
     // 检测占位符和空key
     if (!apiKey || apiKey.trim() === '' || apiKey === '你的_api_key_here') {
       console.log(`[大模型AI] 跳过调用: 无有效APIKey (runtime=${!!cfg.apiKey}, env=${!!process.env.ZHIPU_AI_API_KEY})`);
       return null;
     }
 
-    // 结构化上下文：带意图时保留完整名单，否则用旧摘要
-    let contextText = dataContext && typeof dataContext === 'object' && dataContext.intent
-      ? buildStructuredContext(dataContext)
-      : summarizeDataForLLM(dataContext);
+    // 结构化上下文：带意图时保留完整名单，否则用旧摘要；general 模式不注入数据
+    let contextText = isGeneral
+      ? ''
+      : (dataContext && typeof dataContext === 'object' && dataContext.intent
+        ? buildStructuredContext(dataContext)
+        : summarizeDataForLLM(dataContext));
 
     // 在上下文顶部显式标注当前筛选班级，强化模型过滤意识
     const currentClassFilter = dataContext && typeof dataContext === 'object'
@@ -2707,12 +2739,15 @@ function init(opts) {
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
           if (attempt > 0) console.log(`[大模型AI ${modelName}] 第${attempt+1}次重试...`);
-          const answer = await callLLM(question, contextText, trimmedHistory, apiKey, baseUrl, modelName, timeoutMs);
+          const answer = await callLLM(question, contextText, trimmedHistory, apiKey, baseUrl, modelName, timeoutMs, isGeneral);
           if (answer) {
             // 后处理：拦截模型把示例占位符（X/Y/A/B…）直接输出成"套话模板"的退化回答
+            // （通用模式无数据可引用，同样拦截字母占位套话）
             if (/[A-Z]\s*(条|名|人|个|起|分|次|方面|%|位|项|人次)/.test(answer)) {
               console.warn(`[大模型AI ${modelName}] 检测到字母占位套话，已拦截并回退为无数据说明`);
-              return { answer: '抱歉，当前查询范围内系统没有可统计的真实数据（例如所选时段暂无签到、考勤或告警记录），因此无法给出具体数字分析。您可以在"数据大屏"或"考勤统计"中查看已有记录，或换个时间范围（如"本月""上周"）再问我~', modelName: modelName + ' ·placeholder-blocked' };
+              return { answer: isGeneral
+                ? '抱歉，这个问题我暂时没找到靠谱的答案，可以换个问法再试试，或者问点学生管理相关的事（比如签到率、未归名单）~'
+                : '抱歉，当前查询范围内系统没有可统计的真实数据（例如所选时段暂无签到、考勤或告警记录），因此无法给出具体数字分析。您可以在"数据大屏"或"考勤统计"中查看已有记录，或换个时间范围（如"本月""上周"）再问我~', modelName: modelName + ' ·placeholder-blocked' };
             }
             console.log(`[大模型AI] 最终使用模型: ${modelName}`);
             return { answer, modelName };
@@ -2939,11 +2974,22 @@ function init(opts) {
     }
   }
 
-  async function callLLM(question, contextText, history, apiKey, baseUrl, modelName, timeoutMs = 30000) {
-    console.log(`[大模型AI ${modelName}] 开始调用问题="${question.slice(0,50)}" base=${baseUrl.slice(0,40)}...`);
+  async function callLLM(question, contextText, history, apiKey, baseUrl, modelName, timeoutMs = 30000, generalMode = false) {
+    console.log(`[大模型AI ${modelName}${generalMode ? '·通用' : ''}] 开始调用问题="${question.slice(0,50)}" base=${baseUrl.slice(0,40)}...`);
 
     try {
-      const systemPrompt = `你是一位经验丰富、说话接地气的高校辅导员AI助手"学工小智"。你的用户是**辅导员或老师**，不是学生，所以称呼对方为"老师"而非"同学"。你的风格：
+      const systemPrompt = generalMode ? `你是一位经验丰富、说话接地气的高校辅导员AI助手"学工小智"，同时也是一名通用的知识助手。你的用户是**辅导员或老师**。当前问题是**平台数据之外的通用问题**（闲聊、知识、建议、写作等），请像真人一样自然、有针对性作答。
+
+【通用问答规则】
+1. 就事论事，直接回答用户的问题，**不要**强行扯到学生管理数据，也不要说"我是学管助手只能回答学生数据"之类的限制话术。
+2. 不知道的诚实说明，不编造事实（人名、数据、日期）。
+3. 语言风格：像微信聊天，偶尔用 emoji 点缀但不过度；关键结论可用 **加粗**。
+4. 字数 100-400 字，该详细时详细，该简短时简短；可自然追问或给建议。
+5. 若问题涉及学生管理、考勤、查寝、宿舍等业务，可结合你作为学工助手的视角给建议，但平台实时数据请以系统功能为准，不要编造具体数字与名单。
+
+当前系统业务日期（你口中的"今天/今日"以此为准）：${getEffectiveToday()}
+真实墙钟时间：${new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}`
+      : `你是一位经验丰富、说话接地气的高校辅导员AI助手"学工小智"。你的用户是**辅导员或老师**，不是学生，所以称呼对方为"老师"而非"同学"。你的风格：
 
 【角色定位】
 - 你像一位干了10年的老辅导员，既专业又亲切
@@ -3234,10 +3280,13 @@ ${contextText || '（暂无额外数据）'}
       lastParam: intentResult.param
     });
     const forceLocal = FORCE_LOCAL_INTENTS.includes(intentResult.intent);
+    const isGeneralIntent = intentResult.intent === 'general';
     let llmResult = forceLocal ? null : await askZhipu(question, { intent: intentResult.intent, ...data }, history);
     let aiAnswer = llmResult && llmResult.answer ? llmResult.answer : null;
-    // 防幻觉：校验 LLM 回答是否基于系统数据，出现未 grounding 实体则回退本地
-    if (aiAnswer && !forceLocal) {
+    // 防幻觉：校验 LLM 回答是否基于系统数据，出现未 grounding 实体则回退本地。
+    // general（通用问答）不注入系统数据，允许自由作答，跳过 grounding 校验，
+    // 否则通用回答里的普通词句会被误判为"编造的人名"而强行回退本地模板。
+    if (aiAnswer && !forceLocal && !isGeneralIntent) {
       const allowed = collectAllowed(data);
       if (!verifyGrounded(aiAnswer, allowed)) {
         console.log(`[AI] LLM回答含未 grounding 实体，回退本地准确答案 (intent=${intentResult.intent})`);
@@ -3385,7 +3434,8 @@ ${contextText || '（暂无额外数据）'}
       search: ['查看详细档案', '同班级学生', '签到记录'],
       alerts: ['查看未归学生', '生成新告警', '告警处理统计'],
       recent_records: ['今日汇总', '未归名单', '高风险学生'],
-      clarify: ['今日签到率？', '高风险学生？', '智能建议', '未归学生是谁？']
+      clarify: ['今日签到率？', '高风险学生？', '智能建议', '未归学生是谁？'],
+      general: ['今天签到率怎么样？', '高风险学生有哪些？', '给我一些管理建议', '查一下张三的情况']
     };
     return map[intent] || map.general;
   }
