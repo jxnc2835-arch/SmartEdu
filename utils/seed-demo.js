@@ -153,8 +153,8 @@ async function generateData() {
   const endDate = new Date('2026-08-31');
   const recordStmt = db.prepare(`
     INSERT OR REPLACE INTO records 
-    (id, student_id, date, time, type, status, class_name, note, offline, liveness_passed)
-    VALUES (?, ?, ?, ?, 'checkin', ?, ?, ?, ?, ?)
+    (id, student_id, date, time, type, status, class_name, note, offline, liveness_passed, latitude, longitude, address)
+    VALUES (?, ?, ?, ?, 'checkin', ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   
   let recordCount = 0;
@@ -196,7 +196,7 @@ async function generateData() {
       const longitude = 115.85 + (Math.random() - 0.5) * 0.01; // 南昌经度约115.85
       const address = `江西飞行学院 ${dormBuilding} ${student.dorm}`;
 
-      recordStmt.run([id, student.id, dateStr, timeStr, status, note, offline, liveness,
+      recordStmt.run([id, student.id, dateStr, timeStr, status, student.className, note, offline, liveness,
         latitude, longitude, address]);
       recordCount++;
     }

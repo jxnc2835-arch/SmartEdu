@@ -111,6 +111,9 @@ function init(opts) {
     const data = rows.map(r => {
       const obj = {};
       columns.forEach((col, i) => { obj[col] = r[i]; });
+      // 班级列优先取学生表真实班级(r_class_name)，避免记录表 class_name 去规范化副本
+      // （可能为空，或历史/演示数据里混入的未归理由文本）覆盖到"班级"列
+      if (obj.r_class_name) obj.class_name = obj.r_class_name;
       return obj;
     });
 
