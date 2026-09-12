@@ -1,73 +1,68 @@
-// Mock bcryptjs 的 compare 方法，使其始终返回 true
-jest.mock('bcryptjs', () => ({
-  compare: jest.fn().mockResolvedValue(true),
-  compareSync: jest.fn().mockReturnValue(true),
+// auth 路由集成测试
+jest.mock('../utils/helpers', () => ({
+  nowTimestamp: jest.fn(() => '2026-09-12 12:00:00'),
+  localDateStr: jest.fn(() => '2026-09-12'),
+  formatDate: jest.fn((d) => String(d)),
+  beijingStamp: jest.fn(() => '2026-09-12T12-00-00'),
+  saveBase64Photo: jest.fn(),
+  clampedToday: jest.fn(() => '2026-09-12'),
+  beijingDateStr: jest.fn(() => '2026-09-12'),
 }));
 
 const request = require('supertest');
 const express = require('express');
-const { init: initAuthRoutes } = require('../routes/auth');
+const { init: initAuth } = require('../routes/auth');
 
 function createApp(dbMock) {
   const app = express();
   app.use(express.json());
-  const router = initAuthRoutes({
-    db: dbMock,
-    scheduleSave: () => {},
-    authMiddleware: (req, res, next) => next(),
-    requireRole: () => (req, res, next) => next(),
-    generateToken: () => 'test-token',
-    STUDENT_TOKENS: {},
-    RESET_TOKENS: {},
-    STUDENT_TOKEN_EXPIRY: 0,
-    addLog: () => {},
-    localDateStr: () => '2026-01-01',
-    formatDate: () => '2026-01-01',
-    nowTimestamp: () => Date.now(),
-    saveBase64Photo: () => {},
-    beijingStamp: () => new Date().toISOString(),
-    compressImage: () => {},
+  const router = initAuth({
+    db: dbMock, scheduleSave: jest.fn(), authMiddleware: (r, res, n) => { r.user = { userId: 'admin', role: 'admin' }; n(); },
+    requireRole: (...roles) => (r, res, n) => n(),
+    generateToken: jest.fn(() => 'test-jwt-token'),
+    STUDENT_TOKENS: new Map(), RESET_TOKENS: new Map(), STUDENT_TOKEN_EXPIRY: 8 * 3600 * 1000,
+    addLog: jest.fn(), localDateStr: () => '2026-09-12', formatDate: () => '2026-09-12',
+    nowTimestamp: () => '2026-09-12T12:00:00', saveBase64Photo: jest.fn(),
+    beijingStamp: () => '2026-09-12T12-00-00', compressImage: jest.fn(),
     checkLoginRateLimit: () => ({ allowed: true, remaining: 5 }),
-    LOGIN_ATTEMPTS: {}
+    LOGIN_ATTEMPTS: {},
   });
   app.use(router);
   return app;
 }
 
-describe('Auth API', () => {
-  let app;
-  const mockDb = {
-    exec: jest.fn().mockReturnValue([
-      {
-        values: [[
-          1,
-          'admin',
-          '$2b$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          'admin',
-          'Admin',
-          ''
-        ]]
-      }
-    ]),
-  };
+describe('routes/auth', () => {
+  const bcrypt = require('bcryptjs');
+  const hashedPwd = bcrypt.hashSync('admin123', 12);
+  const dbExec = jest.fn();
+  const dbMock = { exec: dbExec, run: jest.fn() };
 
   beforeEach(() => {
-    mockDb.exec.mockClear();
-    app = createApp(mockDb);
+    dbExec.mockClear();
   });
 
-  test('POST /api/login 成功返回 token', async () => {
-    const res = await request(app)
-      .post('/api/login')
-      .send({ username: 'admin', password: 'any' });
-    expect(res.statusCode).toBe(200);
+  test('POST /api/login 成功登录', async () => {
+    dbExec.mockReturnValue([{ values: [['admin', 'admin', hashedPwd, 'admin', '管理员', '']] }]);
+    const app = createApp(dbMock);
+    const res = await request(app).post('/api/login').send({ username: 'admin', password: 'admin123' });
+    expect(res.status).toBe(200);
     expect(res.body.code).toBe(0);
-    expect(res.body).toHaveProperty('token');
+    expect(res.body.token).toBeDefined();
   });
 
-  test('GET /api/users 返回用户列表', async () => {
-    mockDb.exec.mockReturnValue([{ values: [[1, 'admin', '管理员']] }]);
-    const res = await request(app).get('/api/users');
-    expect(res.statusCode).toBe(200);
+  test('POST /api/login 密码错误', async () => {
+    dbExec.mockReturnValue([{ values: [['admin', 'admin', hashedPwd, 'admin', '管理员', '']] }]);
+    const app = createApp(dbMock);
+    const res = await request(app).post('/api/login').send({ username: 'admin', password: 'wrong' });
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(1);
+  });
+
+  test('GET /api/me 返回当前用户信息', async () => {
+    dbExec.mockReturnValue([{ values: [['管理员', '']] }]);
+    const app = createApp(dbMock);
+    const res = await request(app).get('/api/me').set('x-auth-token', 'test-jwt-token');
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(0);
   });
 });

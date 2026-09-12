@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  smartedu:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HTTPS_PORT=3443
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-strong-random-string-at-least-32-chars}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-}
+      - ZHIPU_AI_API_KEY=${ZHIPU_AI_API_KEY:-}
+      - ZHIPU_AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+      - ZHIPU_AI_MODEL=glm-4-flash
+      - PDF_FONT_PATH=/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc
+      - LOG_DIR=/app/logs
+      - DB_FILE=/app/config/data.db
+      - UPLOAD_DIR=/app/public/uploads
+      - BACKUP_DIR=/app/config/backups
+    volumes:
+      - smartedu-data:/app/config
+      - smartedu-logs:/app/logs
+      - smartedu-uploads:/app/public/uploads
+      - smartedu-backups:/app/config/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  smartedu-data:
+  smartedu-logs:
+  smartedu-uploads:
+  smartedu-backups:

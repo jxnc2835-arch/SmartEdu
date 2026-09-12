@@ -50,3 +50,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # 启动命令
 CMD ["node", "server.js"]
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# 运行端口
+EXPOSE 3000
+
+# 默认命令
+CMD ["node", "server.js"]

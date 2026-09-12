@@ -82,7 +82,7 @@ function initSwagger(app) {
             required: ['username', 'password'],
             properties: {
               username: { type: 'string', example: 'admin' },
-              password: { type: 'string', example: 'admin123' }
+              password: { type: 'string', example: '请配置环境变量 DEFAULT_ADMIN_PASSWORD' }
             }
           },
           LoginResponse: {
