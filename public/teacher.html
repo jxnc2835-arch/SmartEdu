@@ -852,14 +852,14 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
             <div id="dormAnomalyTable"></div>
           </div>
 
-          <!-- 心理危机预警 - 保留 -->
-          <div class="card">
-            <h2>💔 心理危机预警 <span class="sub">
-              <span style="background:#fce7f3;color:#be185d;padding:2px 8px;border-radius:4px;font-size:11px">近30天</span>
-            </span></h2>
-            <div class="sub" style="margin-bottom:10px;color:#64748b;font-size:12px">基于缺勤数据智能分析，缺勤≥5次自动标记。 以下数据仅供参考，请结合实际判断</div>
-            <div id="mentalAlertTable"></div>
-            <div id="mentalAlertPag"></div>
+          <!-- 重点关注学生 - 中性口径：缺勤频次≠心理状态，仅提示优先了解情况 -->
+          <div class="card" id="focusStudentCard" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+              <h2 style="margin:0;font-size:15px">👀 重点关注学生 <span class="sub" style="font-size:11px;color:#94a3b8;font-weight:400">近30天缺勤频次≥5次自动列入</span></h2>
+            </div>
+            <div class="sub" style="margin-bottom:10px;color:#64748b;font-size:12px">近30天缺勤≥5次自动列入，仅作为优先了解情况的提示，**不代表心理状态评估**。是否约谈/家访请结合实际判断</div>
+            <div id="focusStudentTable"></div>
+            <div id="focusStudentPag"></div>
           </div>
 
           <!-- AI 数据预测与模型评估 -->
@@ -2032,8 +2032,8 @@ function filterLeaves(){
       <span class="lv-time">${timeStr}</span>
       <span class="lv-status" style="${stBg}">${esc(stDisp)}</span>
       <span class="lv-act">
-        <button class="btn btn-sm btn-o" onclick="viewLeaveDetail('${r.id}')" title="查看详情/附件">详情</button>
-        ${r.status==='待审批'||r.status==='pending'?`<button class="btn btn-sm btn-p" onclick="openLeave('${r.id}')" title="审批请假">审批</button>`:'<span style="color:#94a3b8;font-size:12px">已处理</span>'}
+        <button class="btn btn-sm btn-o" onclick="viewLeaveDetail('${esc(r.id)}')" title="查看详情/附件">详情</button>
+        ${r.status==='待审批'||r.status==='pending'?`<button class="btn btn-sm btn-p" onclick="openLeave('${esc(r.id)}')" title="审批请假">审批</button>`:'<span style="color:#94a3b8;font-size:12px">已处理</span>'}
       </span>
     </div>`;
     }).join('')+`</div>`;
@@ -3293,7 +3293,7 @@ async function loadStats(){
   loadDormRank((dormRankRes.data?.dorms||dormRankRes.data||[]));
   loadAttentionInStats();
   loadDormAnomaly(cls);
-  loadMentalAlert(cls);
+  loadFocusStudentAlert(cls);
   loadAiPredictionStats();
 }
 
@@ -3330,7 +3330,7 @@ async function loadMonthReport(){
       const ans=j.data?.answer||'生成失败';
       el.innerHTML=`<div style="padding:24px;background:linear-gradient(135deg,#f0f9ff 0%,#e0e7ff 100%);border-radius:12px;line-height:1.8">${esc(ans).replace(/\n/g,'<br>')}</div>`;
     }catch(e){
-      el.innerHTML='<div class="empty">生成失败：'+e.message+'</div>';
+      el.innerHTML='<div class="empty">生成失败：'+esc(e.message)+'</div>';
     }
     return;
   }
@@ -3373,7 +3373,7 @@ async function loadMonthReport(){
       <table><thead><tr><th>班级</th><th>人数</th><th>未归</th><th>请假</th><th>异常率</th><th>预警</th></tr></thead><tbody>`+
         slice.map(({c,students,absent,leave,total:t,alert})=>{
           const rate=t>0?Math.round(absent/t*100):0;
-          return `<tr><td>${c}</td><td>${students}</td><td>${absent}</td><td>${leave}</td><td>${rate}%</td><td>${alert>0?`<span style="color:#dc2626;font-weight:600">⚠️ ${alert}</span>`:`<span style="color:#10b981">✅ 正常</span>`}</td></tr>`;
+          return `<tr><td>${esc(c)}</td><td>${students}</td><td>${absent}</td><td>${leave}</td><td>${rate}%</td><td>${alert>0?`<span style="color:#dc2626;font-weight:600">⚠️ ${alert}</span>`:`<span style="color:#10b981">✅ 正常</span>`}</td></tr>`;
         }).join('')+`</tbody></table>`;
     },'monthReportPag','monthReportTable');
 }
@@ -3389,7 +3389,7 @@ async function loadConduct(cls){
           const rank=(page-1)*10+i+1;
           const score=r.score??0;
           const level=score>=100?'<span style="color:#10b981;background:#d1fae5;padding:2px 8px;border-radius:10px">优秀</span>':score>=80?'<span style="color:#3b82f6;background:#dbeafe;padding:2px 8px;border-radius:10px">良好</span>':score>=60?'<span style="color:#f59e0b;background:#fef3c7;padding:2px 8px;border-radius:10px">一般</span>':'<span style="color:#ef4444;background:#fee2e2;padding:2px 8px;border-radius:10px">较差</span>';
-          return `<tr><td>${rank}</td><td>${r.name||'-'}</td><td>${r.dorm||'-'}</td><td>${r.class_name||'-'}</td><td>${r.normal_days||0}</td><td>${r.absent_days||0}</td><td>${r.leave_days||0}</td><td><b>${score}</b></td><td>${level}</td></tr>`;
+          return `<tr><td>${rank}</td><td>${esc(r.name)||'-'}</td><td>${esc(r.dorm)||'-'}</td><td>${esc(r.class_name)||'-'}</td><td>${r.normal_days||0}</td><td>${r.absent_days||0}</td><td>${r.leave_days||0}</td><td><b>${score}</b></td><td>${level}</td></tr>`;
         }).join('')+`</tbody></table>
         <div class="sub" style="margin-top:8px;color:#64748b;font-size:12px">共 ${total} 名学生，评分规则：基础100分，按在寝率换算</div>`;
     },'conductPag','conductTable');
@@ -3412,7 +3412,7 @@ async function loadDormRank(rows){
       }else{
         rate=Math.round(rate);
       }
-      return `<tr><td>${rank}</td><td>${r.dorm||'-'}</td><td>${r.class_name||'-'}</td><td>${r.total_students||0}</td><td>${r.absent_count||0}</td><td><b>${rate}%</b></td></tr>`;
+      return `<tr><td>${rank}</td><td>${esc(r.dorm)||'-'}</td><td>${esc(r.class_name)||'-'}</td><td>${r.total_students||0}</td><td>${r.absent_count||0}</td><td><b>${rate}%</b></td></tr>`;
     }).join('')+`</tbody></table>`,'dormRankPag','dormRankTable');
 }
 
@@ -3424,7 +3424,7 @@ async function loadAttentionInStats(){
   el.innerHTML=renderPagedTable(filtered,1,10,(slice)=>`<table><thead><tr><th>姓名</th><th>班级</th><th>宿舍</th><th>缺勤</th><th>请假</th><th>风险</th></tr></thead><tbody>`+
       slice.map(r=>{
         const absent = r.absent_count || r.absent_days || 0;
-        return `<tr><td>${r.name||'-'}</td><td>${r.class_name||'-'}</td><td>${r.dorm||'-'}</td><td>${absent}</td><td>${r.leave_count||r.leave_days||0}</td><td>${riskLevelTag(absent)}</td></tr>`;
+        return `<tr><td>${esc(r.name)||'-'}</td><td>${esc(r.class_name)||'-'}</td><td>${esc(r.dorm)||'-'}</td><td>${absent}</td><td>${r.leave_count||r.leave_days||0}</td><td>${riskLevelTag(absent)}</td></tr>`;
       }).join('')+`</tbody></table>`,'attentionInStatsPag','attentionInStatsTable');
 }
 
@@ -3446,8 +3446,8 @@ async function loadDormAnomaly(cls){
     if(!anomalies.length){el.innerHTML='<div style="padding:20px;text-align:center;color:#10b981">✅ 今日无宿舍异常</div>';return;}
     el.innerHTML=`<table><thead><tr><th>宿舍</th><th>班级</th><th>未归学生</th><th>人数</th></tr></thead><tbody>`+
       anomalies.map(([d,list])=>{
-        const clsName=list[0]?.class_name||'-';
-        return `<tr><td><b>${d}</b></td><td>${clsName}</td><td>${list.map(s=>s.name).join('、')}</td><td style="color:#dc2626;font-weight:600">${list.length}</td></tr>`;
+        const clsName=esc(list[0]?.class_name)||'-';
+        return `<tr><td><b>${esc(d)}</b></td><td>${clsName}</td><td>${list.map(s=>esc(s.name)).join('、')}</td><td style="color:#dc2626;font-weight:600">${list.length}</td></tr>`;
       }).join('')+`</tbody></table>`;
   }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
 }
@@ -3463,7 +3463,7 @@ async function loadLeaveTrend(){
       rows.slice(-6).map(r=>{
         const month=r.month||r.date||'-';
         const count=r.count||r.total||0;
-        return `<tr><td>${month}</td><td>${count}</td><td>${count>5?'📈 上升':count<2?'📉 下降':'➡️ 平稳'}</td></tr>`;
+        return `<tr><td>${esc(month)}</td><td>${count}</td><td>${count>5?'📈 上升':count<2?'📉 下降':'➡️ 平稳'}</td></tr>`;
       }).join('')+`</tbody></table>`;
   }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
 }
@@ -3496,7 +3496,7 @@ async function loadVisitors(){
   el.innerHTML=`<table><thead><tr><th>访客</th><th>证件号</th><th>电话</th><th>受访学生</th><th>宿舍</th><th>来访事由</th><th>日期/时间</th><th>状态</th></tr></thead><tbody>`+
     rows.map(r=>{
       const visitDateStr = r.visit_date ? (r.visit_date+' '+(r.visit_time||'')) : '-';
-      return `<tr><td>${r.visitor_name||'-'}</td><td>${r.visitor_id_card||'-'}</td><td>${r.visitor_phone||'-'}</td><td>${r.target_student_name||r.target_student_id||'-'}</td><td>${r.target_dorm||'-'}</td><td>${r.visit_purpose||'-'}</td><td style="font-size:11px;white-space:nowrap">${fmtBJ(visitDateStr)}</td><td>${statusTag((r.checked_in?'已签到':'未签到')+'/'+(r.checked_out?'已离校':'在校'))}</td></tr>`;
+      return `<tr><td>${esc(r.visitor_name)||'-'}</td><td>${esc(r.visitor_id_card)||'-'}</td><td>${esc(r.visitor_phone)||'-'}</td><td>${esc(r.target_student_name||r.target_student_id)||'-'}</td><td>${esc(r.target_dorm)||'-'}</td><td>${esc(r.visit_purpose)||'-'}</td><td style="font-size:11px;white-space:nowrap">${fmtBJ(visitDateStr)}</td><td>${statusTag((r.checked_in?'已签到':'未签到')+'/'+(r.checked_out?'已离校':'在校'))}</td></tr>`;
     }).join('')+`</tbody></table>`;
 }
 
@@ -3545,7 +3545,7 @@ async function showBackupDialog(title, desc, isClear=false){
           <label style="display:block;font-size:13px;color:#475569;margin-bottom:6px;font-weight:600">选择班级</label>
           <select id="dlgClassSel" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px">
             <option value="">全部班级</option>
-            ${classes.map(c=>`<option value="${c}">${c}</option>`).join('')}
+            ${classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}
           </select>
         </div>
         <div style="padding:14px 22px;display:flex;gap:10px;justify-content:flex-end">
@@ -3706,7 +3706,7 @@ async function loadUsers(){
     if(j.code!==0){el.innerHTML='<div class="empty">仅超级管理员可访问</div>';return;}
     _usersCache=j.data||[];
     renderUsers();
-  }catch(e){el.innerHTML='<div class="empty">加载失败：'+e.message+'</div>';}
+  }catch(e){el.innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>';}
 }
 function renderUsers(){
   const el=document.getElementById('userTable');
@@ -3800,7 +3800,7 @@ function showUserFormDialog(u){
     const matches=(window._allClasses||[]).filter(c=>c.toLowerCase().includes(q) && !window._uClasses.includes(c));
     if(!matches.length){classDropdown.style.display='none';return;}
     classDropdown.innerHTML=matches.map(c=>
-      `<div style="padding:8px 12px;cursor:pointer;font-size:13px;color:#334155;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''" onclick="selectUserClass('${c}')">${c}</div>`
+      `<div style="padding:8px 12px;cursor:pointer;font-size:13px;color:#334155;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''" onclick="selectUserClass('${esc(c)}')">${esc(c)}</div>`
     ).join('');
     classDropdown.style.display='';
   });
@@ -3816,7 +3816,7 @@ function renderUserClassTags(){
   const el=document.getElementById('u_classes_tags');
   if(!el)return;
   el.innerHTML = (window._uClasses||[]).map(c=>
-    `<span style="display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;padding:3px 8px;border-radius:4px;font-size:12px">${c}<span style="cursor:pointer;color:#ef4444;font-weight:700" onclick="removeUserClass('${c}')">×</span></span>`
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;padding:3px 8px;border-radius:4px;font-size:12px">${esc(c)}<span style="cursor:pointer;color:#ef4444;font-weight:700" onclick="removeUserClass('${esc(c)}')">×</span></span>`
   ).join('');
 }
 function removeUserClass(c){
@@ -3978,7 +3978,7 @@ async function loadLogs(){
       slice.map(l=>{
         const level=l.level||'info';
         const levelTag=level==='error'?'<span style="display:inline-block;width:18px;height:18px;background:#fee2e2;color:#dc2626;border-radius:4px;text-align:center;line-height:18px">!</span>':level==='warn'?'<span style="display:inline-block;width:18px;height:18px;background:#fef3c7;color:#f59e0b;border-radius:4px;text-align:center;line-height:18px">!</span>':'<span style="display:inline-block;width:18px;height:18px;background:#dbeafe;color:#3b82f6;border-radius:4px;text-align:center;line-height:18px">i</span>';
-        return `<tr><td>${levelTag}</td><td style="font-size:11px;white-space:nowrap">${fmtBJ(l.time||l.created_at)}</td><td>${l.user||'系统'}</td><td>${l.action||'-'}</td><td style="font-size:12px">${l.detail||l.message||''}</td><td><button class="btn btn-sm btn-d" onclick="deleteLog('${l.id}')">🗑️</button></td></tr>`;
+        return `<tr><td>${levelTag}</td><td style="font-size:11px;white-space:nowrap">${fmtBJ(l.time||l.created_at)}</td><td>${esc(l.user)||'系统'}</td><td>${esc(l.action)||'-'}</td><td style="font-size:12px">${esc(l.detail||l.message)||''}</td><td><button class="btn btn-sm btn-d" onclick="deleteLog('${esc(l.id)}')">🗑️</button></td></tr>`;
       }).join('')+`</tbody></table>`,'logPag','logList');
   }catch(e){el.innerHTML='<div class="empty">加载失败</div>';}
 }
@@ -4104,7 +4104,7 @@ async function loadVoiceRecords() {
   table.innerHTML = '<div class="empty-state" style="color:#94a3b8">加载中…</div>';
   const j = await apiAuth('/api/records?type=voice&_t=' + Date.now());
   if (j.code !== 0) {
-    table.innerHTML = '<div class="empty-state"><p>⚠️ 加载失败：' + (j.message || '未知错误') + '</p></div>';
+    table.innerHTML = '<div class="empty-state"><p>⚠️ 加载失败：' + esc(j.message || '未知错误') + '</p></div>';
     return;
   }
   if (!j.data || !j.data.length) {
@@ -4126,7 +4126,7 @@ async function loadGeofenceRules() {
   const j = await apiAuth('/api/geofence/rules?_t=' + Date.now());
   console.log('围栏接口返回:', j);
   if (j.code !== 0) {
-    table.innerHTML = '<div class="empty-state"><p>⚠️ 加载失败：' + (j.message || '未知错误') + '</p></div>';
+    table.innerHTML = '<div class="empty-state"><p>⚠️ 加载失败：' + esc(j.message || '未知错误') + '</p></div>';
     return;
   }
   if (!j.data || !j.data.length) {
@@ -4249,7 +4249,7 @@ async function loadStuPwdReset() {
       const c = cSel.value;
       const r = await apiAuth('/api/students/paged?limit=300' + (c ? ('&class_name=' + encodeURIComponent(c)) : ''));
       if (r.code === 0) {
-        sSel.innerHTML = '<option value="">选择学生</option>' + r.data.map(s => `<option value="${s.id}">${esc(s.name)}（${esc(s.class_name)}　${s.dorm || '—'}）</option>`).join('');
+        sSel.innerHTML = '<option value="">选择学生</option>' + r.data.map(s => `<option value="${esc(s.id)}">${esc(s.name)}（${esc(s.class_name)}　${esc(s.dorm) || '—'}）</option>`).join('');
       }
     };
     cSel.onchange = loadStudents;

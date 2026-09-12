@@ -480,10 +480,15 @@ app.use((err, req, res, next) => {
 
   const adminExists = db.exec("SELECT 1 FROM users WHERE username='admin' LIMIT 1;")[0]?.values?.length;
   if (!adminExists) {
-    const defaultPwd = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
-    const hash = await bcrypt.hash(defaultPwd, 12);
-    db.run("INSERT INTO users(id, username, password_hash, role, display_name) VALUES('admin', 'admin', ?, 'admin', '管理员')", [hash]);
-    logger.info(`🔑 默认管理员账号已创建 (用户名: admin, 密码: ${defaultPwd})`);
+  // P0: 必须有明确的默认密码（从环境变量），绝不允许静默回退到 admin123
+  // 缺失时直接报错拒绝启动，强制管理员显式配置强密码
+  const defaultPwd = process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!defaultPwd || defaultPwd.trim() === '') {
+    throw new Error('环境变量 DEFAULT_ADMIN_PASSWORD 未设置，必须显式配置管理员默认密码才能启动');
+  }
+  const hash = await bcrypt.hash(defaultPwd, 12);
+  db.run("INSERT INTO users(id, username, password_hash, role, display_name) VALUES('admin', 'admin', ?, 'admin', '管理员')", [hash]);
+  logger.info(`🔑 默认管理员账号已创建 (用户名: admin)`);
   }
   try { db.run("ALTER TABLE users ADD COLUMN class_name TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''"); } catch(e) {}

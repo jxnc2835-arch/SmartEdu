@@ -4,6 +4,8 @@ const path = require('path');
 const axios = require('axios');
 const PDFDocument = require('pdfkit');
 const { beijingDateStr } = require('../utils/helpers');
+const { forecastSeries } = require('../utils/arima');
+const { evaluateModels } = require('../utils/backtest');
 
 /**
  * Initialize AI chat sub-router
@@ -1687,15 +1689,17 @@ function initChatSubRouter(deps) {
             `📊 累计未归 **${data.total}** 人次 | 日均 **${data.avg}** 次 | 峰值 **${data.peak}** 次/天\n` +
             `🔴 缺勤最多：${worstDay.date}（${worstDay.count}次）\n` +
             `🟢 缺勤最少：${bestDay.date}（${bestDay.count}次）\n` +
-            `${trendDir}\n` +
-            (data.peak > data.avg * 2 ? '\n⚠️ 峰值天数是日均的2倍以上，建议关注该生近期状态。' : '');
+            `${trendDir}` +
+            (data.riskBand ? `\n\n📐 预测不确定性（95% 置信区间）：预估未来均值约为 **${data.riskBand.min.toFixed(1)}–${data.riskBand.max.toFixed(1)}** 次/天（回测 MAPE 约 ${data.riskBand.mape}%，仅供参考）` : '') +
+            (data.peak > data.avg * 2 ? '\n\n⚠️ 峰值天数是日均的2倍以上，建议关注该生近期状态。' : '');
         }
         return `【${daysLabel}缺勤趋势】${timeDesc}\n\n` +
           `📊 累计缺勤 **${data.total}** 人次 | 日均 **${data.avg}** 人 | 峰值 **${data.peak}** 人/天\n` +
           `🔴 缺勤最多：${worstDay.date}（${worstDay.count}人）\n` +
           `🟢 缺勤最少：${bestDay.date}（${bestDay.count}人）\n` +
-          `${trendDir}\n` +
-          (data.peak > data.avg * 2 ? '\n⚠️ 峰值天数是日均的2倍以上，存在集中性缺勤现象，建议排查原因。' : '');
+          `${trendDir}` +
+          (data.riskBand ? `\n\n📐 预测不确定性（95% 置信区间）：预估未来均值约为 **${data.riskBand.min.toFixed(1)}–${data.riskBand.max.toFixed(1)}** 人/天（回测 MAPE 约 ${data.riskBand.mape}%，仅供参考）` : '') +
+          (data.peak > data.avg * 2 ? '\n\n⚠️ 峰值天数是日均的2倍以上，存在集中性缺勤现象，建议排查原因。' : '');
       }
 
       case 'class_compare': {
@@ -2197,7 +2201,10 @@ function initChatSubRouter(deps) {
   // ==================== 调用大模型 AI（支持第三方 OpenAI 兼容接口） ====================
   // 运行时配置（优先于环境变量，持久化到文件防重启丢失）
   const AI_CONFIG_FILE = path.join(__dirname, '..', 'data', 'ai_config.json');
-  let runtimeConfig = { baseUrl: null, apiKey: null, modelName: null };
+  // enableLLM=false → 纯本地模式（不向任何外部模型发送数据）；
+  // piiMask=true → 发给大模型的上下文中学生姓名脱敏为 学生A/B/C；
+  // fastModel → 数据查询类任务用的快速模型（默认 glm-4-flash），强模型留给创作/长分析
+  let runtimeConfig = { baseUrl: null, apiKey: null, modelName: null, enableLLM: true, piiMask: false, fastModel: null };
 
   // 启动时加载持久化配置
   try {
@@ -2227,6 +2234,12 @@ function initChatSubRouter(deps) {
     const baseUrl = cfg.baseUrl || process.env.ZHIPU_AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4';
     const userModel = cfg.modelName || process.env.ZHIPU_AI_MODEL || 'glm-4-flash';
 
+    // 大模型功能开关（管理员可通过配置面板关闭）：关闭时走纯本地引擎，不向任何外部服务发送数据
+    if (!cfg.enableLLM) {
+      console.log(`[大模型AI] 已禁用，走本地分析引擎`);
+      return null;
+    }
+
     // 通用问答模式：非学管数据问题，不注入系统数据，允许 LLM 自由作答
     const isGeneral = !!(dataContext && dataContext.intent === 'general');
 
@@ -2242,6 +2255,25 @@ function initChatSubRouter(deps) {
       : (dataContext && typeof dataContext === 'object' && dataContext.intent
         ? buildStructuredContext(dataContext)
         : summarizeDataForLLM(dataContext));
+    // 脱敏模式：学生姓名替换为匿名代号，防止真实姓名外发至大模型（符合个人信息最小化）
+    if (cfg.piiMask && contextText) {
+      let idx = 0;
+      const maskNames = new Map();
+      const maskReplacer = (raw) => {
+        if (!raw || typeof raw !== 'string') return raw;
+        const key = raw.trim();
+        if (!maskNames.has(key)) maskNames.set(key, `同学${++idx}`);
+        return maskNames.get(key);
+      };
+      // 优先匹配长词（如"张三丰"先于"张三"），避免部分替换
+      const names = [...maskNames.values(), ...contextText.matchAll(/[\u4e00-\u9fa5]{2,4}/g)].map(m => m[0]).filter((v,i,a) => a.indexOf(v) === i);
+      names.sort((a,b) => b.length - a.length);
+      for (const n of names) {
+        if (!maskNames.has(n)) maskNames.set(n, `同学${++idx}`);
+      }
+      contextText = contextText.replace(/[\u4e00-\u9fa5]{2,4}/g, (m) => maskNames.get(m) || m);
+      console.log(`[AI] piiMask 脱敏：覆盖 ${maskNames.size} 个实名`);
+    }
 
     // 在上下文顶部显式标注当前筛选班级，强化模型过滤意识
     const currentClassFilter = dataContext && typeof dataContext === 'object'
@@ -2257,14 +2289,22 @@ function initChatSubRouter(deps) {
       content: m.content && m.content.length > 400 ? m.content.slice(0, 400) + '\n...(历史消息截断)' : m.content
     }));
 
-    // 尝试用户配置的模型；失败则快速兜底 glm-4-flash
+    // 尝试用户配置的模型；失败则快速兜底
+    // 按任务分派：数据类任务（今日/名单/趋势/风险等）优先用 fastModel（flash/4k 级），
+    // 创作/长分析走用户配置的强模型（4.7/plus 等），避免小模型答创作类问题质量差。
     // 注意：推理型模型（glm-4 系列/plus 等）首 token 常需 10-30s，
     // 旧版给配置模型仅 8000ms 窗口，导致 4.7 等强模型几乎必然超时被静默降级到
     // glm-4-flash（弱模型），用户实际从未用上配置的强模型 → 回答"不够智能"。
     // 放宽到 60s，超时/异常才降级，并在降级时把 source 标记为 degraded 便于前端提示。
+    const fastModel = cfg.fastModel || 'glm-4-flash';
+    const strongModel = cfg.modelName || 'glm-4.7';
+    // 是否属于"数据问答"类意图（快路径优先）
+    const isDataIntent = dataContext && typeof dataContext === 'object' && dataContext.intent
+      && ['today','today_with_absent','absent_list','absent_range','high_risk','trend','class_compare','dorm','leave','course','alerts','recent_records','search','student_detail','student_period_analysis','period_overview','advice','improve_attendance'].includes(dataContext.intent);
     const modelsToTry = [
-      { model: userModel, timeout: 60000, retries: 0 },
-      { model: 'glm-4-flash', timeout: 30000, retries: 1, fallback: true }
+      ...(isDataIntent ? [{ model: fastModel, timeout: 10000, retries: 0 }] : []),
+      { model: strongModel, timeout: 60000, retries: 0 },
+      { model: fastModel, timeout: 10000, retries: 1, fallback: true }
     ];
     for (const { model: modelName, timeout: timeoutMs, retries, fallback } of modelsToTry) {
       if (!modelName) continue;
@@ -2614,7 +2654,8 @@ ${contextText || '（暂无额外数据）'}
     const timestamp = Date.now();
     const filename = `${scope === 'course' ? '课堂考勤报告' : scope === 'dorm' ? '查寝报告' : '数据分析报告'}-${timestamp}.pdf`;
     const filepath = path.join(reportsDir, filename);
-    const fontPath = path.join('C:\\Windows\\Fonts\\simhei.ttf');
+    // P2: 字体路径可配置（优先读环境变量/硬编码兜底），避免跨平台中文乱码
+    const fontPath = process.env.PDF_FONT_PATH || path.join('C:\\Windows\\Fonts\\simhei.ttf');
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
@@ -2998,24 +3039,49 @@ ${contextText || '（暂无额外数据）'}
   });
 
   // ==================== 大模型配置 API ====================
-  // POST /api/ai/config — 保存大模型配置
+  // POST /api/ai/config — 保存大模型配置（含隐私开关）
   router.post('/api/ai/config', authMiddleware, (req, res) => {
     try {
-      const { baseUrl, apiKey, modelName } = req.body || {};
-      runtimeConfig.baseUrl = (baseUrl && baseUrl.trim()) ? baseUrl.trim() : null;
-      runtimeConfig.apiKey = (apiKey && apiKey.trim()) ? apiKey.trim() : null;
-      runtimeConfig.modelName = (modelName && modelName.trim()) ? modelName.trim() : null;
-      console.log(`[AI Config] 已更新: model=${runtimeConfig.modelName||'默认'}, base=${runtimeConfig.baseUrl||'环境变量'}`);
+      const { baseUrl, apiKey, modelName, enableLLM, piiMask, fastModel } = req.body || {};
+      if (baseUrl !== undefined) runtimeConfig.baseUrl = (baseUrl && baseUrl.trim()) ? baseUrl.trim() : null;
+      if (apiKey !== undefined) runtimeConfig.apiKey = (apiKey && apiKey.trim()) ? apiKey.trim() : null;
+      if (modelName !== undefined) runtimeConfig.modelName = (modelName && modelName.trim()) ? modelName.trim() : null;
+      if (enableLLM !== undefined) runtimeConfig.enableLLM = !!enableLLM;
+      if (piiMask !== undefined) runtimeConfig.piiMask = !!piiMask;
+      if (fastModel !== undefined) runtimeConfig.fastModel = (fastModel && fastModel.trim()) ? fastModel.trim() : null;
+      console.log(`[AI Config] 已更新: model=${runtimeConfig.modelName||'默认'} enableLLM=${runtimeConfig.enableLLM} piiMask=${runtimeConfig.piiMask} fastModel=${runtimeConfig.fastModel||'无'} base=${runtimeConfig.baseUrl||'环境变量'}`);
       persistAiConfig();
-      res.json({ code: 0, message: '配置已保存（已持久化，重启不丢失）', data: { modelName: runtimeConfig.modelName, hasKey: !!runtimeConfig.apiKey } });
+      res.json({ code: 0, message: '配置已保存（已持久化，重启不丢失）', data: {
+        modelName: runtimeConfig.modelName,
+        enableLLM: runtimeConfig.enableLLM,
+        piiMask: runtimeConfig.piiMask,
+        fastModel: runtimeConfig.fastModel,
+        hasKey: !!runtimeConfig.apiKey
+      }});
     } catch (e) {
       res.json({ code: 1, message: e.message });
     }
   });
 
-  // GET /api/ai/test — 测试大模型连接
+  // GET /api/ai/config — 获取当前配置状态
+  router.get('/api/ai/config', authMiddleware, (req, res) => {
+    res.json({
+      code: 0,
+      data: {
+        baseUrl: runtimeConfig.baseUrl || process.env.ZHIPU_AI_BASE_URL || null,
+        modelName: runtimeConfig.modelName || process.env.ZHIPU_AI_MODEL || 'glm-4-flash',
+        enableLLM: runtimeConfig.enableLLM !== false, // 默认开启
+        piiMask: !!runtimeConfig.piiMask,
+        fastModel: runtimeConfig.fastModel || 'glm-4-flash',
+        hasKey: !!runtimeConfig.apiKey
+      }
+    });
+  });
+
+  // GET /api/ai/test — 测试大模型连接（受 enableLLM 控制：关闭时拒绝测试）
   router.get('/api/ai/test', authMiddleware, async (req, res) => {
     const cfg = runtimeConfig;
+    if (!cfg.enableLLM) return res.json({ code: 1, message: '大模型功能已关闭，请在右侧配置中打开' });
     const apiKey = cfg.apiKey || process.env.ZHIPU_AI_API_KEY;
     if (!apiKey || apiKey.trim() === '' || apiKey === '你的_api_key_here') {
       return res.json({ code: 1, message: '未配置 API Key，将使用本地分析引擎（效果也不错哦）' });

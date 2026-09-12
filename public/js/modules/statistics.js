@@ -337,9 +337,10 @@ window.loadLeaveTrend = async function() {
   }
 };
 
-// ==================== 心理健康预警 ====================
-window.loadMentalAlert = async function(cls) {
-  const el = document.getElementById('mentalAlertTable');
+// ==================== 重点关注学生（近30天缺勤≥5次）====================
+// 注意：缺勤频次仅作"优先了解情况"的提示，不代表心理状态评估，避免心理化措辞
+window.loadFocusStudentAlert = async function(cls) {
+  const el = document.getElementById('focusStudentTable');
   const rows = window._attentionCache || [];
   const highRisk = rows.filter(r => (r.absent_count || r.absent_days || 0) >= 5);
   if (!highRisk.length) {
@@ -350,7 +351,7 @@ window.loadMentalAlert = async function(cls) {
     return `<table><thead><tr><th>姓名</th><th>班级</th><th>宿舍</th><th>缺勤</th><th>等级</th></tr></thead><tbody>` +
       slice.map(r => `<tr><td>${esc(r.name || '-')}</td><td>${esc(r.class_name || '-')}</td><td>${esc(r.dorm || '-')}</td><td><b>${r.absent_count || r.absent_days || 0}</b></td><td>${statusTag('高')}</td></tr>`).join('') +
       `</tbody></table>`;
-  }, 'mentalAlertPag', 'mentalAlertTable');
+  }, 'focusStudentPag', 'focusStudentTable');
 };
 
 // ==================== AI预测维度切换 ====================
