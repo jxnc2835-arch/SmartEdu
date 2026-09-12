@@ -43,6 +43,10 @@ window.bubble = function (role, text, source, modelInfo) {
     const ml = (modelInfo && modelInfo.model) ? modelInfo.model : 'AI';
     const pl = (modelInfo && modelInfo.provider === 'zhipu') ? '智谱大模型' : '大模型';
     srcTag = ' <span class="ai-src-tag ai-src-ai" title="' + pl + ' (' + ml + ') 生成">🤖 ' + pl + '</span>';
+    // 强模型不可用时自动降级到快速模型：明确告知用户，避免误以为在用配置的强模型
+    if (modelInfo && modelInfo.degraded) {
+      srcTag += ' <span class="ai-src-tag ai-src-degraded" title="配置的大模型超时/不可用，本次已自动降级到快速模型作答">⚡ 快速模型</span>';
+    }
   } else if (source === 'local_engine') {
     srcTag = ' <span class="ai-src-tag ai-src-local" title="本地数据分析引擎">⚙️ 分析</span>';
   }
@@ -91,27 +95,44 @@ window.sendAI = async function (question) {
   chat.appendChild(window.bubble('user', q, null));
   window.aiHistory.push({ role: 'user', text: q, time: Date.now() });
   window.saveAIHistory();
+  // 等待体验：先插入一个"思考中"占位气泡并随时间更新文案
+  // （强模型首字常需 20-30s，干等转圈体验差；回复到达后移除占位）
+  const thinkingEl = document.createElement('div');
+  thinkingEl.className = 'bubble b-ai ai-thinking';
+  thinkingEl.innerHTML = '<div class="bubble-inner"><span class="ai-thinking-dots"><span></span><span></span><span></span></span> <span class="ai-thinking-text">正在深度思考…</span></div>';
+  chat.appendChild(thinkingEl);
   chat.scrollTop = chat.scrollHeight;
+  let thinkSec = 0;
+  const thinkTimer = setInterval(() => {
+    const txt = thinkingEl.querySelector('.ai-thinking-text');
+    if (!txt) { clearInterval(thinkTimer); return; }
+    thinkSec += 1;
+    // 30s 后模型在走 60s 长窗口（强模型推理），提示用户别干等
+    txt.textContent = thinkSec >= 30 ? '深度推理中（可能需要 30-60 秒），请稍候…'
+      : thinkSec >= 15 ? '正在组织回答，请稍候…' : '正在深度思考…';
+  }, 1000);
   try {
     const j = await apiAuth('/ai/smart?question=' + encodeURIComponent(q) + '&session_id=' + encodeURIComponent(window.aiSessionId));
     const d = j.data || {};
     const ans = d.answer || j.message || '暂无回答';
     const src = d.source || 'local_engine';
     const mi = d.modelInfo || null;
-    chat.appendChild(window.bubble('ai', ans, src, mi));
+    const bubbleEl = window.bubble('ai', ans, src, mi);
+    thinkingEl.replaceWith(bubbleEl);
     window.aiHistory.push({ role: 'ai', text: ans, source: src, modelInfo: mi, time: Date.now() });
     window.saveAIHistory();
     const sug = document.getElementById('aiSuggestions');
     if (sug && d.suggestions && d.suggestions.length) {
       sug.innerHTML = '<span style="font-size:12px;color:#64748b;margin-right:4px">💡 继续问：</span>' +
-        d.suggestions.map(s => `<button class="btn btn-sm btn-o" style="font-size:12px" onclick="sendAI('${s.replace(/'/g, "\\'")}')" >${esc(s)}</button>`).join('');
+        d.suggestions.map(s => `<button class="btn btn-sm btn-o" style="font-size:12px" onclick="sendAI('${s.replace(/'/g, "\\'")}')">${esc(s)}</button>`).join('');
     }
   } catch (e) {
     const err = '请求失败：' + e.message;
-    chat.appendChild(window.bubble('ai', err, null));
+    thinkingEl.replaceWith(window.bubble('ai', err, null));
     window.aiHistory.push({ role: 'ai', text: err, source: 'local_engine', time: Date.now() });
     window.saveAIHistory();
   }
+  clearInterval(thinkTimer);
   chat.scrollTop = chat.scrollHeight;
   window.aiBusy = false;
   if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '发送'; }
@@ -194,14 +215,25 @@ document.addEventListener('DOMContentLoaded', () => {
     .ai-src-tag{font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;font-weight:600;white-space:nowrap;display:inline-block}
     .ai-src-ai{background:#dbeafe;color:#1d4ed8}
     .ai-src-local{background:#dcfce7;color:#16a34a}
+    .ai-src-degraded{background:#fef3c7;color:#b45309}
     .dark-mode .ai-src-ai{background:#1e3a5f;color:#60a5fa}
     .dark-mode .ai-src-local{background:#14532d;color:#4ade80}
+    .dark-mode .ai-src-degraded{background:#451a03;color:#fbbf24}
     #aiChat .b-ai strong{color:#0f172a}
     #aiChat .b-user strong{color:#fff}
     .dark-mode #aiChat .b-ai strong{color:#f8fafc}
     .chat-bar input{flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px 0 0 10px;font-size:14px;outline:none;transition:border-color .2s}
     .chat-bar input:focus{border-color:#3b82f6}
     .dark-mode .chat-bar input{background:#0f172a;border-color:#334155;color:#e2e8f0}
+    .ai-thinking{opacity:.9}
+    .ai-thinking-dots{display:inline-flex;gap:3px;align-items:center}
+    .ai-thinking-dots span{width:6px;height:6px;border-radius:50%;background:#6366f1;animation:aiDotPulse 1.2s infinite ease-in-out}
+    .ai-thinking-dots span:nth-child(2){animation-delay:.2s}
+    .ai-thinking-dots span:nth-child(3){animation-delay:.4s}
+    @keyframes aiDotPulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+    .dark-mode .ai-thinking-dots span{background:#818cf8}
+    .ai-thinking-text{font-size:13px;color:#6366f1}
+    .dark-mode .ai-thinking-text{color:#a5b4fc}
   `;
   document.head.appendChild(s);
 });
