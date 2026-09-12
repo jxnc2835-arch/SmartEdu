@@ -25,6 +25,7 @@
 <script src="js/modules/export.js"></script>
 <script src="js/modules/settings.js"></script>
 <script src="js/modules/users.js"></script>
+<script src="js/modules/ai-chat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif}
 :root{--primary:#4f46e5;--primary-dark:#4338ca;--primary-light:#eef2ff;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--purple:#8b5cf6;--gray:#64748b;--gray-light:#f1f5f9;--border:#e2e8f0;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.06)}
@@ -1471,117 +1472,7 @@ function fmtDateOnly(s){
   return s;
 }
 
-// ==================== 认证 ====================
-let authToken='';
-let currentUser={};
-function getToken(){return localStorage.getItem('admin_token')||'';}
-function setToken(t){localStorage.setItem('admin_token',t);authToken=t;}
-const SEC='x-auth-token';
-async function api(url,opts={}){
-  opts.headers=Object.assign({},opts.headers,{[SEC]:authToken});
-  const r=await fetch(url,opts);
-  return r.json();
-}
-// token 失效（响应含"登录"字样）时：清除 token 并回到登录框，禁止 location.reload 造成死循环
-function logoutToLogin(){
-  try{localStorage.removeItem('admin_token');}catch(e){}
-  authToken='';
-  const lw=document.getElementById('loginWrap'); if(lw)lw.style.display='flex';
-  const app=document.getElementById('app'); if(app)app.style.display='none';
-  const err=document.getElementById('loginErr'); if(err)err.textContent='登录已过期，请重新登录';
-}
-async function apiAuth(url,opts={}){
-  opts.headers=Object.assign({},opts.headers,{[SEC]:authToken,'Content-Type':'application/json'});
-  // 自动序列化 body 对象
-  if(opts.body && typeof opts.body==='object') opts.body=JSON.stringify(opts.body);
-  try{
-    const r=await fetch(url,opts);
-    const text=await r.text();
-    // 尝试解析JSON
-    try{
-      const j=JSON.parse(text);
-      if(j.code===1&&(j.message||'').includes('登录')){
-        logoutToLogin();
-      }
-      return j;
-    }catch(e){
-      console.error('API返回非JSON:',text.slice(0,200));
-      return {code:1,message:'服务器返回错误: '+(r.status||'未知')};
-    }
-  }catch(e){
-    console.error('API请求失败:',e);
-    return {code:1,message:'网络错误: '+e.message};
-  }
-}
 
-// 带视觉反馈的刷新按钮（按钮旋转 + 成功/失败 toast）
-async function refreshBtn(el, fnName){
-  const fn = typeof fnName==='function' ? fnName : (window[fnName] || function(){});
-  if(!fn || typeof fn !== 'function') return;
-  if(el) { el.classList.add('spin'); el.disabled = true; }
-  try{
-    await fn();
-    showToast('刷新成功', '✅');
-  }catch(e){
-    console.error('refresh error', e);
-    showToast('刷新失败: ' + (e.message || '未知错误'), '❌', true);
-  }finally{
-    if(el) { setTimeout(()=>{ el.classList.remove('spin'); el.disabled = false; }, 400); }
-  }
-}
-
-// ==================== 登录 ====================
-async function doLogin(){
-  const u=document.getElementById('loginUser')?.value?.trim()||'';
-  const p=document.getElementById('loginPwd')?.value||'';
-  document.getElementById('loginErr').textContent='';
-  try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const j=await r.json();
-    if(j.code===0){
-      setToken(j.token);
-      currentUser=j.data||{};
-      document.getElementById('loginWrap').style.display='none';
-      document.getElementById('app').style.display='flex';
-      document.getElementById('userName').textContent=currentUser.display_name||'管理员';
-      document.getElementById('userAvatar').textContent=(currentUser.display_name||'A').slice(0,1);
-      initApp();
-    }else{
-      document.getElementById('loginErr').textContent=j.message||'登录失败';
-    }
-  }catch(e){
-    document.getElementById('loginErr').textContent='网络错误：'+e.message;
-  }
-}
-function doLogout(){localStorage.removeItem('admin_token');location.reload();}
-
-// ==================== 导航 ====================
-const titles={overview:'查寝管理',leave:'请假管理',course:'课程考勤',students:'学生管理',dorms:'宿舍管理',stats:'统计分析',ai:'AI 智能助手',settings:'系统设置'};
-document.querySelectorAll('.nav-item').forEach(it=>{
-  it.addEventListener('click',async()=>{
-    if(it.classList.contains('nav-ext'))return; // 外链，交给浏览器打开
-    const sec=it.dataset.sec;
-    if(sec==='dashboard'){window.location.href='./dashboard.html';return;}
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    it.classList.add('active');
-    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-    document.getElementById('sec-'+sec).classList.add('active');
-    document.getElementById('pageTitle').textContent=titles[sec];
-    await loadSection(sec);
-  });
-});
-async function loadSection(sec){
-  if(sec==='overview'){await loadOverview();await loadDormStats();await loadCheckin();}
-  else if(sec==='leave')loadLeaves();
-  else if(sec==='course'){loadCourses();loadClassRecords();loadCoursesList();}
-  else if(sec==='students')loadStudents();
-  else if(sec==='dorms')loadDorms();
-  else if(sec==='stats')loadStats();
-  else if(sec==='ai')initAI();
-  else if(sec==='alerts'){loadAlerts();}
-  else if(sec==='settings'){loadBackups();loadLogs();loadWebhookConfig();loadAlertRules();loadWebhookHistory();loadVoiceRecords();loadGeofenceRules();loadWebhookSettings();loadStuPwdReset();}
-  else if(sec==='users'){loadUsers();initPwdMgmtUsers();initThemeColors();}
-}
 
 // ==================== 初始化 ====================
 let ws=null;
@@ -1598,6 +1489,7 @@ async function initApp(){
   loadWebhookConfig();
   refreshAlertBadge();
 }
+
 async function loadClasses(){
   try{
     // 按当前登录用户角色返回班级：辅导员/班主任仅返回所带班级（后端 /api/students/classes 已做 classScope 隔离）
@@ -3946,204 +3838,8 @@ async function loadAttention(){
     rows.map(r=>`<tr><td>${r.name||'-'}</td><td>${r.class_name||'-'}</td><td>${r.dorm||'-'}</td><td><span class="tag red">${r.absent_count||0}</span></td><td><span class="tag yellow">${r.leave_count||0}</span></td></tr>`).join('')+`</tbody></table>`;
 }
 
-// ==================== AI 智能助手 v2 ====================
-const AI_SESSION_KEY='ai_session_id';
-const AI_HISTORY_KEY='ai_chat_history';
-const AI_HISTORY_MAX=100;
-const AI_WELCOME='你好！我是学工AI智能助手 🤖\n\n我可以帮你：\n• 📊 查询今日签到率和未归名单\n• 🔍 搜索学生档案、分析高风险学生\n• 📈 缺勤趋势、班级对比、宿舍异常\n• 💡 基于数据给出管理建议\n\n直接用自然语言提问就行，试试看吧~';
-
-let aiReady=false;
-let aiSessionId=localStorage.getItem(AI_SESSION_KEY)||('ai_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
-localStorage.setItem(AI_SESSION_KEY,aiSessionId);
-let aiHistory=[];
-
-function loadAIHistory(){
-  try{
-    const s=localStorage.getItem(AI_HISTORY_KEY);
-    if(s){
-      const arr=JSON.parse(s);
-      if(Array.isArray(arr)) return arr;
-    }
-  }catch(e){}
-  return [];
-}
-function saveAIHistory(){
-  localStorage.setItem(AI_HISTORY_KEY,JSON.stringify(aiHistory.slice(-AI_HISTORY_MAX)));
-}
-
-function initAI(){
-  const chat=document.getElementById('aiChat');
-  if(aiReady) return;
-  aiReady=true;
-  aiHistory=loadAIHistory();
-  chat.innerHTML='';
-  if(aiHistory.length){
-    aiHistory.forEach(m=>chat.appendChild(bubble(m.role,m.text,m.source,m.modelInfo)));
-  }else{
-    chat.appendChild(bubble('ai',AI_WELCOME,null));
-  }
-  chat.scrollTop=chat.scrollHeight;
-}
-
-function clearAIChat(){
-  if(!confirm('确定清空当前 AI 对话记录吗？清空后不可恢复。')) return;
-  aiHistory=[];
-  localStorage.removeItem(AI_HISTORY_KEY);
-  aiSessionId='ai_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-  localStorage.setItem(AI_SESSION_KEY,aiSessionId);
-  const chat=document.getElementById('aiChat');
-  chat.innerHTML='';
-  chat.appendChild(bubble('ai',AI_WELCOME,null));
-  const sug=document.getElementById('aiSuggestions');
-  if(sug) sug.innerHTML='';
-}
-
-let aiBusy=false;
-async function sendAI(question){
-  const inp=document.getElementById('aiInput');
-  const q=(question||inp?.value||'').trim();
-  if(!q||aiBusy)return;
-  aiBusy=true;if(inp)inp.value='';
-  const sendBtn=document.getElementById('aiSendBtn');
-  if(sendBtn){sendBtn.disabled=true;sendBtn.textContent='思考中...';}
-  const chat=document.getElementById('aiChat');
-  chat.appendChild(bubble('user',q,null));
-  aiHistory.push({role:'user',text:q,time:Date.now()});
-  saveAIHistory();
-  chat.scrollTop=chat.scrollHeight;
-  try{
-    const j=await apiAuth('/ai/smart?question='+encodeURIComponent(q)+'&session_id='+encodeURIComponent(aiSessionId));
-    const d=j.data||{};
-    const ans=d.answer||j.message||'暂无回答';
-    const src=d.source||'local_engine';
-    const mi=d.modelInfo||null;
-    chat.appendChild(bubble('ai',ans,src,mi));
-    aiHistory.push({role:'ai',text:ans,source:src,modelInfo:mi,time:Date.now()});
-    saveAIHistory();
-    // 推荐追问
-    const sug=document.getElementById('aiSuggestions');
-    if(sug&&d.suggestions&&d.suggestions.length){
-      sug.innerHTML='<span style="font-size:12px;color:#64748b;margin-right:4px">💡 继续问：</span>'+
-        d.suggestions.map(s=>`<button class="btn btn-sm btn-o" style="font-size:12px" onclick="sendAI('${s.replace(/'/g,"\\'")}')">${s}</button>`).join('');
-    }
-  }catch(e){
-    const err='请求失败：'+e.message;
-    chat.appendChild(bubble('ai',err,null));
-    aiHistory.push({role:'ai',text:err,source:'local_engine',time:Date.now()});
-    saveAIHistory();
-  }
-  chat.scrollTop=chat.scrollHeight;aiBusy=false;
-  if(sendBtn){sendBtn.disabled=false;sendBtn.textContent='发送';}
-}
-
-// 加载 AI 能力列表
-async function loadAICapabilities(){
-  try{
-    const j=await api('/ai/capabilities');
-    const el=document.getElementById('aiCapabilities');
-    if(!el||!j.data)return;
-    el.innerHTML=j.data.capabilities.map(c=>
-      `<button class="btn btn-sm btn-o" style="font-size:10.5px;padding:3px 6px;white-space:nowrap;line-height:1.1;border-radius:12px" onclick="sendAI('${(c.example||'').replace(/'/g,"\\'")}')" title="${c.label}">${c.icon} ${c.label}</button>`
-    ).join('');
-  }catch(e){}
-}
-
-// ==================== AI 大模型配置面板 ====================
-const AI_CONFIG_KEY='ai_llm_config';
-function toggleAiConfig(){
-  const p=document.getElementById('aiConfigPanel');
-  const b=document.getElementById('aiConfigBtn');
-  if(p.style.display==='none'){p.style.display='';b.classList.add('btn-p');b.classList.remove('btn-o');loadAiConfig();}
-  else{p.style.display='none';b.classList.remove('btn-p');b.classList.add('btn-o');}
-}
-function loadAiConfig(){
-  try{
-    const c=JSON.parse(localStorage.getItem(AI_CONFIG_KEY)||'{}');
-    document.getElementById('aiBaseUrl').value=c.baseUrl||'';
-    document.getElementById('aiModelName').value=c.modelName||'';
-    document.getElementById('aiApiKey').value=c.apiKey||'';
-  }catch(e){}
-}
-async function saveAiConfig(){
-  const config={baseUrl:document.getElementById('aiBaseUrl').value.trim(),modelName:document.getElementById('aiModelName').value.trim(),apiKey:document.getElementById('aiApiKey').value.trim()};
-  localStorage.setItem(AI_CONFIG_KEY,JSON.stringify(config));
-  // 同步到后端
-  try{await apiAuth('/api/ai/config',{method:'POST',body:JSON.stringify(config)});}catch(e){}
-  showAiConfigMsg('✅ 配置已保存（同时保存到本地和服务器）','#047857');
-}
-async function testAiConfig(){
-  const s=document.getElementById('aiConfigStatus');
-  s.style.display='';s.textContent='🔄 正在测试连接...';s.color='#2563eb';
-  try{
-    const r=await apiAuth('/api/ai/test');
-    if(r.code===0)showAiConfigMsg('✅ '+(r.message||'连接成功'),'#047857');
-    else showAiConfigMsg('❌ '+(r.message||'连接失败'),'#dc2626');
-  }catch(e){showAiConfigMsg('❌ 网络错误:'+e.message,'#dc2626');}
-}
-function resetAiConfig(){
-  localStorage.removeItem(AI_CONFIG_KEY);
-  document.getElementById('aiBaseUrl').value='';
-  document.getElementById('aiModelName').value='';
-  document.getElementById('aiApiKey').value='';
-  showAiConfigMsg('↩️ 已恢复默认配置（使用本地分析引擎）','#2563eb');
-}
-function showAiConfigMsg(msg,color){
-  const s=document.getElementById('aiConfigStatus');
-  s.style.display='';s.textContent=msg;s.color=color;
-}
-
-/**
- * 创建对话气泡（支持Markdown渲染）
- * @param {string} role - 'user'|'ai'
- * @param {string} text - 消息文本（支持 **bold** Markdown）
- * @param {string|null} source - 数据来源 'ai'|'local_engine'|null
- * @param {object|null} modelInfo - 模型信息 {model, provider}
- */
-function bubble(role,text,source,modelInfo){
-  const d=document.createElement('div');
-  d.className='bubble '+(role==='user'?'b-user':'b-ai');
-  // Markdown渲染：**text** → <strong>，换行 → <br>
-  let html=esc(text)
-    .replace(/&amp;/g,'&')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\n/g,'<br>');
-  // 来源标签（含模型信息）
-  let srcTag='';
-  if(source==='ai'){
-    var modelLabel = (modelInfo&&modelInfo.model) ? modelInfo.model : 'AI';
-    var providerLabel = (modelInfo&&modelInfo.provider==='zhipu') ? '智谱大模型' : '大模型';
-    srcTag=' <span class="ai-src-tag ai-src-ai" title="'+providerLabel+' ('+modelLabel+') 生成">🤖 '+providerLabel+'</span>';
-  }
-  else if(source==='local_engine') srcTag=' <span class="ai-src-tag ai-src-local" title="本地数据分析引擎">⚙️ 分析</span>';
-  d.innerHTML=`<div class="bubble-inner">${html}${srcTag}</div>`;
-  return d;
-}
-
-/* AI来源标签样式 */
-document.addEventListener('DOMContentLoaded',()=>{
-  const s=document.createElement('style');
-  s.textContent=`
-    .bubble{max-width:88%;word-break:break-word;line-height:1.65;margin:8px 0;padding:10px 14px;border-radius:12px;font-size:13.5px}
-    .b-user{margin-left:auto;background:#3b82f6;color:#fff;border-bottom-right-radius:2px}
-    .b-ai{margin-right:auto;background:#f1f5f9;color:#334155;border-bottom-left-radius:2px}
-    .dark-mode .b-ai{background:#1e293b;color:#e2e8f0}
-    .bubble-inner{white-space:pre-wrap}
-    .ai-src-tag{font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;font-weight:600;white-space:nowrap;display:inline-block}
-    .ai-src-ai{background:#dbeafe;color:#1d4ed8}
-    .ai-src-local{background:#dcfce7;color:#16a34a}
-    .dark-mode .ai-src-ai{background:#1e3a5f;color:#60a5fa}
-    .dark-mode .ai-src-local{background:#14532d;color:#4ade80}
-    #aiChat .b-ai strong{color:#0f172a}
-    #aiChat .b-user strong{color:#fff}
-    .dark-mode #aiChat .b-ai strong{color:#f8fafc}
-    .chat-bar input{flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px 0 0 10px;font-size:14px;outline:none;transition:border-color .2s}
-    .chat-bar input:focus{border-color:#3b82f6}
-    .dark-mode .chat-bar input{background:#0f172a;border-color:#334155;color:#e2e8f0}
-  `;
-  document.head.appendChild(s);
-});
-
-// ==================== 系统设置 ====================
+// ==================== 访客管理 ====================
+async function loadVisitors(){
 async function doBackup(){
   // 弹窗选择班级
   const cls=await showBackupDialog('💾 数据备份', '选择班级进行备份，留空则备份全部数据', false);
@@ -4694,15 +4390,15 @@ document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e
   setTimeout(()=>{
     const loginBtn=document.getElementById('loginBtn');
     if(loginBtn){
-      loginBtn.addEventListener('click',doLogin);
+      loginBtn.addEventListener('click',window.doLogin);
     }
   },50);
-  const t=getToken();
+  const t=window.getToken();
   if(t){
-    authToken=t;
+    window.authToken=t;
     document.getElementById('loginWrap').style.display='none';
     document.getElementById('app').style.display='flex';
-    initApp();
+    window.initApp();
   }
   // 确保登录密码框按下回车时调用 doLogin
   setTimeout(()=>{
@@ -4711,7 +4407,7 @@ document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e
       pwdInput.addEventListener('keydown',e=>{if(e.key==='Enter')window.doLogin();});
     }
     // 加载 AI 能力列表
-    loadAICapabilities();
+    window.loadAICapabilities && window.loadAICapabilities();
   },100);
 })();
 // 白天/夜间模式切换

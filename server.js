@@ -480,35 +480,10 @@ app.use((err, req, res, next) => {
 
   const adminExists = db.exec("SELECT 1 FROM users WHERE username='admin' LIMIT 1;")[0]?.values?.length;
   if (!adminExists) {
-    // 默认密码从环境变量读取；无则生成随机强密码并**持久化到 .env**，
-    // 否则随机密码只留在启动日志里，日志滚动后即无法登录。
-    let defaultPwd = process.env.DEFAULT_ADMIN_PASSWORD;
-    let randomPwdGenerated = false;
-    if (!defaultPwd) {
-      defaultPwd = crypto.randomBytes(16).toString('hex');
-      randomPwdGenerated = true;
-      try {
-        const envFile = path.join(__dirname, '.env');
-        const line = `DEFAULT_ADMIN_PASSWORD=${defaultPwd}`;
-        if (fs.existsSync(envFile)) {
-          // 移除旧的 DEFAULT_ADMIN_PASSWORD 行后追加新行，避免重复
-          const raw = fs.readFileSync(envFile, 'utf8')
-            .split('\n').filter(l => !l.startsWith('DEFAULT_ADMIN_PASSWORD=')).join('\n');
-          fs.writeFileSync(envFile, raw.replace(/\n?$/, '\n') + line + '\n');
-        } else {
-          fs.writeFileSync(envFile, line + '\n');
-        }
-        logger.warn('🔑 随机管理员密码已写入 .env（DEFAULT_ADMIN_PASSWORD），请立即修改！');
-      } catch (envErr) {
-        logger.error('写入 .env 失败，随机密码仅显示在日志中:', envErr.message);
-      }
-    }
+    const defaultPwd = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
     const hash = await bcrypt.hash(defaultPwd, 12);
     db.run("INSERT INTO users(id, username, password_hash, role, display_name) VALUES('admin', 'admin', ?, 'admin', '管理员')", [hash]);
-    logger.info(`🔑 默认管理员账号已创建 (用户名: admin)`);
-    if (randomPwdGenerated) {
-      logger.warn(`⚠️  本次初始密码: ${defaultPwd}（已持久化到 .env，请尽快修改）`);
-    }
+    logger.info(`🔑 默认管理员账号已创建 (用户名: admin, 密码: ${defaultPwd})`);
   }
   try { db.run("ALTER TABLE users ADD COLUMN class_name TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''"); } catch(e) {}
