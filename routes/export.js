@@ -178,6 +178,101 @@ module.exports = {
       }
     });
 
+    // P2: 月报班级分表 Excel（对齐院系考勤台账惯用列）
+    // 每个班级一个 sheet，包含：日期、学生、状态、备注；最后一张 sheet 为汇总
+    router.get('/api/export/class-report', authMiddleware, async (req, res) => {
+      try {
+        const { type = 'month', date } = req.query;
+        const ref = date ? new Date(date) : new Date();
+        let start, end, title;
+        end = formatDate(ref);
+        if (type === 'day') { start = end; title = `查寝日报（${end}）`; }
+        else if (type === 'week') {
+          const s = new Date(ref); s.setDate(s.getDate() - 6);
+          start = formatDate(s); title = `查寝周报（${start} ~ ${end}）`;
+        } else {
+          const s = new Date(ref.getFullYear(), ref.getMonth(), 1);
+          start = formatDate(s); title = `查寝月报（${start} ~ ${end}）`;
+        }
+
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = '学管 SmartEdu';
+        workbook.created = new Date();
+
+        // 1) 汇总 sheet（对齐院系台账字段）
+        const summarySheet = workbook.addWorksheet('汇总', { properties: { tabColor: { argb: 'FF4F46E5' } } });
+        summarySheet.addRow(['统计周期', `${start} ~ ${end}`]);
+        summarySheet.addRow([]);
+        summarySheet.addRow(['总人次', '在寝人次', '未归人次', '请假人次', '签到率']);
+        const kpiRec = db.exec(`SELECT status, COUNT(*) FROM records WHERE type='checkin' AND date>=? AND date<=? GROUP BY status`, [start, end])[0]?.values || [];
+        let totalP = 0, checkedP = 0, absentP = 0;
+        kpiRec.forEach(([st, c]) => { totalP += c; if (st === '在寝') checkedP += c; else if (st === '未归' || st === '不在寝') absentP += c; });
+        const rate = totalP > 0 ? (checkedP / totalP * 100) : 0;
+        const leaveCnt = db.exec(`SELECT COUNT(*) FROM leaves WHERE status IN ('approved','已批准') AND start_date>=? AND start_date<=?`, [start, end])[0]?.values?.[0]?.[0] || 0;
+        summarySheet.addRow([totalP, checkedP, absentP, leaveCnt, rate.toFixed(1) + '%']);
+        summarySheet.addRow([]);
+        // 各班级汇总行
+        const classSummary = db.exec(`
+          SELECT s.class_name,
+            COUNT(CASE WHEN r.status='在寝' THEN 1 END),
+            COUNT(CASE WHEN r.status IN ('未归','不在寝') THEN 1 END),
+            COUNT(*)
+          FROM records r LEFT JOIN students s ON r.student_id=s.student_id
+          WHERE r.type='checkin' AND r.date>=? AND r.date<=?
+          GROUP BY s.class_name ORDER BY (CAST(COUNT(CASE WHEN r.status='在寝' THEN 1 END) AS REAL)/COUNT(*)) DESC
+        `, [start, end])[0]?.values || [];
+        summarySheet.addRow([]);
+        summarySheet.addRow(['班级', '应到人次', '在寝人次', '未归人次', '签到率', '备注']);
+        classSummary.forEach(([cls, ci, ab, tot]) => {
+          const r = tot > 0 ? (ci / tot * 100).toFixed(1) + '%' : '-';
+          summarySheet.addRow([cls || '未知班级', tot, ci, ab, r, '']);
+        });
+        // 样式
+        summarySheet.columns.forEach((col, i) => { col.width = [14, 12, 12, 12, 10, 20][i] || 12; });
+        const headerRows = summarySheet.getRows(3, 1);
+        headerRows.forEach(row => { row.eachCell(cell => { cell.font = { bold: true }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2FF' } }; }); });
+
+        // 2) 按班级拆 sheet（对齐院系考勤台账）
+        const classStudents = db.exec(`SELECT DISTINCT class_name FROM students WHERE class_name IS NOT NULL AND class_name!='' ORDER BY class_name`)[0]?.values || [];
+        const maxSheetLen = 31; // Excel sheet name 限制 31 字符
+        for (const [cls] of classStudents) {
+          const sheetName = cls.length > maxSheetLen ? cls.slice(0, maxSheetLen - 3) + '...' : cls;
+          const sheet = workbook.addWorksheet(sheetName);
+          // 表头：对齐院系台账习惯
+          sheet.addRow(['日期', '学号', '姓名', '班级', '宿舍', '签到状态', '签到时间', '备注']);
+          const rows = db.exec(`
+            SELECT r.date, s.student_id, s.name, s.class_name, COALESCE(s.dorm,'-'), r.status,
+              MIN(r.time) as time
+            FROM records r INNER JOIN students s ON r.student_id = s.student_id
+            WHERE r.type='checkin' AND r.date>=? AND r.date<=? AND s.class_name=?
+            GROUP BY r.date, s.student_id, r.status
+            ORDER BY r.date, s.name
+          `, [start, end, cls])[0]?.values || [];
+          rows.forEach(([d, sid, name, cname, dorm, status, t]) => {
+            sheet.addRow([d || '-', sid || '-', name || '-', cname || '-', dorm || '-', status || '-', t || '-', '']);
+          });
+          sheet.columns.forEach((col, i) => { col.width = [12, 14, 10, 14, 12, 10, 12, 20][i] || 12; });
+          // 高亮未归行
+          sheet.getRows(2, sheet.rowCount).forEach(row => {
+            const status = row.getCell(6).value;
+            if (status === '未归' || status === '不在寝') {
+              row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } }; });
+            }
+          });
+        }
+
+        const buf = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="class_report_${type}_${end}.xlsx"`);
+        res.end(buf);
+      } catch (e) {
+        console.error('班级分表导出失败:', e);
+        if (!res.headersSent) res.json({ code: 1, message: e.message });
+        else try { res.end(); } catch (_) {}
+      }
+    });
+
     return router;
   }
 };

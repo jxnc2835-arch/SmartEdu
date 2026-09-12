@@ -144,9 +144,12 @@ function broadcast(msg) {
 // - 公开大屏:  ws://host/ws-public（须带 'public' 子协议，仅大屏页使用）
 // - 教师端:    ?token=<JWT>（/api/login 签发）
 // - 学生端:    ?token=<学生token>（/api/student/login 签发）
+// - WS 一次性票据: ?ticket=<short-lived jwt>（/api/ws-ticket 签发，2 分钟有效）
 // 说明：曾考虑把 token 放子协议，但 JWT（含 '.' 的 base64url）不是合法子协议
 // 名，浏览器 new WebSocket 会直接失败，故统一改用查询参数。
 // 校验失败返回 401，前端按既有重连逻辑定期重试。
+// P2 改进：新增 /api/ws-ticket 端点，签发 2 分钟有效期的一次性 JWT，
+// 避免主 token（8h）长期暴露在 WebSocket URL 中（会进 nginx/代理日志）。
 function wsVerifyClient(info, done) {
   try {
     const req = info.req; // ws 8.x 回调参数为 { origin, secure, req }
@@ -163,6 +166,15 @@ function wsVerifyClient(info, done) {
     if (validateToken(candidate)) return done(true);
     const studentEntry = STUDENT_TOKENS[candidate];
     if (studentEntry && Date.now() <= studentEntry.expiresAt) return done(true);
+    // WS 一次性票据校验
+    if (candidate.startsWith('ws_ticket_')) {
+      try {
+        const decoded = jwt.verify(candidate, JWT_SECRET);
+        if (decoded.type === 'ws-ticket' && decoded.userId && Date.now() < decoded.exp * 1000) {
+          return done(true);
+        }
+      } catch (_) {}
+    }
     return done(false);
   } catch (e) {
     logger.warn('[WS] verifyClient 异常:', e.message);
@@ -255,6 +267,20 @@ function mountRoutes() {
     loginRateLimit: loginRateLimit() // 登录专用限流
   });
   app.use(authRouter);
+
+  // P2: WS 一次性票据签发端点（2 分钟有效，避免主 JWT 暴露到 WebSocket URL）
+  app.get('/api/ws-ticket', authMiddleware, (req, res) => {
+    try {
+      const wsTicket = jwt.sign(
+        { type: 'ws-ticket', userId: req.user.userId, iat: Math.floor(Date.now() / 1000) },
+        JWT_SECRET,
+        { expiresIn: '2m' }
+      );
+      res.json({ code: 0, data: { ticket: wsTicket, expiresIn: 120 } });
+    } catch (e) {
+      res.status(500).json({ code: 1, message: e.message });
+    }
+  });
 
   const studentsRouter = initStudentsRoutes({
     db, scheduleSave, nowTimestamp, authMiddleware, requireRole, bcrypt,
@@ -583,6 +609,18 @@ app.use((err, req, res, next) => {
   app.use((req, res, next) => {
     logger.warn('[404]', req.method, req.path);
     res.status(404).json({ code: 1, message: '接口不存在' });
+  });
+
+  // P2: 审计日志中间件——记录所有导出操作的访问者 IP、用户、参数，满足学工处"谁导出了什么数据"的验收要求
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/export/') && req.method === 'GET') {
+      try {
+        const operator = req.user ? String(req.user.userId || 'unknown') : 'anonymous';
+        const ip = req.ip || (req.connection && req.connection.remoteAddress) || '-';
+        addLog('DATA_EXPORT', `type=${req.path.split('/').pop()} params=${JSON.stringify(req.query)} ip=${ip} user=${operator}`, 'INFO', operator);
+      } catch (e) { /* 审计失败不影响主流程 */ }
+    }
+    next();
   });
 
   // HTTP 实际监听端口：可随 EADDRINUSE 自增（PORT 本身是 const，不能改）
