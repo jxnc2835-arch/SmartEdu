@@ -132,53 +132,58 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _Q
 
 // ==================== 班级周报 ====================
 router.get('/api/report', authMiddleware, (req, res) => {
-  const days = parseInt(req.query.days) || 7;
-  const className = req.query.class_name;
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days + 1);
-  const bjDateStr = (dd) => {
-    const utc = dd.getTime() + dd.getTimezoneOffset() * 60000;
-    const bj = new Date(utc + 8 * 3600 * 1000);
-    return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`;
-  };
-  const startDateStr = bjDateStr(startDate);
-  const endDateStr = bjDateStr(endDate);
-  
-  let studentsSql = "SELECT * FROM students";
-  let studentsParams = [];
-  if (className) { studentsSql += " WHERE class_name=?"; studentsParams.push(className); }
-  studentsSql += " ORDER BY class_name";
-  const studentsRows = db.exec(studentsSql, studentsParams)[0]?.values || [];
-  const students = studentsRows.map(r => ({ id: r[0], name: r[1], dorm: r[2], class_name: r[3], grade: r[5] }));
-  
-  const dorms = {};
-  students.forEach(s => {
-    if (!s.dorm) return;
-    if (!dorms[s.dorm]) dorms[s.dorm] = { dorm: s.dorm, class_name: s.class_name, total: 0, absentCount: 0, leaveCount: 0, anomalyStudents: [] };
-    dorms[s.dorm].total++;
-    if (dorms[s.dorm].class_name !== s.class_name && dorms[s.dorm].class_name.indexOf(s.class_name) === -1) dorms[s.dorm].class_name += '/' + s.class_name;
-  });
-  
-  const recordsRows = db.exec(`SELECT s.dorm, r.status, COUNT(DISTINCT r.student_id || SUBSTR(r.time,1,10)) FROM records r JOIN students s ON r.student_id = s.student_id WHERE r.type='checkin' AND SUBSTR(r.time,1,10) >= ? AND SUBSTR(r.time,1,10) <= ? AND r.status IN ('未归','请假') GROUP BY s.dorm, r.status`, [startDateStr, endDateStr])[0]?.values || [];
-  recordsRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; if (r[1]==='未归') d.absentCount=r[2]; if (r[1]==='请假') d.leaveCount=r[2]; });
-  
-  const anomalyRows = db.exec(`SELECT s.dorm, s.name, r.status FROM records r JOIN students s ON r.student_id = s.student_id WHERE r.type='checkin' AND SUBSTR(r.time,1,10) >= ? AND SUBSTR(r.time,1,10) <= ? AND r.status = '未归'`, [startDateStr, endDateStr])[0]?.values || [];
-  anomalyRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; if (!d.anomalyStudents.find(a=>a.name===r[1])) d.anomalyStudents.push({name:r[1],absent:0}); const a=d.anomalyStudents.find(x=>x.name===r[1]); if (a) a.absent++; });
-  
-  const leaveRows = db.exec(`SELECT s.dorm, s.name, COUNT(*) FROM leaves l JOIN students s ON l.student_id = s.student_id WHERE l.status IN ('approved','已批准') AND SUBSTR(l.created_at,1,10) >= ? AND SUBSTR(l.created_at,1,10) <= ? GROUP BY s.dorm, s.name`, [startDateStr, endDateStr+' 23:59:59'])[0]?.values || [];
-  leaveRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; d.leaveCount+=r[2]; if (!d.anomalyStudents.find(a=>a.name===r[1])) d.anomalyStudents.push({name:r[1],absent:0,leave:0}); const a=d.anomalyStudents.find(x=>x.name===r[1]); if (a){if(!a.leave)a.leave=0; a.leave+=r[2];} });
-  
-  const dormList = Object.values(dorms).map(d => ({...d, absentRate: d.total > 0 ? Math.round((d.absentCount/(d.total*days))*100) : 0}));
-  let pendingSql = "SELECT COUNT(*) FROM leaves l LEFT JOIN students s ON l.student_id=s.student_id WHERE l.status='待审批'";
-  let pendingParams = [];
-  if (className) { pendingSql += " AND s.class_name=?"; pendingParams.push(className); }
-  const pendingLeaves = db.exec(pendingSql, pendingParams)[0]?.values?.[0][0] || 0;
-  
-  res.json({ code: 0, data: {
-    summary: { date_range: `${startDateStr} ~ ${endDateStr}`, total_students: students.length, total_classes: Object.keys(dorms).length, total_absent: dormList.reduce((s,d)=>s+d.absentCount,0), total_leaves: dormList.reduce((s,d)=>s+d.leaveCount,0), pending_leaves: pendingLeaves },
-    dorms: dormList.sort((a,b)=>b.absentRate-a.absentRate)
-  }});
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const className = req.query.class_name;
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days + 1);
+    const bjDateStr = (dd) => {
+      const utc = dd.getTime() + dd.getTimezoneOffset() * 60000;
+      const bj = new Date(utc + 8 * 3600 * 1000);
+      return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`;
+    };
+    const startDateStr = bjDateStr(startDate);
+    const endDateStr = bjDateStr(endDate);
+
+    let studentsSql = "SELECT * FROM students";
+    let studentsParams = [];
+    if (className) { studentsSql += " WHERE class_name=?"; studentsParams.push(className); }
+    studentsSql += " ORDER BY class_name";
+    const studentsRows = db.exec(studentsSql, studentsParams)[0]?.values || [];
+    const students = studentsRows.map(r => ({ id: r[0], name: r[1], dorm: r[2], class_name: r[3], grade: r[5] }));
+
+    const dorms = {};
+    students.forEach(s => {
+      if (!s.dorm) return;
+      if (!dorms[s.dorm]) dorms[s.dorm] = { dorm: s.dorm, class_name: s.class_name, total: 0, absentCount: 0, leaveCount: 0, anomalyStudents: [] };
+      dorms[s.dorm].total++;
+      if (dorms[s.dorm].class_name !== s.class_name && dorms[s.dorm].class_name.indexOf(s.class_name) === -1) dorms[s.dorm].class_name += '/' + s.class_name;
+    });
+
+    const recordsRows = db.exec(`SELECT s.dorm, r.status, COUNT(DISTINCT r.student_id || SUBSTR(r.time,1,10)) FROM records r JOIN students s ON r.student_id = s.student_id WHERE r.type='checkin' AND SUBSTR(r.time,1,10) >= ? AND SUBSTR(r.time,1,10) <= ? AND r.status IN ('未归','请假') GROUP BY s.dorm, r.status`, [startDateStr, endDateStr])[0]?.values || [];
+    recordsRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; if (r[1]==='未归') d.absentCount=r[2]; if (r[1]==='请假') d.leaveCount=r[2]; });
+
+    const anomalyRows = db.exec(`SELECT s.dorm, s.name, r.status FROM records r JOIN students s ON r.student_id = s.student_id WHERE r.type='checkin' AND SUBSTR(r.time,1,10) >= ? AND SUBSTR(r.time,1,10) <= ? AND r.status = '未归'`, [startDateStr, endDateStr])[0]?.values || [];
+    anomalyRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; if (!d.anomalyStudents.find(a=>a.name===r[1])) d.anomalyStudents.push({name:r[1],absent:0}); const a=d.anomalyStudents.find(x=>x.name===r[1]); if (a) a.absent++; });
+
+    const leaveRows = db.exec(`SELECT s.dorm, s.name, COUNT(*) FROM leaves l JOIN students s ON l.student_id = s.student_id WHERE l.status IN ('approved','已批准') AND SUBSTR(l.created_at,1,10) >= ? AND SUBSTR(l.created_at,1,10) <= ? GROUP BY s.dorm, s.name`, [startDateStr, endDateStr+' 23:59:59'])[0]?.values || [];
+    leaveRows.forEach(r => { const d = dorms[r[0]]; if (!d) return; d.leaveCount+=r[2]; if (!d.anomalyStudents.find(a=>a.name===r[1])) d.anomalyStudents.push({name:r[1],absent:0,leave:0}); const a=d.anomalyStudents.find(x=>x.name===r[1]); if (a){if(!a.leave)a.leave=0; a.leave+=r[2];} });
+
+    const dormList = Object.values(dorms).map(d => ({...d, absentRate: d.total > 0 ? Math.round((d.absentCount/(d.total*days))*100) : 0}));
+    let pendingSql = "SELECT COUNT(*) FROM leaves l LEFT JOIN students s ON l.student_id=s.student_id WHERE l.status='待审批'";
+    let pendingParams = [];
+    if (className) { pendingSql += " AND s.class_name=?"; pendingParams.push(className); }
+    const pendingLeaves = db.exec(pendingSql, pendingParams)[0]?.values?.[0]?.[0] || 0;
+
+    res.json({ code: 0, data: {
+      summary: { date_range: `${startDateStr} ~ ${endDateStr}`, total_students: students.length, total_classes: Object.keys(dorms).length, total_absent: dormList.reduce((s,d)=>s+d.absentCount,0), total_leaves: dormList.reduce((s,d)=>s+d.leaveCount,0), pending_leaves: pendingLeaves },
+      dorms: dormList.sort((a,b)=>b.absentRate-a.absentRate)
+    }});
+  } catch (e) {
+    console.error('report error:', e.message);
+    res.status(500).json({ code: 1, message: e.message });
+  }
 });
 
 router.post('/api/backup', authMiddleware, (req, res) => {

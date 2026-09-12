@@ -143,43 +143,24 @@ describe('routes/system', () => {
     test('returns weekly report structure', async () => {
       const dbMock = createReportMock();
       const { app } = createApp(dbMock);
-      let err;
-      let res;
-      try {
-        res = await request(app).get('/api/report');
-      } catch (e) {
-        err = e;
+      const res = await request(app).get('/api/report');
+      if (res.status !== 200) {
+        console.log('report 500 body:', JSON.stringify(res.body));
       }
-      console.log('DEBUG report: res=', res ? { status: res.status, body: res.body } : 'no res', 'err=', err ? err.message : 'none');
-      if (res) {
-        expect(res.status).toBe(200);
-        expect(res.body.code).toBe(0);
-        expect(res.body.data).toHaveProperty('summary');
-        expect(res.body.data).toHaveProperty('dorms');
-      } else {
-        throw err;
-      }
+      expect(res.status).toBe(200);
+      expect(res.body.code).toBe(0);
+      expect(res.body.data).toHaveProperty('summary');
+      expect(res.body.data).toHaveProperty('dorms');
     });
 
     test('processes students with dorms', async () => {
       // 学生列顺序：[id, name, dorm, class_name, phone, grade]
       const dbMock = createReportMock([[1, '张三', '101', '计算机1班', '', '2023']]);
       const { app } = createApp(dbMock);
-      let err;
-      let res;
-      try {
-        res = await request(app).get('/api/report');
-      } catch (e) {
-        err = e;
-      }
-      console.log('DEBUG students: res=', res ? { status: res.status, body: res.body } : 'no res', 'err=', err ? err.message : 'none');
-      if (res) {
-        expect(res.status).toBe(200);
-        expect(res.body.code).toBe(0);
-        expect(res.body.data.summary.total_students).toBe(1);
-      } else {
-        throw err;
-      }
+      const res = await request(app).get('/api/report');
+      expect(res.status).toBe(200);
+      expect(res.body.code).toBe(0);
+      expect(res.body.data.summary.total_students).toBe(1);
     });
   });
 
