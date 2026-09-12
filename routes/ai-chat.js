@@ -333,7 +333,13 @@ function initChatSubRouter(deps) {
     if (!r) return { daily:[], peak:0, total:0, avg:0, studentName: studentName || '' };
     const daily = r.values.map(v => ({date:v[0], count:v[1]}));
     const total = daily.reduce((s,d)=>s+d.count,0);
-    return { daily, peak: Math.max(...daily.map(d=>d.count),0), total, avg: daily.length?Math.round(total/daily.length):0, studentName: studentName || '' };
+    const avg = daily.length?total/daily.length:0;
+    // 简易区间：用近期均值±2σ 近似 95% 范围（给 LLM 话术展示不确定性）
+    const recent = daily.slice(-7).map(d=>d.count);
+    const rm = recent.reduce((a,b)=>a+b,0)/recent.length;
+    const rsd = Math.sqrt(recent.reduce((s,v)=>s+(v-rm)**2,0)/recent.length)||1;
+    const riskBand = recent.length>=2 ? { min:Math.max(0,rm-2*rsd).toFixed(1), max:(rm+2*rsd).toFixed(1), mape:null } : null;
+    return { daily, peak: Math.max(...daily.map(d=>d.count),0), total, avg: Math.round(avg*100)/100, studentName: studentName || '', riskBand };
   }
 
   /** 3b) 区间未归学生（本周/上周/最近N天），返回去重学生名单与各自缺勤日期 */

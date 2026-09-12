@@ -915,15 +915,29 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
               <h4 style="margin:0 0 12px;font-size:14px;color:#3730a3">🔧 大模型 API 配置 <span style="font-size:11px;color:#6366f1;font-weight:400">（支持 OpenAI 兼容接口）</span></h4>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                 <div><label style="display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600">API 地址</label><input id="aiBaseUrl" placeholder="如 https://open.bigmodel.cn/api/paas/v4" style="width:100%;padding:8px 10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px;background:#fff" /></div>
-                <div><label style="display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600">模型名称</label><input id="aiModelName" placeholder="如 glm-4-flash / deepseek-chat / qwen-plus" style="width:100%;padding:8px 10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px;background:#fff" /></div>
+                <div><label style="display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600">强模型名称</label><input id="aiModelName" placeholder="如 glm-4.7 / deepseek-chat / qwen-plus" style="width:100%;padding:8px 10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px;background:#fff" /></div>
                 <div style="grid-column:1/-1"><label style="display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600">API Key</label><input id="aiApiKey" placeholder="输入你的 API Key（支持智谱/DeepSeek/通义/OpenAI等）" type="password" style="width:100%;padding:8px 10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px;background:#fff" /></div>
+                <div><label style="display:block;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600">快速模型（数据查询用）</label><input id="aiFastModel" placeholder="默认 glm-4-flash" style="width:100%;padding:8px 10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px;background:#fff" /></div>
+                <div>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600;cursor:pointer">
+                    <input type="checkbox" id="aiEnableLLM" style="width:16px;height:16px" />
+                    启用大模型（关闭后纯本地引擎，不发送任何数据）
+                  </label>
+                </div>
+                <div>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;margin-bottom:4px;font-weight:600;cursor:pointer">
+                    <input type="checkbox" id="aiPiiMask" style="width:16px;height:16px" />
+                    脱敏模式（姓名→匿名代号，防止真实姓名外发）
+                  </label>
+                </div>
               </div>
-              <div style="margin-top:12px;display:flex;gap:8px">
+              <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn btn-p btn-sm" onclick="saveAiConfig()">💾 保存配置</button>
                 <button class="btn btn-o btn-sm" onclick="testAiConfig()">🔍 测试连接</button>
                 <button class="btn btn-o btn-sm" onclick="resetAiConfig()" style="color:#ef4444">↩️ 恢复默认</button>
               </div>
               <p id="aiConfigStatus" style="margin:8px 0 0;font-size:12px;color:#64748b;display:none"></p>
+              <p style="margin:6px 0 0;font-size:11px;color:#94a3b8">💡 建议：日常查询用快速模型（秒级响应），创作/长分析用强模型。隐私敏感场景请开启脱敏。</p>
             </div>
             <div id="aiChat" class="chat"></div>
             <div id="aiSuggestions" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;flex-shrink:0"></div>

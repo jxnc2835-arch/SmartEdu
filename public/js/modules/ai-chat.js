@@ -162,10 +162,35 @@ window.toggleAiConfig = function () {
 
 window.loadAiConfig = function () {
   try {
-    const c = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || '{}');
-    document.getElementById('aiBaseUrl').value = c.baseUrl || '';
-    document.getElementById('aiModelName').value = c.modelName || '';
-    document.getElementById('aiApiKey').value = c.apiKey || '';
+    // 优先从服务器读取（最新配置），本地仅作为离线兜底
+    apiAuth('/api/ai/config').then(j => {
+      if (j.code === 0 && j.data) {
+        const c = j.data;
+        document.getElementById('aiBaseUrl').value = c.baseUrl || '';
+        document.getElementById('aiModelName').value = c.modelName || '';
+        document.getElementById('aiApiKey').value = ''; // 安全：不回显密钥
+        document.getElementById('aiFastModel').value = c.fastModel || 'glm-4-flash';
+        document.getElementById('aiEnableLLM').checked = c.enableLLM !== false;
+        document.getElementById('aiPiiMask').checked = !!c.piiMask;
+        return;
+      }
+      // 兜底：读 localStorage
+      const lc = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || '{}');
+      document.getElementById('aiBaseUrl').value = lc.baseUrl || '';
+      document.getElementById('aiModelName').value = lc.modelName || '';
+      document.getElementById('aiApiKey').value = lc.apiKey || '';
+      document.getElementById('aiFastModel').value = lc.fastModel || 'glm-4-flash';
+      document.getElementById('aiEnableLLM').checked = lc.enableLLM !== false;
+      document.getElementById('aiPiiMask').checked = !!lc.piiMask;
+    }).catch(() => {
+      const lc = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || '{}');
+      document.getElementById('aiBaseUrl').value = lc.baseUrl || '';
+      document.getElementById('aiModelName').value = lc.modelName || '';
+      document.getElementById('aiApiKey').value = lc.apiKey || '';
+      document.getElementById('aiFastModel').value = lc.fastModel || 'glm-4-flash';
+      document.getElementById('aiEnableLLM').checked = lc.enableLLM !== false;
+      document.getElementById('aiPiiMask').checked = !!lc.piiMask;
+    });
   } catch (e) { }
 };
 
@@ -173,7 +198,10 @@ window.saveAiConfig = async function () {
   const config = {
     baseUrl: document.getElementById('aiBaseUrl').value.trim(),
     modelName: document.getElementById('aiModelName').value.trim(),
-    apiKey: document.getElementById('aiApiKey').value.trim()
+    apiKey: document.getElementById('aiApiKey').value.trim(),
+    fastModel: document.getElementById('aiFastModel').value.trim() || 'glm-4-flash',
+    enableLLM: document.getElementById('aiEnableLLM').checked,
+    piiMask: document.getElementById('aiPiiMask').checked
   };
   localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
   try { await apiAuth('/api/ai/config', { method: 'POST', body: JSON.stringify(config) }); } catch (e) { }
@@ -195,7 +223,10 @@ window.resetAiConfig = function () {
   document.getElementById('aiBaseUrl').value = '';
   document.getElementById('aiModelName').value = '';
   document.getElementById('aiApiKey').value = '';
-  window.showAiConfigMsg('↩️ 已恢复默认配置（使用本地分析引擎）', '#2563eb');
+  document.getElementById('aiFastModel').value = 'glm-4-flash';
+  document.getElementById('aiEnableLLM').checked = true;
+  document.getElementById('aiPiiMask').checked = false;
+  window.showAiConfigMsg('↩️ 已恢复默认配置（大模型开启、脱敏关闭、快速模型 flash）', '#2563eb');
 };
 
 window.showAiConfigMsg = function (msg, color) {
