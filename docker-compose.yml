@@ -10,7 +10,8 @@ services:
       - PORT=3000
       - HTTPS_PORT=3443
       - JWT_SECRET=${JWT_SECRET:-change-me-to-a-strong-random-string-at-least-32-chars}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-}
+      # 未设置会启动前直接报错(容器内 server.js 强制要求显式配置管理员密码, 空值会无限崩溃循环)
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:?请在 .env 或环境中设置 DEFAULT_ADMIN_PASSWORD(>=8位强密码)}
       - ZHIPU_AI_API_KEY=${ZHIPU_AI_API_KEY:-}
       - ZHIPU_AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
       - ZHIPU_AI_MODEL=glm-4-flash
