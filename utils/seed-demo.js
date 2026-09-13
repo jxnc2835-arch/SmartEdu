@@ -1,13 +1,18 @@
 /**
  * 生成模拟数据脚本
- * 用法: node utils/seed-demo.js
- * 
+ * 用法:
+ *   node utils/seed-demo.js          # 安全模式: 只显示将清空的内容, 不写库
+ *   node utils/seed-demo.js --force  # 真正执行: 自动备份当前库后清空并生成模拟数据
+ *
  * 生成内容：
  * - 2个专业，每个专业2个班，每班40人，共160名学生
  * - 2个月的查寝记录（2026-07-01 到 2026-08-31）
  * - 随机请假记录
  * - 课堂签到记录
  * - 宿舍数据
+ *
+ * ⚠️ 注意: 会清空 config/data.db 中的 students/records/leaves/courses/dorms 表，
+ * 仅限演示/测试环境使用，生产数据请先备份。
  */
 const initSqlJs = require('sql.js');
 const fs = require('fs');
@@ -50,13 +55,43 @@ const REASONS = ['感冒发烧', '身体不适', '家里有事', '参加考试',
                  '就医检查', '牙齿治疗', '办理护照', '参加婚礼', '家庭聚会', '其他事宜'];
 
 async function generateData() {
+  const force = process.argv.includes('--force');
   const SQL = await initSqlJs();
   const dbFile = path.join(__dirname, '..', 'config', 'data.db');
   
   // 加载现有数据库
   const data = fs.existsSync(dbFile) ? fs.readFileSync(dbFile) : null;
   const db = new SQL.Database(data || []);
-  
+
+  // ---------- 安全闸：默认 dry-run，不写库 ----------
+  const affected = {};
+  for (const t of ['records', 'leaves', 'students', 'courses', 'dorms']) {
+    try {
+      const r = db.exec(`SELECT COUNT(*) AS c FROM ${t}`);
+      affected[t] = r[0]?.values?.[0]?.[0] ?? 0;
+    } catch (e) { affected[t] = '(表不存在)'; }
+  }
+  if (!force) {
+    console.log('🛡️  安全模式（未加 --force）: 仅显示将清空的数据, 不会写库。\n');
+    console.log('目标库:', dbFile, fs.existsSync(dbFile) ? `(${(data.length / 1024).toFixed(1)} KB)` : '(不存在)');
+    console.log('将被清空的表与行数:');
+    for (const [t, c] of Object.entries(affected)) console.log(`   - ${t}: ${c}`);
+    console.log('\n确认无误后, 用 `node utils/seed-demo.js --force` 执行清空并生成模拟数据。');
+    console.log('--force 执行前会自动备份当前库为 config/data.db.bak.<timestamp>。');
+    db.close();
+    return;
+  }
+
+  // ---------- 真正执行：先备份当前库, 再清空 ----------
+  if (fs.existsSync(dbFile)) {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const bakFile = dbFile.replace(/\.db$/, `.bak.${ts}`);
+    fs.copyFileSync(dbFile, bakFile);
+    console.log(`💾 已备份当前库 → ${path.relative(path.join(__dirname, '..'), bakFile)}\n`);
+  } else {
+    console.log('ℹ️  数据库文件不存在, 将新建空库生成模拟数据。\n');
+  }
+
   // 清空现有数据（保留表结构）
   db.run("DELETE FROM records");
   db.run("DELETE FROM leaves");
