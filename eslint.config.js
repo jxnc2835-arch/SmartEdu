@@ -11,7 +11,14 @@ const globals = require('globals');
 
 // 对遗留代码噪音大、非真 bug 的风格规则统一降为 warn
 const LEGACY_WARN = {
-  'no-unused-vars': ['warn', { caughtErrors: 'none', args: 'after-used', caughtErrorsIgnorePattern: '^_' }],
+  // 约定: 故意保留而未用的参数/解构槽位(DI 接口对齐、位置占位)加 "_" 前缀即豁免
+  'no-unused-vars': ['warn', {
+    caughtErrors: 'none',
+    args: 'after-used',
+    caughtErrorsIgnorePattern: '^_',
+    argsIgnorePattern: '^_',
+    varsIgnorePattern: '^_',
+  }],
   'no-empty': 'warn',
   'prefer-const': 'warn',
   'no-case-declarations': 'warn',

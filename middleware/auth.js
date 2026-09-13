@@ -1,7 +1,5 @@
 // ==================== JWT 认证 ====================
-const express = require('express');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 
 // JWT 密钥（必须通过环境变量 JWT_SECRET 注入，避免硬编码泄露）
 // 若未设置则在服务启动时抛出明确错误，防止在生产环境使用默认密钥。

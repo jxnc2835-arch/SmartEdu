@@ -2,11 +2,9 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const path = require('path');
-const fs = require('fs');
-const { authMiddleware, studentAuth, STUDENT_TOKENS, RESET_TOKENS, STUDENT_TOKEN_EXPIRY, validateToken, generateToken: globalGenerateToken } = require('../middleware/auth');
+const { authMiddleware, STUDENT_TOKENS, RESET_TOKENS, STUDENT_TOKEN_EXPIRY, validateToken } = require('../middleware/auth');
 const sharp = require('sharp'); // 用于图片格式校验与处理
-const { nowTimestamp: localNowTimestamp, saveBase64Photo, localDateStr, formatDate, beijingStamp } = require('../utils/helpers');
+const { nowTimestamp: localNowTimestamp, saveBase64Photo, localDateStr } = require('../utils/helpers');
 
 /**
  * 确保用户信息（非强制解析 token）
@@ -28,7 +26,7 @@ function ensureUser(req) {
  * @returns {Express.Router}
  */
 function init(opts) {
-  const { db, scheduleSave, generateToken, upload, fs, path, QRCode, multer, os, addLog, broadcast, sendWebhook, CLASS_SIZE_LIMIT, getClassCount, limitPerClass, beijingStamp: localBeijingStamp } = opts;
+  const { db, scheduleSave, upload, fs, path, addLog, broadcast, sendWebhook } = opts;
   const router = express.Router();
 
   // 异常闭环自动同步：当查寝记录变化时，异步同步今日未归告警（不阻塞响应）
@@ -188,7 +186,7 @@ function init(opts) {
   // ==================== 查寝签到 ====================
   // 上传图片后进行安全校验，确保是真正的图片文件，防止恶意文件上传
   router.post('/api/checkin', upload.single('photo'), async (req, res) => {
-    const { student_id, date, time, status, latitude, longitude, address, note, photo, offline, liveness_passed, liveness_score, face_hash } = req.body;
+    const { student_id, date, time, status, latitude, longitude, address, note, photo, offline, liveness_passed, liveness_score } = req.body;
     if (!student_id || !date) return res.json({ code: 1, message: '参数不完整' });
 
     const adminToken = req.headers['x-auth-token'];
@@ -627,7 +625,7 @@ function init(opts) {
 
   // ==================== 新增：带 GPS 围栏校验的签到接口 ====================
   router.post('/api/checkin-with-geofence', upload.single('photo'), (req, res) => {
-    const { student_id, date, time, status, latitude, longitude, address, note, photo, offline, liveness_passed, liveness_score } = req.body;
+    const { student_id, date, time, status, latitude, longitude, address, note, offline, liveness_passed, liveness_score } = req.body;
     if (!student_id || !date) return res.json({ code: 1, message: '参数不完整' });
 
     const rules = db.exec("SELECT * FROM geofence_rules WHERE active=1")[0]?.values || [];

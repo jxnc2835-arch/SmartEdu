@@ -12,7 +12,7 @@ const os = require('os');
  * @returns {Express.Router}
  */
 function init(opts) {
-  const { db, dbFile, authMiddleware, addLog } = opts || {};
+  const { db, dbFile, authMiddleware } = opts || {};
   const router = express.Router();
 
   // 统计行数（忽略错误，返回 0）

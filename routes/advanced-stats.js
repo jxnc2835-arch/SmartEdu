@@ -1,9 +1,6 @@
 // ==================== 高级统计分析 ====================
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { authMiddleware, requireRole } = require('../middleware/auth');
-const { localDateStr, formatDate, nowTimestamp, beijingDateStr } = require('../utils/helpers');
+const { localDateStr, beijingDateStr } = require('../utils/helpers');
 
 /** @type {object} */
 let db, scheduleSave, addLog;

@@ -16,20 +16,12 @@
 
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 
 // 导入模块化组件
-const dateUtils = require('./ai/date-utils');
-const sessionMgr = require('./ai/session');
+// 注: ai-chat.js 自带 sessionMemory 持久化, 不使用 session.js, 故不引入 sessionMgr
 const dataAnalyzer = require('./ai/data-analyzer');
 const llmClient = require('./ai/llm-client');
 const promptBuilder = require('./ai/prompt-builder');
-
-// 合并日期工具到全局方便使用
-const { 
-  parseDateStr, fmtDate, shiftDate, dateDiffDays, weekRange,
-  resolveDateRef, dateRefDate, dateRefEnd, dateRefDays, dateRefRange
-} = dateUtils;
 
 /**
  * 初始化 AI 子路由

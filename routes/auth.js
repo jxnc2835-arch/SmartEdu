@@ -2,7 +2,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const path = require('path');
 const { csrfGetToken } = require('../middleware/csrf');
 
 /**
@@ -28,7 +27,7 @@ const { csrfGetToken } = require('../middleware/csrf');
  * @returns {Express.Router}
  */
 function init(opts) {
-  const { db, scheduleSave, authMiddleware, requireRole, generateToken, STUDENT_TOKENS, RESET_TOKENS, STUDENT_TOKEN_EXPIRY, addLog, localDateStr, formatDate, nowTimestamp, saveBase64Photo, beijingStamp, compressImage, checkLoginRateLimit, LOGIN_ATTEMPTS } = opts;
+  const { db, scheduleSave, authMiddleware, requireRole, generateToken, addLog, checkLoginRateLimit, LOGIN_ATTEMPTS } = opts;
 
   const router = express.Router();
 

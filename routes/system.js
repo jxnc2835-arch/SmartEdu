@@ -1,19 +1,16 @@
 // ==================== 系统管理路由模块 ====================
 const express = require('express');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-const { authMiddleware, requireRole, studentAuth } = require('../middleware/auth');
-const { nowTimestamp, localDateStr, formatDate, beijingStamp, saveBase64Photo, clampedToday } = require('../utils/helpers');
+const { authMiddleware } = require('../middleware/auth');
+const { nowTimestamp, localDateStr, formatDate, beijingStamp } = require('../utils/helpers');
 const ExcelJS = require('exceljs');
 
 /** @type {object} */
-let upload, QRCode, multer, os;
-/** @type {object} */
-let db, scheduleSave, addLog, broadcast, sendWebhook;
+let db, scheduleSave, addLog;
 /** @type {string} */
-let ROOT_DIR, UPLOAD_DIR, BACKUP_DIR;
+let UPLOAD_DIR, BACKUP_DIR;
 
 /**
  * 初始化系统管理模块
@@ -74,13 +71,7 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _Q
   db = _db;
   scheduleSave = _scheduleSave;
   addLog = _addLog;
-  broadcast = _broadcast;
-  sendWebhook = _sendWebhook;
-  upload = _upload;
-  QRCode = _QRCode;
-  multer = _multer;
-  os = _os;
-  ROOT_DIR = _ROOT_DIR || config.ROOT_DIR;
+  // 预留 DI 槽位(本模块未使用, 保留形参以对齐调用契约): _broadcast/_sendWebhook/_upload/_QRCode/_multer/_os/_ROOT_DIR
   UPLOAD_DIR = _UPLOAD_DIR || config.UPLOAD_DIR;
   BACKUP_DIR = _BACKUP_DIR || config.BACKUP_DIR;
   

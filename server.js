@@ -1,6 +1,5 @@
 ﻿// 最终修复：在模块顶层、数据库初始化之前注册静态文件和404
 // 路由（在 mountRoutes 里注册到 app 中）
-const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const multer = require('multer');
@@ -13,7 +12,6 @@ const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { WebSocketServer } = require('ws');
-const ExcelJS = require('exceljs');
 const express = require('express');
 require('dotenv').config();
 

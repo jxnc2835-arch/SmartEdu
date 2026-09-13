@@ -1,10 +1,6 @@
 // ==================== AI 数据预测与人脸识别路由模块 ====================
 const express = require('express');
-const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
-const PDFDocument = require('pdfkit');
 require('dotenv').config();
 const { beijingDateStr } = require('../utils/helpers');
 const { buildStudentProfiles } = require('../utils/profile');

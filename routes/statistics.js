@@ -1,27 +1,21 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { authMiddleware, requireRole, filterByUserClass } = require('../middleware/auth');
-const { localDateStr, formatDate, nowTimestamp, saveBase64Photo, beijingDateStr, beijingStamp } = require('../utils/helpers');
+const { authMiddleware } = require('../middleware/auth');
+const { localDateStr, beijingDateStr } = require('../utils/helpers');
 
 /** @type {object} */
-let database, scheduleSave, addLog, broadcast, sendWebhook;
+let database;
 
 /**
  * 初始化统计路由模块
  * @param {object} _db - sql.js Database 实例
- * @param {Function} _scheduleSave - 定时保存函数
- * @param {Function} _addLog - 日志记录函数
- * @param {Function} _broadcast - 广播函数
- * @param {Function} _sendWebhook - Webhook 发送函数
+ * @param {Function} _scheduleSave - 定时保存函数（本模块未使用，保留参数以对齐 server.js 调用契约）
+ * @param {Function} _addLog - 日志记录函数（同上，预留槽位）
+ * @param {Function} _broadcast - 广播函数（同上，预留槽位）
+ * @param {Function} _sendWebhook - Webhook 发送函数（同上，预留槽位）
  * @returns {Express.Router}
  */
 function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook) {
   database = _db;
-  scheduleSave = _scheduleSave;
-  addLog = _addLog;
-  broadcast = _broadcast;
-  sendWebhook = _sendWebhook;
   const router = express.Router();
 
   // 在所有路由前执行：先 auth，再过滤（只对 /api/* 生效）
