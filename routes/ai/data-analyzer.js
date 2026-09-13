@@ -2,7 +2,7 @@
  * AI 数据分析模块
  * 从 ai-chat.js 提取的数据分析函数
  */
-const { dateRefDate, dateRefEnd, dateRefDays, dateRefRange, fmtDate, shiftDate } = require('./date-utils');
+const { fmtDate } = require('./date-utils');
 
 function analyzeTodayCheckin(classFilter, dateOverride) {
   // 简化版：实际实现需接入 db

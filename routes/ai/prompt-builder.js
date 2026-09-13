@@ -1,7 +1,7 @@
 /**
  * AI 意图路由 + 提示词构建模块
  */
-const { resolveDateRef, dateRefDate, dateRefEnd, dateRefDays, dateRefRange } = require('./date-utils');
+const { resolveDateRef } = require('./date-utils');
 
 /**
  * 路由意图

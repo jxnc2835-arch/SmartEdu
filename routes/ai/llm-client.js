@@ -3,14 +3,14 @@
  * 包含 handleAiQuestion, callLLM, askZhipu 等核心函数
  */
 const axios = require('axios');
-const { resolveDateRef, dateRefDate, dateRefEnd, dateRefDays, dateRefRange, fmtDate } = require('./date-utils');
+const { fmtDate } = require('./date-utils');
 
 /**
  * 处理 AI 问答请求（主入口）
  */
 async function handleAiQuestion(question, sid, ctx) {
-  const { db, runtimeConfig, getSessionHistory, addMessage, updateSessionContext,
-          routeIntent, loadDataForIntent, formatLocalAnswer, getSuggestions, broadcast } = ctx;
+  const { _db, runtimeConfig, getSessionHistory, addMessage, updateSessionContext,
+          routeIntent, loadDataForIntent, formatLocalAnswer, getSuggestions, _broadcast } = ctx;
 
   const t0 = Date.now();
   const session = sid ? getSessionHistory(sid) : null;
