@@ -8,8 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="manifest" href="/manifest.json" />
 <title>学管 SmartEdu — 教师端</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="ui-enhance.css" />
+<link rel="stylesheet" href="login-enhance.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="face-api.min.js"></script>
 <script src="qrcode.min.js"></script>
@@ -169,8 +170,6 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
 .feed-scroll::-webkit-scrollbar-track{background:#f1f5f9}
 .feed-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
 .feed-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
-/* 登录 */
-.login-wrap{position:fixed;inset:0;background:linear-gradient(135deg,var(--primary),#7c3aed);display:flex;align-items:center;justify-content:center;z-index:100}
 .theme-toggle{padding:6px 12px;border-radius:20px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.08);display:inline-flex;align-items:center;gap:4px;user-select:none}
 .theme-toggle:hover{background:#f1f5f9;border-color:var(--primary)}
 /* ========== 暗色模式全面优化 ========== */
@@ -334,7 +333,6 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
 .dark-mode .dorm-table-wrap::-webkit-scrollbar-thumb:hover{background:#3b4c6b}
 
 /* 登录页 */
-.dark-mode .login-wrap{background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0a0e1a 100%)}
 .dark-mode .login-box{background:#172033;border:1px solid #2d3a4f;box-shadow:0 20px 60px rgba(0,0,0,.6);border-radius:18px}
 .dark-mode .login-box h2{color:#f1f5f9;text-shadow:0 1px 3px rgba(0,0,0,.3)}
 .dark-mode .login-box .sub{color:#7a8ba3}
@@ -375,11 +373,6 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
 .dark-mode .pagination .btn-o{background:#1e293b;border:1px solid #2d3a4f;color:#cbd5e1}
 
 /* ========== 基础样式（登录弹窗等）========== */
-.login-box{background:#fff;border-radius:18px;padding:40px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-.login-box h2{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px;color:#1e293b}
-.login-box .sub{text-align:center;color:#94a3b8;font-size:13px;margin-bottom:26px}
-.login-box input{width:100%;margin-bottom:14px;padding:12px 14px;font-size:14px}
-.login-box .btn{width:100%;padding:12px;font-size:15px}
 .login-err{color:#ef4444;font-size:13px;text-align:center;margin-bottom:12px;min-height:18px}
 .loading{text-align:center;padding:40px;color:#94a3b8}
 .pagination{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:16px}
@@ -439,19 +432,22 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
 <!-- 登录 -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-box">
-    <h2>🎓 学管 <span style="color:var(--brand)">SmartEdu</span> · 基于多模态感知与深度学习的<br><b>高校学生智能管理平台</b></h2>
-    <div class="sub">教师端 · 请登录您的账号</div>
+    <div class="login-logo">
+      <img src="assets/logo-smartedu.svg" alt="SmartEdu" class="icon" />
+    </div>
+    <h2>学管 <span style="color:#00d4ff">SmartEdu</span></h2>
+    <div class="sub">基于多模态感知与深度学习的<br><b>高校学生智能管理平台</b><br><span style="font-size:12px;color:rgba(148,163,184,0.9);margin-top:8px;display:inline-block">教师端 · 请登录您的账号</span></div>
     <div class="login-err" id="loginErr"></div>
-    <input id="loginUser" placeholder="用户名" value="admin" />
-    <input id="loginPwd" type="password" placeholder="密码" value="admin123" />
-    <button class="btn btn-p" id="loginBtn">登录</button>
+    <input id="loginUser" placeholder="用户名" />
+    <input id="loginPwd" type="password" placeholder="密码" />
+    <button class="btn btn-p" id="loginBtn">🔐 登录系统</button>
   </div>
 </div>
 
 <div class="layout" id="app" style="display:none">
   <!-- 侧边栏 -->
   <aside class="sidebar">
-    <div class="logo"><span class="ic">🎓</span><span>学管 <span style="color:var(--brand);font-size:13px">SmartEdu</span></span></div>
+    <div class="logo"><img src="assets/logo-smartedu.svg" alt="SmartEdu" class="ic" style="width:22px;height:22px;object-fit:contain" /><span>学管 <span style="color:var(--brand);font-size:13px">SmartEdu</span></span></div>
     <nav class="nav" id="nav">
       <div class="nav-item active" data-sec="overview"><span class="ic">🛏️</span><span>查寝管理</span></div>
       <div class="nav-item" data-sec="leave"><span class="ic">📝</span><span>请假管理</span></div>
@@ -1166,6 +1162,15 @@ select:focus,input:focus,textarea:focus{border-color:var(--primary)}
             <div id="themeColorPicker" style="display:flex;gap:14px;flex-wrap:wrap"></div>
           </div>
         </section>
+        <section class="section" id="sec-dashboard">
+          <div style="text-align:center;padding:60px 20px;color:#94a3b8">
+            <div style="font-size:48px;margin-bottom:16px">🖥️</div>
+            <h2 style="color:#1e293b;margin-bottom:8px">数据大屏</h2>
+            <p style="font-size:14px;margin-bottom:20px">面向投屏展示的全局数据概览</p>
+            <a href="/dashboard.html" target="_blank" style="display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border-radius:10px;text-decoration:none;font-weight:600">🚀 打开大屏页面</a>
+          </div>
+        </section>
+
 
       </div>
     </div>
@@ -1510,12 +1515,23 @@ async function loadClasses(){
     const j=await apiAuth('/api/students/classes');
     if(j.code===0){
       const opts=j.data||[];
+      // 判断当前是否为辅导员/班主任：所带班级受 classScope 限制（全部班级下拉里只有 1~N 个所带班）
+      const me=await apiAuth('/api/me');
+      const role=me.data&&me.data.role;
+      const isCounselor=role==='counselor'||role==='teacher';
+      const isFullAccess=!role||role==='admin'||role==='super_admin'||role==='dean';
       ['ovClassFilter','lvClassFilter','stuClassFilter','stClassFilter','vClassFilter','atClassFilter'].forEach(id=>{
         const el=document.getElementById(id);
         const cur=el.value;
         el.innerHTML='<option value="">📋 全部班级</option>'+opts.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-        el.value=cur;
+        // 辅导员/班主任：保留已选班级；否则默认选中第一个所带班级（KPI/统计默认按本班展示，避免误以为看到全校）
+        el.value=(cur&&opts.includes(cur))?cur:(isCounselor&&!isFullAccess&&opts.length?opts[0]:'');
       });
+      // 辅导员/班主任登录进入时，各下拉默认选中第一个所带班级，按本班重载总览
+      if(isCounselor&&!isFullAccess&&opts.length){
+        const ov=document.getElementById('ovClassFilter');
+        if(ov){ ov.value=opts[0]; loadOverview().catch(()=>{}); }
+      }
     }
   }catch(e){}
 }
@@ -1548,7 +1564,10 @@ function initWS(){
 function handleWS(m){
   if(!m||!m.type)return;
   if(m.type==='new_checkin')addLiveItem('✅',m.data.student_name,'查寝签到 ('+esc(m.data.status)+')','#d1fae5',m.data.time,m.data.address);
-  if(m.type==='new_leave')addLiveItem('📝',m.data.student_name,'提交请假 ('+esc(m.data.reason)+')','#fef3c7',m.data.created_at);
+  if(m.type==='new_leave'){
+    const statusLabel=statusTag(m.data.status);
+    addLiveItem('📝',m.data.student_name,'提交请假 ('+statusLabel+')','#fef3c7',m.data.created_at);
+  }
   if(m.type==='new_class_checkin')addLiveItem('📚',m.data.student_name,'课程签到 ('+esc(m.data.status)+')','#dbeafe',m.data.time,m.data.address);
 }
 async function addLiveItem(ic,name,action,cls,time,addr){
@@ -2370,7 +2389,10 @@ async function exportClassRecords(){
 
 async function loadCoursesList(){
   try{
-    const j=await api('/api/courses');
+    const cls = document.getElementById('ovClassFilter')?.value || '';
+    let url = '/api/courses';
+    if(cls) url += '?class_name=' + encodeURIComponent(cls);
+    const j=await apiAuth(url);
     const sel=document.getElementById('coStatClass');
     if(!sel)return;
     const cur=sel.value;
@@ -2477,6 +2499,10 @@ async function applyRoleUI() {
       const isAdmin = (role === 'admin' || role === 'super_admin');
       document.querySelectorAll('.nav-item[data-sec="users"]').forEach(e => { e.style.display = isAdmin ? '' : 'none'; });
       document.querySelectorAll('#sec-settings .admin-only').forEach(e => { e.style.display = isAdmin ? '' : 'none'; });
+      // 按真实 role 更新右上角用户名（刷新/角色切换后不再残留"管理员"字样）
+      const displayName = r.data.display_name || (window.currentUser && window.currentUser.display_name) || '用户';
+      document.getElementById('userName').textContent = displayName;
+      document.getElementById('userAvatar').textContent = displayName.slice(0, 1);
     }
   } catch (e) {}
 }
@@ -4001,6 +4027,7 @@ async function loadLogs(){
     if(action)url+='&action='+encodeURIComponent(action);
     if(detail)url+='&detail='+encodeURIComponent(detail);
     const rj=await apiAuth(url);
+    if(rj.code!==0){el.innerHTML='<div class="empty">加载失败：'+esc(rj.message)+'</div>';return;}
     const rows=rj.data||[];
     if(!rows.length){el.innerHTML='<div class="empty">暂无日志</div>';return;}
     el.innerHTML=renderPagedTable(rows,1,10,(slice,page,total,pages)=>`<table><thead><tr><th>级别</th><th>时间</th><th>操作人</th><th>操作</th><th>详情</th><th>操作</th></tr></thead><tbody>`+
@@ -4089,19 +4116,102 @@ document.querySelectorAll('.modal-mask').forEach(m=>m.addEventListener('click',e
 
 // ==================== 启动 ====================
 (function(){
+  // 导航切换 + 模块加载
+  window.switchSec = function(sec) {
+    // 数据大屏直接跳转，不切换section
+    if (sec === 'dashboard') {
+      window.location.href = '/dashboard.html';
+      return;
+    }
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const secEl = document.getElementById('sec-' + sec);
+    const navEl = document.querySelector('.nav-item[data-sec="' + sec + '"]');
+    if (secEl) secEl.classList.add('active');
+    if (navEl) navEl.classList.add('active');
+    // 更新顶栏标题
+    const titles = { overview:'查寝管理', leave:'请假管理', course:'课程考勤', students:'学生管理', dorms:'宿舍管理', stats:'统计分析', ai:'AI 智能助手', alerts:'异常闭环', settings:'系统设置', users:'用户管理', manual:'操作手册' };
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl && titles[sec]) titleEl.textContent = titles[sec];
+    // 按需加载对应模块数据
+    window.loadSection && window.loadSection(sec);
+  };
+
+  window.loadSection = function(sec) {
+    switch(sec) {
+      case 'overview': loadOverview(); loadDormStats(); loadCheckin(); break;
+      case 'leave': loadLeaves(); loadClasses(); break;
+      case 'course': loadCourses(); loadClassRecords(); loadCoursesList(); break;
+      case 'students': loadStudents(); loadClasses(); break;
+      case 'dorms': loadDorms(); break;
+      case 'stats': loadStats(); break;
+      case 'ai': window.loadAICapabilities && window.loadAICapabilities(); window.initAI && window.initAI(); break;
+      case 'alerts': loadAlerts(); break;
+      case 'settings': loadBackups(); loadWebhookConfig(); loadAlertRules && loadAlertRules(); initThemeColors(); loadLogs(); break;
+      case 'users': loadUsers(); break;
+      // manual 为静态内容，无需额外加载
+    }
+  };
+
   // 使用事件监听器替代 onclick，避免函数作用域问题
   setTimeout(()=>{
     const loginBtn=document.getElementById('loginBtn');
     if(loginBtn){
       loginBtn.addEventListener('click',window.doLogin);
     }
-  },50);
+    // 导航栏点击事件
+    document.querySelectorAll('.nav-item[data-sec]').forEach(item => {
+      item.addEventListener('click', () => {
+        const sec = item.getAttribute('data-sec');
+        if (sec) window.switchSec(sec);
+      });
+    });
+  }, 50);
+  // 检查URL参数，支持 ?logout=1 强制登出
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('logout') === '1') {
+    localStorage.removeItem('admin_token');
+    window.authToken = '';
+  }
+  // 检查是否是新窗口打开（从其他页面链接过来），清除旧token
+  if (window.opener && !window.opener.closed) {
+    // 从父窗口打开，检查是否需要重新认证
+    // 如果父窗口是dashboard，且当前没有有效token，则显示登录
+    const currentToken = localStorage.getItem('admin_token');
+    if (!currentToken || currentToken === '') {
+      document.getElementById('loginWrap').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  }
+
   const t=window.getToken();
   if(t){
     window.authToken=t;
     document.getElementById('loginWrap').style.display='none';
     document.getElementById('app').style.display='flex';
-    window.initApp();
+    // 验证token有效性，过期则清除重新登录
+    apiAuth('/api/me').then(r=>{
+      if(r.code===0){
+        window.currentUser=r.data||{};
+        // 刷新自动登录：按真实 role 更新右上角用户名（避免残留显示"管理员"）
+        const displayName=r.data.display_name||r.data.username||r.data.userId||'用户';
+        document.getElementById('userName').textContent=displayName;
+        document.getElementById('userAvatar').textContent=displayName.slice(0,1);
+        window.initApp();
+      }else{
+        // token过期，清除并跳转登录
+        localStorage.removeItem('admin_token');
+        window.authToken='';
+        document.getElementById('loginWrap').style.display='flex';
+        document.getElementById('app').style.display='none';
+        document.getElementById('loginErr').textContent='登录已过期，请重新登录';
+      }
+    }).catch(()=>{
+      localStorage.removeItem('admin_token');
+      window.authToken='';
+      document.getElementById('loginWrap').style.display='flex';
+      document.getElementById('app').style.display='none';
+    });
   }
   // 确保登录密码框按下回车时调用 doLogin
   setTimeout(()=>{
@@ -4126,6 +4236,15 @@ function toggleTheme(){
   }
 }
 
+
+// ==================== 数据大屏 ====================
+async function loadDashboard() {
+  // 大屏页面为独立路由，此处仅提示用户跳转
+  const el = document.getElementById('dashContent');
+  if (el) {
+    el.innerHTML = '<div style="text-align:center;padding:40px"><p style="color:#64748b">大屏页面为独立全屏展示，请点击上方按钮在新窗口打开</p></div>';
+  }
+}
 // ==================== 语音签到管理 ====================
 async function loadVoiceRecords() {
   const table = document.getElementById('voiceRecordsTable');
@@ -4328,6 +4447,16 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.error('[PWA] 注册失败:', err));
   });
 }
+
+// ==================== 监听大屏关闭消息 ====================
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'close-dashboard') {
+    // 大屏关闭，刷新数据
+    console.log('[Teacher] 收到大屏关闭消息，刷新数据...');
+    const activeSec = document.querySelector('.section.active')?.id?.replace('sec-', '');
+    if (activeSec) window.switchSec(activeSec);
+  }
+});
 
 // 切换到 sec-settings 时由 loadSection 自动加载语音/围栏/Webhook 配置
 </script>

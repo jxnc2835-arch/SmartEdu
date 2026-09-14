@@ -1,1 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎓</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <!-- 圆角背景 -->
+  <rect x="8" y="8" width="84" height="84" rx="18" fill="url(#g)" opacity="0.15"/>
+  <rect x="8" y="8" width="84" height="84" rx="18" fill="none" stroke="url(#g)" stroke-width="2.5"/>
+  <!-- 毕业帽 -->
+  <g>
+    <polygon points="50,22 76,36 50,50 24,36" fill="url(#g)"/>
+    <rect x="30" y="48" width="40" height="24" rx="3" fill="url(#g)" opacity="0.85"/>
+    <line x1="50" y1="36" x2="50" y2="54" stroke="#fff" stroke-width="2"/>
+    <circle cx="50" cy="57" r="4" fill="#00d4ff"/>
+    <!-- 装饰点 -->
+    <circle cx="24" cy="36" r="3" fill="#00d4ff"/>
+    <circle cx="76" cy="36" r="3" fill="#00d4ff"/>
+    <circle cx="50" cy="50" r="3" fill="#00d4ff"/>
+  </g>
+</svg>

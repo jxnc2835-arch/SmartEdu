@@ -362,6 +362,11 @@ app.use(webhookRouter);
 // GET/HEAD/OPTIONS 自动跳过，仅 POST/PUT/DELETE/PATCH 需要 token
 app.use(csrfProtection);
 
+// 处理 Chrome DevTools 请求（避免 404 日志）
+app.get(/^\/\.well-known\//, (req, res) => {
+  res.json({ status: 'ok', path: req.path });
+});
+
 logger.info('所有路由模块已挂载');
 
   // 导出全局共享函数（向后兼容）

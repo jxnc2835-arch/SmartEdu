@@ -165,30 +165,6 @@
    - 建议：逐步重构为闭包模式
 2. **Dead code cleanup**:
    - `routes/mobile.js` 中的 `/api/mobile/face-compare` 和 `/api/mobile/dashboard` 无前端调用
-   - `routes/liveness.js` 中的 `/api/face/liveness` 已弃用（保留注释说明）ess 路由模块标准模式
-
----
-
-## 代码质量指标改进
-
-| 指标 | 修复前 | 修复后 | 改进 |
-|------|--------|--------|------|
-| 循环依赖数量 | 2 处 | 0 处 | ✅ 100% |
-| 内联 require() | 8 处 | 0 处 | ✅ 100% |
-| 调试 console.log | 15+ 处 | 0 处 | ✅ 100% |
-| 模块级全局变量 | 12 处 | 6 处 | ⚠️ 50% |
-| JWT 密钥强度 | 未知 | ≥32位 | ✅ 安全 |
-| init() 返回有效 router | 0 处 | 1 处 | ✅ 100% |
-
----
-
-## 剩余待改进项
-
-### 低优先级
-1. **routes/advanced-stats.js, dashboard.js, statistics.js** - 仍使用模块级 `let` 变量模式
-   - 建议：逐步重构为闭包模式
-2. **Dead code cleanup**:
-   - `routes/mobile.js` 中的 `/api/mobile/face-compare` 和 `/api/mobile/dashboard` 无前端调用
    - `routes/liveness.js` 中的 `/api/face/liveness` 已弃用（保留注释说明）
    - 影响：中等，当前功能正常
 
@@ -312,3 +288,62 @@
 - **测试不再污染仓库**: `test/auto-backup.test.js` 备份目录改 `os.tmpdir()`, 清理根 `backups/` 累积的 273 个 4 字节测试垃圾文件
 - **.gitignore**: 移除已失效的根 `data/` 目录规则
 - **日志清理**: 移除一次性调试日志(fix5x / restart_* / server_*), 保留 winston 轮转日志
+
+---
+
+## v3.8.2 后续修复记录 (2026-09-14)
+
+> 基于版本：v3.8.2（HEAD `56a1e25`），本段记录 v3.8.2 提交之后的 5 项 bug 修复 + HTTPS 学生端支持。
+
+### 用户报告的 5 个 Bug 及修复
+
+#### Bug 1: 教师端链接自动以 admin 登录，未展示登录页
+- **文件**: `public/teacher.html`
+- **问题**: 登录表单输入框硬编码 `value="admin"` / `value="admin123"`，刷新后自动填充并触发自动登录分支，跳过了登录页
+- **解决**: 移除两个输入框的 `value` 默认值；token 自动登录分支改为从 `/api/me` 取真实角色/display_name 后再 `initApp()`
+- **影响**: 新链接（无 token）展示登录页；带 token 链接自动登录且显示名正确
+
+#### Bug 2: 辅导员刷新后右上角显示「管理员」
+- **文件**: `public/teacher.html`
+- **问题**: `#userName` / `#userAvatar` 写死为「管理员」，刷新后从不从 `/api/me` 重新拉取真实角色名
+- **解决**: `applyRoleUI()` 内调用 `/api/me` 后将 `display_name` 与真实角色写入 DOM；token 自动登录路径同样调用
+- **影响**: 辅导员/教师/班主任刷新后右上角显示本人姓名 + 真实角色
+
+#### Bug 3: 辅导员数据未限定到其负责班级
+- **文件**: `public/teacher.html`（前端）
+- **问题**: 班级下拉默认「全部班级」，辅导员进入后看到全校数据（后端 classScope 隔离其实正确，是前端未自动选到第一个 assigned class）
+- **解决**: `loadClasses()` 对 counselor/teacher 角色自动选择第一个 assigned class 并立即 `loadOverview()`
+- **影响**: 辅导员进入即看到自己的班级数据，不会误看全校
+
+#### Bug 4: 看板按班级筛选后课程签到不变
+- **文件**: `routes/dashboard.js`（后端） + `public/dashboard.html`（前端）
+- **问题**: `/api/course-checkin/public` 不论 `class_name` 是否传入都 `GROUP BY c.id` 全量聚合，前端字段名 `present`/`total` 也对不上
+- **解决**: 后端加 `class_name` 时改为 `GROUP BY s.class_name, c.id` 并过滤 `AND (s.class_name=? OR c.class_name=?)`，返回新增 `total`/`rate`；前端加 `?class_name=` 过滤并改用后端字段
+- **影响**: 看板选班级后课程签到排行随班级变化
+
+#### Bug 5: 手机同 WiFi 无法登录
+- **结论**: 非代码 bug。Windows 防火墙默认拒绝 3000/3443 入站 + 网络被识别为 public + server.bat 未打印局域网 IP
+- **解决**: 新增 `scripts/firewall-open.ps1`（管理员权限，打开 TCP 3000/3443 私网入站）；`server.bat` 增加 ipconfig 打印 + 防火墙提示
+- **影响**: 手机同 Wi-Fi 可通过 `http://<局域网IP>:3000/student` 登录
+
+### HTTPS 学生端 WebSocket 修复
+- **文件**: `public/student.html`
+- **问题**: 第 1387 行硬编码 `ws://${location.host}`，HTTPS 页面下被浏览器混合内容策略拦截
+- **解决**: 改为 `const proto = location.protocol === 'https:' ? 'wss' : 'ws'`，与 teacher.html 一致
+- **影响**: `https://<IP>:3443/student` 下实时推送不再被拦；教师端维持本地 HTTP 不变
+
+### PWA 缓存版本号提升
+- **文件**: `public/sw.js`
+- **问题**: 缓存版本仍为 `smartedu-v7`，新改的 HTML/JS 不会自动刷新
+- **解决**: 提升为 `smartedu-v8`，激活时自动清理旧缓存
+- **影响**: 手机端一次刷新即生效，无需手动清缓存
+
+### 测试
+- `test/dashboard.test.js` 9/9 通过
+- `test/checkin.test.js` + `test/statistics.test.js` + `test/auth.test.js` 10/10 通过
+- worker 进程 teardown warning 为已知非阻塞项
+
+### 运行入口与端口
+- 启动：`server.bat`（合并了原 start/stop），HTTP 3000 / HTTPS 3443
+- 局域网访问：手机 `http://<教师机IP>:3000/student`；HTTPS `https://<IP>:3443/student`（自签证书首访需点「继续访问」）
+- EADDRINUSE 自动递增 3000→3100，HTTPS 同步递增 3443→3543

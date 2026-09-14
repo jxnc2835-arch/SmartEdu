@@ -58,8 +58,10 @@ coverage/
 .cleanup-project.js
 _face_test*.js
 _face_sample.png
-_face_real.jpg
-_face_test*.js
+
+# Tool caches & reserved names
+.workbuddy/
+nul
 
 # Windows
 ehthumbs.db

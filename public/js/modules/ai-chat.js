@@ -35,7 +35,6 @@ window.bubble = function (role, text, source, modelInfo) {
   const d = document.createElement('div');
   d.className = 'bubble ' + (role === 'user' ? 'b-user' : 'b-ai');
   const html = esc(text)
-    .replace(/&amp;/g, '&')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');
   let srcTag = '';
@@ -141,11 +140,15 @@ window.sendAI = async function (question) {
 // ==================== 加载 AI 能力列表 ====================
 window.loadAICapabilities = async function () {
   try {
-    const j = await api('/ai/capabilities');
+    // AI capabilities 是公开接口，不强制需要token
+    const j = await (async() => {
+      try { return await api('/ai/capabilities'); }
+      catch(e) { return { code: 1, message: e.message }; }
+    })();
     const el = document.getElementById('aiCapabilities');
     if (!el || !j.data) return;
     el.innerHTML = j.data.capabilities.map(c =>
-      `<button class="btn btn-sm btn-o" style="font-size:10.5px;padding:3px 6px;white-space:nowrap;line-height:1.1;border-radius:12px" onclick="sendAI('${(c.example || '').replace(/'/g, "\\'")}')" title="${esc(c.label)}">${c.icon} ${esc(c.label)}</button>`
+      `<button class="btn btn-sm btn-o" style="font-size:10.5px;padding:3px 6px;white-space:nowrap;line-height:1.1;border-radius:12px" onclick="sendAI('${(c.example || '').replace(/'/g, "\\'")}')  " title="${esc(c.label)}">${c.icon} ${esc(c.label)}</button>`
     ).join('');
   } catch (e) { }
 };

@@ -1,0 +1,144 @@
+/* ===== 自定义科技风下拉框组件 ===== */
+
+/* 下拉容器 */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 10px;
+  font-size: 16px;
+  outline: none;
+  background: rgba(0, 212, 255, 0.08);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.custom-select-trigger:hover {
+  border-color: rgba(0, 212, 255, 0.5);
+}
+
+.custom-select-trigger.open {
+  border-color: rgba(0, 212, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15);
+}
+
+.custom-select-trigger::after {
+  content: '▼';
+  font-size: 10px;
+  color: rgba(0, 212, 255, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.custom-select-trigger.open::after {
+  transform: rotate(180deg);
+}
+
+.custom-select-trigger.selected::before {
+  content: '●';
+  margin-right: 8px;
+  color: #00d4ff;
+  font-size: 10px;
+}
+
+/* 下拉列表 */
+.custom-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #0a0e1a;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 10000;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 255, 0.1);
+}
+
+.custom-select-dropdown.show {
+  display: block;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 滚动条 */
+.custom-select-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.3);
+  border-radius: 3px;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.5);
+}
+
+/* 下拉选项 */
+.custom-select-option {
+  padding: 10px 14px;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+  font-size: 15px;
+}
+
+.custom-select-option:last-child {
+  border-bottom: none;
+}
+
+.custom-select-option:hover {
+  background: rgba(0, 212, 255, 0.15);
+  color: #fff;
+}
+
+.custom-select-option.selected {
+  background: rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+  font-weight: 600;
+}
+
+.custom-select-option.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.custom-select-option.disabled:hover {
+  background: transparent;
+  color: #e2e8f0;
+}
+
+/* 空状态 */
+.custom-select-empty {
+  padding: 20px;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.6);
+  font-size: 14px;
+}

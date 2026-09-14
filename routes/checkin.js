@@ -289,17 +289,31 @@ function init(opts) {
 
   // ==================== 请假记录查询 ====================
   router.get('/api/leaves', (req, res) => {
+    ensureUser(req);
     const { status, student_id, from, to, class_name, type } = req.query;
     let sqlStr = "SELECT l.*, s.name as student_name, s.dorm, s.class_name FROM leaves l LEFT JOIN students s ON l.student_id = s.student_id";
     const params = [];
     const cond = [];
+    // 辅导员/班主任班级隔离
+    const sc = req.user && req.user.classScope;
+    if (sc && sc.length) {
+      if (class_name && !sc.includes(class_name)) {
+        return res.json({ code: 1, message: '无权查看该班级数据' });
+      }
+      if (!class_name) {
+        cond.push(`s.class_name IN (${sc.map(() => '?').join(',')})`);
+        params.push(...sc);
+      }
+    } else if (class_name) {
+      cond.push("s.class_name=?");
+      params.push(class_name);
+    }
     if (status) { cond.push("l.status=?"); params.push(status); }
     if (student_id) { cond.push("l.student_id=?"); params.push(student_id); }
     if (from) { cond.push("l.start_date>=?"); params.push(from); }
     if (to) { cond.push("l.start_date<=?"); params.push(to); }
-    if (class_name) { cond.push("s.class_name=?"); params.push(class_name); }
     if (type) {
-      // 学生端“其他”兼容旧数据“丧假”
+      // 学生端"其他"兼容旧数据"丧假"
       if (type === '其他') {
         cond.push("(l.type=? OR l.type='丧假')");
         params.push(type);
@@ -728,12 +742,26 @@ function init(opts) {
   });
 
   router.get('/api/courses', (req, res) => {
+    ensureUser(req);
     const { date, class_name } = req.query;
     let sqlStr = "SELECT * FROM courses";
     const params = [];
     const conditions = [];
+    // 辅导员/班主任班级隔离
+    const sc = req.user && req.user.classScope;
+    if (sc && sc.length) {
+      if (class_name && !sc.includes(class_name)) {
+        return res.json({ code: 1, message: '无权查看该班级数据' });
+      }
+      if (!class_name) {
+        conditions.push(`(class_name IN (${sc.map(() => '?').join(',')}) OR class_name='')`);
+        params.push(...sc);
+      }
+    } else if (class_name) {
+      conditions.push("(class_name=? OR class_name='')");
+      params.push(class_name);
+    }
     if (date) { conditions.push("date=?"); params.push(date); }
-    if (class_name) { conditions.push("(class_name=? OR class_name='')"); params.push(class_name); }
     if (conditions.length) sqlStr += " WHERE " + conditions.join(" AND ");
     sqlStr += " ORDER BY date DESC, start_time ASC";
     const rows = db.exec(sqlStr, params)[0]?.values || [];
@@ -741,16 +769,30 @@ function init(opts) {
   });
 
   router.get('/api/courses/with-checkin', (req, res) => {
+    ensureUser(req);
     try {
       const { date, class_name } = req.query;
       const now = new Date();
       const utc = now.getTime() + now.getTimezoneOffset() * 60000;
       const bj = new Date(utc + 8 * 3600 * 1000);
       const targetDate = date || `${bj.getFullYear()}-${String(bj.getMonth()+1).padStart(2,'0')}-${String(bj.getDate()).padStart(2,'0')}`;
-      
+
+      // 辅导员/班主任班级隔离
+      const sc = req.user && req.user.classScope;
       let sql = "SELECT * FROM courses WHERE date=?";
       const params = [targetDate];
-      if (class_name) { sql += " AND (class_name=? OR class_name='')"; params.push(class_name); }
+      if (sc && sc.length) {
+        if (class_name && !sc.includes(class_name)) {
+          return res.json({ code: 1, message: '无权查看该班级数据' });
+        }
+        if (!class_name) {
+          sql += " AND (class_name IN (" + sc.map(() => '?').join(',') + ") OR class_name='')";
+          params.push(...sc);
+        }
+      } else if (class_name) {
+        sql += " AND (class_name=? OR class_name='')";
+        params.push(class_name);
+      }
       sql += " ORDER BY start_time ASC";
       const courses = db.exec(sql, params)[0]?.values || [];
       

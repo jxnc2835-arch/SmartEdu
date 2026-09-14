@@ -177,29 +177,49 @@ function init(_db, validateToken) {
 
   router.get('/api/course-checkin/public', (req, res) => {
     try {
-      const { date } = req.query;
-      // 默认“今天”经 clampedToday 锚定；支持指定日期查询
+      const { date, class_name } = req.query;
+      // 默认"今天"经 clampedToday 锚定；支持指定日期查询
       const courseDate = date || localDateStr();
-      const records = database.exec(`
-        SELECT c.name, c.start_time, c.end_time, c.location, s.class_name,
+      // 选定班级时按"班级+课程"聚合，避免全校课程混在同一榜里
+      let sql = `
+        SELECT c.name, c.start_time, c.end_time, c.location, COALESCE(s.class_name, c.class_name, '') as class_name,
           COUNT(DISTINCT r.student_id) as checked_in,
-          COUNT(DISTINCT CASE WHEN r.status='出勤' THEN r.student_id END) as present
-        FROM courses c 
+          COUNT(DISTINCT CASE WHEN r.status='出勤' THEN r.student_id END) as present,
+          COUNT(DISTINCT CASE WHEN r.student_id IS NOT NULL THEN r.student_id END) as total
+        FROM courses c
         LEFT JOIN records r ON c.id = r.course_id AND r.type='class' AND r.date=?
         LEFT JOIN students s ON r.student_id = s.student_id
-        WHERE c.date = ?
-        GROUP BY c.id
-      `, [courseDate, courseDate])[0]?.values || [];
-      
-      res.json({ code: 0, data: records.map(r => ({
-        course_name: r[0],
-        start_time: r[1],
-        end_time: r[2],
-        location: r[3],
-        class_name: r[4],
-        checked_in: r[5] || 0,
-        present: r[6] || 0
-      }))});
+        WHERE c.date = ?`;
+      const params = [courseDate, courseDate];
+      if (class_name) {
+        // 同时按课程绑定班级 与 签到记录班级 过滤，确保只看所选班级
+        sql += ' AND (s.class_name=? OR c.class_name=?)';
+        params.push(class_name, class_name);
+      }
+      sql += class_name ? ' GROUP BY s.class_name, c.id' : ' GROUP BY c.id';
+      const records = database.exec(sql, params)[0]?.values || [];
+      // 若选中班级，应到人数以该班级实际在班学生数为分母；否则以"已签到人数"为分母
+      let classTotal = 0;
+      if (class_name) {
+        classTotal = database.exec("SELECT COUNT(*) FROM students WHERE class_name=?", [class_name])[0]?.values?.[0]?.[0] || 0;
+      }
+      res.json({ code: 0, data: records.map(r => {
+        const checkedIn = r[5] || 0;
+        const present = r[6] || 0;
+        const total = class_name ? (classTotal || checkedIn) : (checkedIn || present);
+        const rate = total > 0 ? Math.round(present / total * 100) : 0;
+        return {
+          course_name: r[0],
+          start_time: r[1],
+          end_time: r[2],
+          location: r[3],
+          class_name: r[4] || '',
+          checked_in: checkedIn,
+          present,
+          total,
+          rate
+        };
+      })});
     } catch (e) {
       res.json({ code: 1, message: e.message });
     }

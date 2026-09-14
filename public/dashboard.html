@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>学生管理数据大屏 v3.8</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -438,7 +439,7 @@ select:hover{background-color:var(--select-bg)!important}
       function animateNum(id,target){ const el=document.getElementById(id); const start=parseInt(el.textContent)||0; if(start===target)return; const diff=target-start; const dur=800; const t0=performance.now(); function upd(now){ const p=Math.min((now-t0)/dur,1); const e=1-Math.pow(1-p,3); el.textContent=Math.floor(start+diff*e); if(p<1)requestAnimationFrame(upd);} requestAnimationFrame(upd); }
 
       async function loadTrendChart(){
-        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.trend+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const data=j.data; const labels=data.map(r=>r.date); const absent=data.map(r=>r.absent_count||0); const notReturn=data.map(r=>r.not_return_count||0); const leave=data.map(r=>r.leave_count||0); if(charts.trend)charts.trend.destroy(); charts.trend=new Chart(document.getElementById('trendChart'),{ type:'line', data:{ labels, datasets:[{label:'缺勤',data:absent,borderColor:'#f59e0b',backgroundColor:'#f59e0b20',fill:false,tension:0.4,pointRadius:4},{label:'未归',data:notReturn,borderColor:'#ef4444',backgroundColor:'#ef444420',fill:false,tension:0.4,pointRadius:4},{label:'请假',data:leave,borderColor:'#a78bfa',backgroundColor:'#a78bfa20',fill:false,tension:0.4,pointRadius:4}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{legend:{labels:{color:'#e2e8f0',font:{size:10},boxWidth:12,padding:8}}}, scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}},beginAtZero:true}}}}); }catch(e){console.error(e);}}
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.trend+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0){if(charts.trend){charts.trend.destroy();charts.trend=null;} return;} const data=j.data; if(!data||!data.length){if(charts.trend){charts.trend.destroy();charts.trend=null;} const el=document.getElementById('trendChart'); if(el){const parent=el.parentElement; if(parent&&!parent.querySelector('.no-data')) parent.innerHTML='<div class=\"no-data\" style=\"text-align:center;color:var(--text-dim);padding:40px 0\">暂无数据</div>';} return;} const labels=data.map(r=>r.date); const absent=data.map(r=>r.absent_count||0); const notReturn=data.map(r=>r.not_return_count||0); const leave=data.map(r=>r.leave_count||0); if(charts.trend)charts.trend.destroy(); charts.trend=new Chart(document.getElementById('trendChart'),{ type:'line', data:{ labels, datasets:[{label:'缺勤',data:absent,borderColor:'#f59e0b',backgroundColor:'#f59e0b20',fill:false,tension:0.4,pointRadius:4},{label:'未归',data:notReturn,borderColor:'#ef4444',backgroundColor:'#ef444420',fill:false,tension:0.4,pointRadius:4},{label:'请假',data:leave,borderColor:'#a78bfa',backgroundColor:'#a78bfa20',fill:false,tension:0.4,pointRadius:4}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{legend:{labels:{color:'#e2e8f0',font:{size:10},boxWidth:12,padding:8}}}, scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}},beginAtZero:true}}}}); }catch(e){console.error(e);}}
 
       async function loadCourseCheckinRank(){
         try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.courseCheckin+params,{headers:_hdrs}); const j=await r.json(); const el=document.getElementById('courseCheckinRank'); if(j.code!==0||!j.data||!j.data.length){el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无课程签到数据</div>';return;} el.innerHTML=j.data.map((c,i)=>{ const present=c.present||0; const total=c.checked_in||0; const rate=total?Math.round((present/total)*100):0; const rc=i===0?'top1':i===1?'top2':i===2?'top3':'normal'; return `<div class="rank-item"><div class="rank-num ${rc}">${i+1}</div><div class="rank-info"><div class="rn">${esc(c.course_name)||'未知课程'}</div><div style="font-size:10px;color:var(--text-dim)">${esc(c.class_name)||''} · ${present}/${total}人</div><div class="bar-wrap"><div class="bar-fill" style="width:${rate}%"></div></div></div><div class="rank-val">${rate}%</div></div>`; }).join(''); }catch(e){console.error(e);}}
@@ -453,9 +454,7 @@ select:hover{background-color:var(--select-bg)!important}
       function startConductScroll(){ if(typeof window.startConductScroll==='function')window.startConductScroll(); }
 
       function closeDashboard(){
-        try {
-          if (window.opener && !window.opener.closed) { window.close(); return; }
-        } catch(e) {}
+        // 直接跳转到教师端，避免 postMessage 不生效导致的新标签页问题
         window.location.href = './teacher.html';
       }
 
@@ -644,23 +643,25 @@ function startAtRiskScroll() {
 // ===== 今日班级课程签到率 =====
 async function loadCourseCheckinRank() {
   try {
-    const cls = currentClass !== 'all' ? `&class_name=${encodeURIComponent(currentClass)}` : '';
-    const r = await fetch(`/api/course-checkin/public?${cls ? cls.slice(1) : ''}`,{headers:_hdrs});
+    // 选中班级时按班级过滤（后端 /api/course-checkin/public 已支持 class_name）
+    const cls = currentClass !== 'all' ? `?class_name=${encodeURIComponent(currentClass)}` : '';
+    const r = await fetch(`/api/course-checkin/public${cls}`,{headers:_hdrs});
     const j = await r.json();
     const el = document.getElementById('courseCheckinRank');
     if (j.code !== 0 || !j.data || !j.data.length) {
       el.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无课程签到数据</div>';
       return;
     }
-    // 渲染为纵向列表项
-    const colorMap = {1:'#fbbf24',2:'#d1d5db',3:'#d97706'};
+    // 渲染为纵向列表项（后端返回 checked_in/present，前端据此计算签到率）
     el.innerHTML = j.data.map((c, i) => {
-      const rate = c.rate || 0;
+      const total = c.total || 0;
+      const present = c.present || 0;
+      const rate = total > 0 ? Math.round(present / total * 100) : 0;
       const medal = i < 3 ? ['🥇','🥈','🥉'][i] : `${i+1}`;
       const barColor = rate >= 90 ? '#22c55e' : rate >= 70 ? 'var(--cyan)' : rate >= 50 ? '#f59e0b' : '#ef4444';
       return `<div class="realtime-item" style="animation-delay:${i*0.08}s">
         <span class="ri-name" style="min-width:80px;flex:none">${medal} ${esc(c.course_name)||'未知'}</span>
-        <span style="color:var(--text-dim);font-size:10px;flex:1">${esc(c.class_name)||''} · ${c.checked||0}/${c.total||0}人</span>
+        <span style="color:var(--text-dim);font-size:10px;flex:1">${esc(c.class_name)||''} · ${present||0}/${total||0}人</span>
         <div style="width:60px;height:4px;background:var(--bar-track-bg);border-radius:2px;overflow:hidden;flex-shrink:0">
           <div style="width:${rate}%;height:100%;background:${barColor};border-radius:2px;transition:width .8s ease"></div>
         </div>

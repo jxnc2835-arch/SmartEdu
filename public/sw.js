@@ -7,7 +7,7 @@
  *  - 新版本安装后自动 skipWaiting，一次刷新即生效
  */
 
-const CACHE_VERSION = 'smartedu-v6';
+const CACHE_VERSION = 'smartedu-v8';
 const KEEP_CACHES = [CACHE_VERSION];
 
 // 需要缓存的静态资源特征

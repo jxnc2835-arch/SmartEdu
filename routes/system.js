@@ -812,6 +812,23 @@ router.post('/api/settings/alert-rules', authMiddleware, (req, res) => {
   } catch (e) { res.json({ code: 1, message: e.message }); }
 });
 
+
+// ==================== 地图配置接口 ====================
+router.get('/api/config/map', (req, res) => {
+  try {
+    const cfg = require('../config');
+    let provider = 'amap';
+    if (cfg.TENCENT_MAP_KEY && !cfg.AMAP_MAP_KEY) provider = 'tencent';
+    else if (cfg.BAIDU_MAP_KEY && !cfg.AMAP_MAP_KEY) provider = 'baidu';
+    res.json({ code: 0, data: {
+      provider,
+      amapKey: cfg.AMAP_MAP_KEY || '',
+      tencentKey: cfg.TENCENT_MAP_KEY || '',
+      baiduKey: cfg.BAIDU_MAP_KEY || ''
+    }});
+  } catch (e) { res.json({ code: 1, message: e.message }); }
+});
+
   return router;
 }
 
