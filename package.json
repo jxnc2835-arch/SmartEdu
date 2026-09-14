@@ -1,6 +1,6 @@
 {
   "name": "smartedu",
-  "version": "3.8.2",
+  "version": "3.8.3",
   "description": "AI智能化学生管理系统 - 人脸签到+数据预测+智能助手+PWA离线支持",
   "main": "server.js",
   "scripts": {
