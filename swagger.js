@@ -29,11 +29,11 @@ function initSwagger(app) {
       },
       servers: [
         {
-          url: 'http://localhost:3000',
+          url: 'http://localhost:3100',
           description: '本地开发环境'
         },
         {
-          url: 'https://localhost:3443',
+          url: 'https://localhost:3543',
           description: 'HTTPS 生产环境'
         }
       ],
@@ -177,7 +177,7 @@ function initSwagger(app) {
     res.redirect('/swagger');
   });
 
-  console.log('Swagger 文档已挂载: http://localhost:3000/swagger');
+  console.log('Swagger 文档已挂载: http://localhost:3100/swagger');
 }
 
 module.exports = initSwagger;

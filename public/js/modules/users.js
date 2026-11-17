@@ -333,56 +333,24 @@ window.confirmChangeMyPwd = async function() {
   }
 };
 
-// ==================== 学生密码重置 ====================
-window.loadStuPwdReset = async function() {
-  try {
-    const cSel = document.getElementById('rpClass');
-    const sSel = document.getElementById('rpStudent');
-    if (!cSel || !sSel) return;
-    
-    const cls = await apiAuth('/api/students/classes');
-    if (cls.code === 0) {
-      safeSetInnerHTML(cSel, '<option value="">全部班级</option>' + 
-        cls.data.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join(''));
-    }
-    
-    const loadStudents = async () => {
-      const c = cSel.value;
-      const r = await apiAuth('/api/students/paged?limit=300' + (c ? ('&class_name=' + encodeURIComponent(c)) : ''));
-      if (r.code === 0) {
-        safeSetInnerHTML(sSel, '<option value="">选择学生</option>' + 
-          r.data.map(s => `<option value="${s.id}">${esc(s.name)}（${esc(s.class_name)}　${esc(s.dorm || '—')}）</option>`).join(''));
-      }
-    };
-    
-    cSel.onchange = loadStudents;
-    await loadStudents();
-  } catch (e) {}
-};
-
-window.resetStudentPwd = async function() {
-  const sid = document.getElementById('rpStudent')?.value;
-  const pwd = document.getElementById('rpNewPwd')?.value?.trim();
-  const msg = document.getElementById('rpMsg');
-  
-  if (!sid) {
-    if (msg) { msg.style.color = '#ef4444'; msg.textContent = '请先选择学生'; }
+window.resetSelectedUserPwd = async function() {
+  const sel = document.getElementById('pwdMgmtUserSel');
+  const userId = sel && sel.value;
+  if (!userId) {
+    window.showToast('请先选择用户', 'warning');
     return;
   }
-  
-  try {
-    const r = await apiAuth('/api/student-reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ studentId: sid, newPassword: pwd })
-    });
-    if (msg) {
-      msg.style.color = r.code === 0 ? '#22c55e' : '#ef4444';
-      msg.textContent = r.message || (r.code === 0 ? '重置成功' : '重置失败');
-    }
-  } catch (e) {
-    if (msg) { msg.style.color = '#ef4444'; msg.textContent = '网络错误：' + e.message; }
+  if (!confirm(`确定重置「${userId}」的密码为 123456 吗？\n（该用户下次登录需使用新密码）`)) return;
+  const r = await apiAuth('/api/reset-password', { method: 'POST', body: JSON.stringify({ userId, newPassword: '123456' }) });
+  if (r.code === 0) {
+    window.showToast('重置成功：' + (r.message || '密码已重置为 123456'), 'success');
+    if (sel) sel.value = '';
+  } else {
+    window.showToast('重置失败：' + (r.message || '无权限'), 'error');
   }
 };
+
+// 学生密码重置功能已移至「学生管理」页每行的"重置密码"按钮（resetSingleStudentPwd），此处重复实现已移除
 
 // ==================== 主题色 ====================
 window.initThemeColors = function() {

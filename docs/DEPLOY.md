@@ -30,10 +30,10 @@ docker-compose down
 ```
 
 ### 3. 访问服务
-- 教师端: http://localhost:3000/teacher.html
-- 学生端: http://localhost:3000/student.html
-- 数据大屏: http://localhost:3000/dashboard.html
-- API 文档: http://localhost:3000/swagger
+- 教师端: http://localhost:3100/teacher.html
+- 学生端: http://localhost:3100/student.html
+- 数据大屏: http://localhost:3100/dashboard.html
+- API 文档: http://localhost:3100/swagger
 
 ## 方式二：直接运行
 
@@ -66,7 +66,7 @@ server {
     server_name your-domain.com;
     
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3100;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -94,7 +94,7 @@ server {
 ## 故障排查
 
 ### 1. 启动失败
-- 检查端口占用: `netstat -ano | findstr :3000`
+- 检查端口占用: `netstat -ano | findstr :3100`
 - 查看日志: `tail -f logs/app.log`
 - 确认环境变量已设置
 

@@ -34,12 +34,14 @@ window.saveAIHistory = function () {
 window.bubble = function (role, text, source, modelInfo) {
   const d = document.createElement('div');
   d.className = 'bubble ' + (role === 'user' ? 'b-user' : 'b-ai');
-  const html = esc(text)
+  // 防XSS：先转义所有HTML特殊字符，再对 ** 做安全strong注入
+  const safeText = esc(text);
+  const html = safeText
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');
   let srcTag = '';
   if (source === 'ai') {
-    const ml = (modelInfo && modelInfo.model) ? modelInfo.model : 'AI';
+    const ml = (modelInfo && modelInfo.model) ? esc(modelInfo.model) : 'AI';
     const pl = (modelInfo && modelInfo.provider === 'zhipu') ? '智谱大模型' : '大模型';
     srcTag = ' <span class="ai-src-tag ai-src-ai" title="' + pl + ' (' + ml + ') 生成">🤖 ' + pl + '</span>';
     // 强模型不可用时自动降级到快速模型：明确告知用户，避免误以为在用配置的强模型
@@ -49,6 +51,7 @@ window.bubble = function (role, text, source, modelInfo) {
   } else if (source === 'local_engine') {
     srcTag = ' <span class="ai-src-tag ai-src-local" title="本地数据分析引擎">⚙️ 分析</span>';
   }
+  // 创建 DOM 元素时只注入已转义的内容，避免 XSS
   d.innerHTML = '<div class="bubble-inner">' + html + srcTag + '</div>';
   return d;
 };
@@ -122,8 +125,20 @@ window.sendAI = async function (question) {
     window.saveAIHistory();
     const sug = document.getElementById('aiSuggestions');
     if (sug && d.suggestions && d.suggestions.length) {
-      sug.innerHTML = '<span style="font-size:12px;color:#64748b;margin-right:4px">💡 继续问：</span>' +
-        d.suggestions.map(s => `<button class="btn btn-sm btn-o" style="font-size:12px" onclick="sendAI('${s.replace(/'/g, "\\'")}')">${esc(s)}</button>`).join('');
+      // P0修复：原 innerHTML 拼 onclick 存在 XSS（建议文本可闭合 JS 字符串），改 DOM API + 事件绑定
+      sug.innerHTML = '';
+      const tip = document.createElement('span');
+      tip.style.cssText = 'font-size:12px;color:#64748b;margin-right:4px';
+      tip.textContent = '💡 继续问：';
+      sug.appendChild(tip);
+      d.suggestions.forEach(s => {
+        const b = document.createElement('button');
+        b.className = 'btn btn-sm btn-o';
+        b.style.fontSize = '12px';
+        b.textContent = s;
+        b.onclick = () => window.sendAI(s);
+        sug.appendChild(b);
+      });
     }
   } catch (e) {
     const err = '请求失败：' + e.message;
@@ -147,9 +162,17 @@ window.loadAICapabilities = async function () {
     })();
     const el = document.getElementById('aiCapabilities');
     if (!el || !j.data) return;
-    el.innerHTML = j.data.capabilities.map(c =>
-      `<button class="btn btn-sm btn-o" style="font-size:10.5px;padding:3px 6px;white-space:nowrap;line-height:1.1;border-radius:12px" onclick="sendAI('${(c.example || '').replace(/'/g, "\\'")}')  " title="${esc(c.label)}">${c.icon} ${esc(c.label)}</button>`
-    ).join('');
+    // P0修复：原 innerHTML 拼 onclick 存在 XSS（c.icon/c.example 未转义直插），改 DOM API + 事件绑定
+    el.innerHTML = '';
+    (j.data.capabilities || []).forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm btn-o';
+      b.style.cssText = 'font-size:10.5px;padding:3px 6px;white-space:nowrap;line-height:1.1;border-radius:12px';
+      b.title = c.label || '';
+      b.textContent = (c.icon ? c.icon + ' ' : '') + (c.label || '');
+      b.onclick = () => window.sendAI(c.example || '');
+      el.appendChild(b);
+    });
   } catch (e) { }
 };
 

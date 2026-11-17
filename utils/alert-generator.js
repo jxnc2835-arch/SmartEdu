@@ -7,7 +7,7 @@
  * - routes/alerts.js 只负责 HTTP 路由封装
  * - utils/alerts-sync.js 只负责定时同步调用
  */
-const { sendToWebhook, getSetting } = require('../routes/notify');
+const { sendToWebhook, getSetting, pushPlus } = require('../routes/notify');
 const { clampedToday } = require('./helpers');
 
 /**
@@ -86,22 +86,25 @@ async function generateAlerts(db, date, { scheduleSave = () => {}, getWebhook = 
   let pushed = false;
   let pushDetail = '';
   if (created.length) {
+    const byClass = {};
+    created.forEach(a => { (byClass[a.class_name] = byClass[a.class_name] || []).push(a); });
+    const lines = Object.keys(byClass).map(cls => {
+      const items = byClass[cls].map((a, i) => `${i + 1}. ${a.student_name}（宿舍 ${a.dorm || '未知'}）`).join('\n');
+      return `${cls}：\n${items}`;
+    }).join('\n\n');
+    const content = `【查寝系统】异常闭环告警 · ${date}\n以下学生未归，请辅导员跟进核实：\n\n${lines}\n\n（请在教师端「异常闭环」中登记跟进结果并销号）`;
     const enabled = getWebhook(db, 'notify_enabled') === '1';
     const url = getWebhook(db, 'notify_webhook');
     if (enabled && url) {
-      const byClass = {};
-      created.forEach(a => { (byClass[a.class_name] = byClass[a.class_name] || []).push(a); });
-      const lines = Object.keys(byClass).map(cls => {
-        const items = byClass[cls].map((a, i) => `${i + 1}. ${a.student_name}（宿舍 ${a.dorm || '未知'}）`).join('\n');
-        return `${cls}：\n${items}`;
-      }).join('\n\n');
-      const content = `【查寝系统】异常闭环告警 · ${date}\n以下学生未归，请辅导员跟进核实：\n\n${lines}\n\n（请在教师端「异常闭环」中登记跟进结果并销号）`;
       const r = await sendToWebhook(url, content);
       pushed = !!r.ok;
       pushDetail = r.ok ? '' : (r.error || ('HTTP ' + r.status));
     } else {
-      pushDetail = '未配置 Webhook，未推送';
+      pushDetail = '未配置群机器人 Webhook';
     }
+    // [新增] 个人微信（PushPlus）双通道推送，即使未配置群机器人也推
+    const pp = await pushPlus(db, content);
+    if (pp.sent) { pushed = true; if (!pushDetail || pushDetail === '未配置群机器人 Webhook') pushDetail = '已推送 PushPlus'; }
   }
   return { created: created.length, total: rows.length, list: created, pushed, pushDetail };
 }

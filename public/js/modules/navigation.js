@@ -75,8 +75,7 @@ window.loadSection = async function(sec) {
       window.loadWebhookHistory ? window.loadWebhookHistory() : Promise.resolve(),
       window.loadVoiceRecords ? window.loadVoiceRecords() : Promise.resolve(),
       window.loadGeofenceRules ? window.loadGeofenceRules() : Promise.resolve(),
-      window.loadWebhookSettings ? window.loadWebhookSettings() : Promise.resolve(),
-      window.loadStuPwdReset ? window.loadStuPwdReset() : Promise.resolve()
+      window.loadWebhookSettings ? window.loadWebhookSettings() : Promise.resolve()
     ]),
     users: () => Promise.all([
       window.loadUsers ? window.loadUsers() : Promise.resolve(),

@@ -1,7 +1,7 @@
 // AI 实测：延迟 / 意图路由 / 是否触发回退  （node scripts/ai-bench.mjs）
 import fs from 'node:fs';
 
-const base = 'http://localhost:3000';
+const base = 'http://localhost:3100';
 const loginRes = await fetch(base + '/api/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },

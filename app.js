@@ -34,10 +34,10 @@ function createApp() {
         styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
         styleSrcAttr: ["'unsafe-inline'"],    // 允许 inline style 属性
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", "https://restapi.amap.com", "https://apis.map.qq.com", "https://api.map.baidu.com", "https://cdn.jsdelivr.net"],
         fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
+        mediaSrc: ["'self'", "blob:", "data:"],
         workerSrc: ["'self'"],
         frameSrc: ["'none'"],
         upgradeInsecureRequests: [],

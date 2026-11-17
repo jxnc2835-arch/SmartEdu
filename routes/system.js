@@ -6,6 +6,7 @@ const config = require('../config');
 const { authMiddleware } = require('../middleware/auth');
 const { nowTimestamp, localDateStr, formatDate, beijingStamp } = require('../utils/helpers');
 const ExcelJS = require('exceljs');
+const Database = require('better-sqlite3');
 
 /** @type {object} */
 let db, scheduleSave, addLog;
@@ -61,7 +62,48 @@ function createBackup(className) {
     photos: fs.existsSync(UPLOAD_DIR) ? fs.readdirSync(UPLOAD_DIR).length : 0,
     class_name: className || '全部'
   };
-  fs.writeFileSync(path.join(bp, 'backup_info.json'), JSON.stringify(info, null, 2));
+
+  // P0·实用性：备份校验——立刻用 better-sqlite3 独立句柄打开刚写的 data.db，
+  // 跑 PRAGMA integrity_check + 对账核心表行数，失败抛错让上层感知
+  try {
+    const verifyDb = new Database(path.join(bp, 'data.db'), { readonly: true, fileMustExist: true });
+    const integrity = verifyDb.pragma('integrity_check', { simple: true });
+    if (integrity !== 'ok') {
+      const err = new Error(`备份 integrity_check 失败: ${integrity}`);
+      verifyDb.close();
+      fs.rmSync(bp, { recursive: true, force: true });
+      throw err;
+    }
+    // 对账：备份里的 students/records/leaves 行数必须与源内存库一致
+    const bakStu = verifyDb.prepare('SELECT COUNT(*) AS c FROM students').get().c;
+    const bakRec = verifyDb.prepare('SELECT COUNT(*) AS c FROM records').get().c;
+    const bakLev = verifyDb.prepare('SELECT COUNT(*) AS c FROM leaves').get().c;
+    verifyDb.close();
+    if (className) {
+      // 按班级备份：data.db 仍是全量快照，对账改为"备份行数 ≥ 班级期望行数"
+      // （班级期望 = 该班在源库的行数，全量备份必然 ≥ 任意班级子集）
+      if (bakStu < studentCount || bakRec < recordCount || bakLev < leaveCount) {
+        const err = new Error(`备份行数对账失败: 备份 stu=${bakStu} rec=${bakRec} lev=${bakLev} < 班级期望 stu=${studentCount} rec=${recordCount} lev=${leaveCount}`);
+        fs.rmSync(bp, { recursive: true, force: true });
+        throw err;
+      }
+    } else {
+      // 全量备份：备份行数 = 源库行数
+      const srcStu = db.exec("SELECT COUNT(*) FROM students;")[0]?.values?.[0][0] || 0;
+      const srcRec = db.exec("SELECT COUNT(*) FROM records;")[0]?.values?.[0][0] || 0;
+      const srcLev = db.exec("SELECT COUNT(*) FROM leaves;")[0]?.values?.[0][0] || 0;
+      if (bakStu !== srcStu || bakRec !== srcRec || bakLev !== srcLev) {
+        const err = new Error(`备份行数对账失败: 期望 stu=${srcStu} rec=${srcRec} lev=${srcLev}，实际 stu=${bakStu} rec=${bakRec} lev=${bakLev}`);
+        fs.rmSync(bp, { recursive: true, force: true });
+        throw err;
+      }
+    }
+  } catch (e) {
+    addLog('备份校验失败', e.message, 'ERROR');
+    throw e; // 让 /api/backup 返回 500，前端能感知
+  }
+
+  fs.writeFileSync(path.join(bp, 'backup_info.json'), JSON.stringify({ ...info, verified: true }, null, 2));
   return info;
 }
 
@@ -115,7 +157,16 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook, _upload, _Q
   router.post('/api/clear-logs', authMiddleware, (req, res) => {
     const { level } = req.body;
     try {
-      let count = level ? (db.run("DELETE FROM logs WHERE level=?", [level], function(err) { if (!err) count = this.changes; }) || 0) : (db.run("DELETE FROM logs", function(err) { if (!err) count = this.changes; }) || 0);
+      // P1修复：sql.js 的 db.run 是同步 API，第三参回调会被静默忽略（原写法 count 恒为 0）
+      // 改为先查待删条数再执行删除，统计数真实可靠
+      let count;
+      if (level) {
+        count = db.exec("SELECT COUNT(*) FROM logs WHERE level=?", [level])?.[0]?.values?.[0]?.[0] ?? 0;
+        db.run("DELETE FROM logs WHERE level=?", [level]);
+      } else {
+        count = db.exec("SELECT COUNT(*) FROM logs")?.[0]?.values?.[0]?.[0] ?? 0;
+        db.run("DELETE FROM logs");
+      }
       scheduleSave();
       res.json({ code: 0, message: `已清空 ${count} 条日志` });
     } catch (err) { res.json({ code: 1, message: '清空失败: ' + err.message }); }
@@ -185,13 +236,116 @@ router.post('/api/backup', authMiddleware, (req, res) => {
 });
 
 router.get('/api/backups', authMiddleware, (req, res) => {
-  const list = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith('backup_')).map(f => {
-    const stat = fs.statSync(path.join(BACKUP_DIR, f));
-    let info = {};
-    try { info = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, f, 'backup_info.json'), 'utf-8')); } catch {}
-    return { name: f, time: stat.mtime, size: stat.size, ...info };
-  }).sort((a,b)=>b.time-a.time);
-  res.json({ code: 0, data: list });
+  // P1修复：列表同时兼容两种备份格式——
+  //   手动备份：backup_<ts>/ 目录（含 data.db + photos/ + backup_info.json）
+  //   自动备份：data_backup_<UTC时间戳>_<reason>.db 文件（utils/auto-backup.js 生成）
+  // 原先只认 backup_ 前缀，导致自动备份永远显示"暂无备份"
+  try {
+    const list = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.startsWith('backup_') || (f.startsWith('data_backup_') && f.endsWith('.db')))
+      .map(f => {
+        const fp = path.join(BACKUP_DIR, f);
+        let stat;
+        try { stat = fs.statSync(fp); } catch { return null; }
+        const isDir = typeof stat.isDirectory === 'function' ? stat.isDirectory() : false;
+        let info = {};
+        let size = stat.size;
+        if (isDir) {
+          try { info = JSON.parse(fs.readFileSync(path.join(fp, 'backup_info.json'), 'utf-8')); } catch {}
+          // 目录型备份 stat.size 只是目录项(4096)，真实大小取内部 data.db
+          try {
+            const inner = fs.statSync(path.join(fp, 'data.db'));
+            size = inner.size;
+          } catch {}
+        } else {
+          const m = f.match(/^data_backup_(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z_([a-z]+)\.db$/);
+          if (m) info = { created_at: `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`, class_name: '全部', reason: m[6] };
+        }
+        return { name: f, time: stat.mtime, size, type: isDir ? 'manual' : 'auto', ...info };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.time - a.time);
+    res.json({ code: 0, data: list });
+  } catch (err) {
+    res.json({ code: 1, message: '读取备份列表失败: ' + err.message });
+  }
+});
+
+// ==================== 备份恢复 ====================
+// P0修复：前端"恢复"按钮调 POST /api/restore，但后端此前根本没有该接口（点击必然失败）。
+// 实现：把备份数据整表替换进当前内存库（保持 db 对象引用不变），目录备份附带恢复照片，最后落盘。
+router.post('/api/restore', authMiddleware, (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.json({ code: 1, message: '参数不完整' });
+  // 路径安全：只允许两种合法备份名，杜绝 ../ 穿越
+  const isDirBackup = /^backup_[^\\/]+$/.test(name);
+  const isFileBackup = /^data_backup_[^\\/]+\.db$/.test(name);
+  if (!isDirBackup && !isFileBackup) return res.json({ code: 1, message: '备份名称不合法' });
+  const bp = path.join(BACKUP_DIR, name);
+  if (!fs.existsSync(bp)) return res.json({ code: 1, message: '备份不存在' });
+  try {
+    let backupBytes;
+    let photoSrc = null;
+    if (fs.statSync(bp).isDirectory()) {
+      const dbFile = path.join(bp, 'data.db');
+      if (!fs.existsSync(dbFile)) return res.json({ code: 1, message: '备份损坏：缺少 data.db' });
+      backupBytes = fs.readFileSync(dbFile);
+      const pDir = path.join(bp, 'photos');
+      if (fs.existsSync(pDir)) photoSrc = pDir;
+    } else {
+      backupBytes = fs.readFileSync(bp);
+    }
+
+    const initSqlJs = require('sql.js');
+    initSqlJs().then(SQL => {
+      let tmp;
+      try {
+        tmp = new SQL.Database(backupBytes);
+      } catch (e) {
+        return res.json({ code: 1, message: '备份文件无法解析：' + e.message });
+      }
+      const tables = (tmp.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0]?.values || []).map(v => v[0]);
+      db.run('BEGIN');
+      try {
+        let restoredTables = 0, restoredRows = 0;
+        for (const t of tables) {
+          // 只恢复当前库已存在的同名表（schema 演进时跳过未知表，防止注入式结构）
+          const exists = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [t])[0];
+          if (!exists) continue;
+          const colInfo = tmp.exec(`PRAGMA table_info("${t}")`)[0]?.values || [];
+          if (!colInfo.length) continue;
+          const colNames = colInfo.map(v => v[1]);
+          const rows = tmp.exec(`SELECT * FROM "${t}"`)[0]?.values || [];
+          db.run(`DELETE FROM "${t}"`);
+          if (rows.length) {
+            const stmt = `INSERT INTO "${t}" (${colNames.map(c => `"${c}"`).join(',')}) VALUES (${colNames.map(() => '?').join(',')})`;
+            for (const r of rows) db.run(stmt, r);
+            restoredRows += rows.length;
+          }
+          restoredTables++;
+        }
+        db.run('COMMIT');
+        tmp.close();
+        // 目录备份附带恢复照片（覆盖同名，不删除现有新增照片）
+        let photoCount = 0;
+        if (photoSrc && UPLOAD_DIR && fs.existsSync(UPLOAD_DIR)) {
+          fs.readdirSync(photoSrc).forEach(f => {
+            const src = path.join(photoSrc, f);
+            if (fs.statSync(src).isFile()) { fs.copyFileSync(src, path.join(UPLOAD_DIR, f)); photoCount++; }
+          });
+        }
+        scheduleSave();
+        addLog('恢复备份', `来源：${name}，恢复 ${restoredTables} 张表 / ${restoredRows} 行${photoCount ? ` / ${photoCount} 张照片` : ''}`, 'WARN');
+        res.json({ code: 0, message: `✅ 恢复成功：${restoredTables} 张表 / ${restoredRows} 行数据${photoCount ? ` / ${photoCount} 张照片` : ''}，刷新页面即可看到恢复后的数据` });
+      } catch (e) {
+        try { db.run('ROLLBACK'); } catch (_) {}
+        tmp.close();
+        res.json({ code: 1, message: '恢复失败，已回滚：' + e.message });
+      }
+    }).catch(e => res.json({ code: 1, message: '恢复失败：' + e.message }));
+  } catch (err) {
+    res.json({ code: 1, message: '恢复失败: ' + err.message });
+  }
 });
 
 router.post('/api/delete-backup', authMiddleware, (req, res) => {
@@ -286,6 +440,14 @@ router.post('/api/cleanup-old-data', authMiddleware, (req, res) => {
 });
 
 // ==================== 查寝任务管理 ====================
+// 学生端只读查寝任务（x-student-token 鉴权，离线兜底拉当天 pending 任务）
+// 直接读 STUDENT_TOKENS 表（与 /api/student-login 同一份），而非走 studentAuth 中间件：
+// 后者因模块实例隔离，其 STUDENT_TOKENS 永远为空，会把有效 token 误判 401。
+// 必须注册在 /api/tasks 之前，否则教师 authMiddleware 会先拦截 /api/tasks/student。
+// 学生端只读查寝任务端点 /api/tasks/student 已移至 server.js 直接挂 app 层，
+// 原因：statistics.js 有 router.use('/api', authMiddleware) 全局鉴权先拦截该路径
+// （学生 token 过不了教师 JWT 会 401），与 /api/config/map 同层挂载可绕过。
+
 router.get('/api/tasks', authMiddleware, (req, res) => {
   const { status, class_name } = req.query;
   let sql = "SELECT * FROM tasks";
@@ -298,31 +460,70 @@ router.get('/api/tasks', authMiddleware, (req, res) => {
   const rows = db.exec(sql, params)[0]?.values || [];
   const tasks = rows.map(r => ({
     id: r[0], date: r[1], class_name: r[2], remark: r[3],
-    status: r[4], created_at: r[5], created_by: r[6] || 'system'
+    status: r[4], created_at: r[5], created_by: r[6] || 'system',
+    required_steps: parseTaskSteps(r[7]),
+    closed_at: r[8] || ''
   }));
   res.json({ code: 0, data: tasks });
 });
 
+// 任务 required_steps 解析：JSON 数组字符串 → 数组；空/非法 → 默认全 4 项（兼容旧数据）
+const TASK_STEP_KEYS = ['location', 'photo', 'voice', 'qrcode'];
+function parseTaskSteps(raw) {
+  if (!raw) return TASK_STEP_KEYS.slice();
+  try {
+    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(arr)) {
+      const valid = arr.filter(k => TASK_STEP_KEYS.includes(k));
+      return valid.length ? valid : TASK_STEP_KEYS.slice();
+    }
+  } catch (e) { /* fallthrough */ }
+  return TASK_STEP_KEYS.slice();
+}
+
 router.post('/api/tasks', authMiddleware, (req, res) => {
-  const { date, class_name, remark } = req.body;
-  if (!date || !class_name) {
-    return res.json({ code: 1, message: '日期和班级不能为空' });
+  const { date, class_name, remark, required_steps } = req.body;
+  if (!date) {
+    return res.json({ code: 1, message: '日期不能为空' });
   }
+  // class_name 允许为空 = 发布给全部班级（学生端按“无班级限制”匹配）
+  const taskClass = class_name || '';
+  const steps = parseTaskSteps(Array.isArray(required_steps) ? required_steps : null);
   const id = 'task_' + Date.now();
   const created_at = nowTimestamp();
-  db.run("INSERT INTO tasks(id, date, class_name, remark, status, created_at, created_by) VALUES(?,?,?,?,?,?,?)",
-    [id, date, class_name, remark || '', 'pending', created_at, req.user?.username || 'system']);
+  db.run("INSERT INTO tasks(id, date, class_name, remark, status, created_at, created_by, required_steps) VALUES(?,?,?,?,?,?,?,?)",
+    [id, date, taskClass, remark || '', 'pending', created_at, req.user?.username || 'system', JSON.stringify(steps)]);
   scheduleSave();
-  addLog('发布查寝任务', `日期：${date}，班级：${class_name}${remark ? '，备注：' + remark : ''}`);
-  res.json({ code: 0, message: '任务发布成功', data: { id, date, class_name, remark } });
+  addLog('发布查寝任务', `日期：${date}，班级：${taskClass || '全部班级'}，需完成：${steps.map(k => TASK_STEP_KEYS.includes(k) ? { location: '获取位置', photo: '拍照', voice: '语音', qrcode: '扫码' }[k] : k).join('、')}`);
+  // 实时推送给在线学生端：查寝页收到 checkin_task 事件后弹横幅提示
+  // 用 global.broadcast（server.js 启动时挂载），系统路由的 DI _broadcast 槽位本就未接
+  if (typeof global.broadcast === 'function') {
+    global.broadcast({
+      type: 'checkin_task',
+      data: { id, date, class_name: taskClass, remark: remark || '', required_steps: steps, created_at, created_by: req.user?.username || 'system' }
+    });
+  }
+  res.json({ code: 0, message: '任务发布成功', data: { id, date, class_name: taskClass, remark, required_steps: steps } });
 });
 
 router.delete('/api/tasks/:id', authMiddleware, (req, res) => {
   const { id } = req.params;
   db.run("DELETE FROM tasks WHERE id=?", [id]);
+  // P1修复：0 行匹配为假成功，须如实返回未找到
+  if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该任务，可能已被删除' });
   scheduleSave();
   addLog('删除查寝任务', `任务ID：${id}`, 'WARN');
   res.json({ code: 0, message: '删除成功' });
+});
+
+// P1·实用性：查寝任务"一键销号"——pending → closed，记录 closed_at
+router.put('/api/tasks/:id/close', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  db.run("UPDATE tasks SET status='closed', closed_at=? WHERE id=? AND status='pending'", [nowTimestamp(), id]);
+  if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该任务或已销号' });
+  scheduleSave();
+  addLog('销号查寝任务', `任务ID：${id}`);
+  res.json({ code: 0, message: '已销号' });
 });
 
 // ==================== 导出查寝记录 ====================
@@ -396,7 +597,13 @@ router.get('/api/export/leaves', authMiddleware, async (req, res) => {
     const params = [];
     const cond = [];
     if (class_name) { cond.push("s.class_name=?"); params.push(class_name); }
-    if (status) { cond.push("l.status=?"); params.push(status); }
+    if (status) {
+      // 库中 status 中英混杂（历史英文 + 新中文），传任意一种都同时匹配两种写法
+      const stMap = { approved: '已批准', pending: '待审批', rejected: '已驳回', '已批准': 'approved', '待审批': 'pending', '已驳回': 'rejected' };
+      const variants = stMap[status] ? [status, stMap[status]] : [status];
+      cond.push(`l.status IN (${variants.map(() => '?').join(',')})`);
+      params.push(...variants);
+    }
     if (from) { cond.push("l.start_date>=?"); params.push(from); }
     if (to) { cond.push("l.start_date<=?"); params.push(to); }
     if (cond.length) sql += " AND " + cond.join(" AND ");
@@ -420,7 +627,8 @@ router.get('/api/export/leaves', authMiddleware, async (req, res) => {
         obj['reason'] || '',
         obj['start_date'] || '',
         obj['end_date'] || '',
-        obj['status'] || '',
+        // 状态中文化：库中历史数据是英文 approved/pending/rejected，新数据是中文，统一映射为中文展示
+        { approved:'已批准', pending:'待审批', rejected:'已驳回' }[String(obj['status']||'').toLowerCase()] || obj['status'] || '',
         obj['created_at'] || ''
       ]);
     });
@@ -452,6 +660,7 @@ router.get('/api/export/class-records', authMiddleware, async (req, res) => {
     const params = [];
     const cond = [];
     if (course_id) { cond.push("r.course_id=?"); params.push(course_id); }
+    if (req.query.course_name) { cond.push("r.course_id IN (SELECT id FROM courses WHERE name=?)"); params.push(req.query.course_name); }
     if (class_name) { cond.push("s.class_name=?"); params.push(class_name); }
     if (status) { cond.push("r.status=?"); params.push(status); }
     if (from) { cond.push("r.date>=?"); params.push(from); }
@@ -773,6 +982,10 @@ router.post('/api/announcements', authMiddleware, (req, res) => {
     db.run("INSERT INTO announcements(id, title, content, created_at) VALUES(?,?,?,?)",
       [id, title, content, new Date().toISOString()]);
     addLog('发布公告', title);
+    // WebSocket 实时推送学生端（双通道 HTTP/HTTPS 由 global.broadcast 双实例遍历）
+    if (typeof global.broadcast === 'function') {
+      global.broadcast({ type: 'announcement', data: { id, title, content, created_at: new Date().toISOString() } });
+    }
     res.json({ code: 0, message: '发布成功' });
   } catch (e) { res.json({ code: 1, message: e.message }); }
 });
@@ -814,6 +1027,9 @@ router.post('/api/settings/alert-rules', authMiddleware, (req, res) => {
 
 
 // ==================== 地图配置接口 ====================
+// 只读公开接口：返回前端 JS 用于地址反解的地图 key。
+// AMAP/TENCENT/BAIDU key 本就设计给浏览器端调用，非敏感数据，
+// 故豁免鉴权，允许学生端无 token 直接获取（否则定位只会显示坐标）。
 router.get('/api/config/map', (req, res) => {
   try {
     const cfg = require('../config');

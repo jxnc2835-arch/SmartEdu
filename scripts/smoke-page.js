@@ -27,7 +27,7 @@ virtualConsole.on('jsdomError', (e) => {
 virtualConsole.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
 
 const dom = new JSDOM(html, {
-  url: 'http://localhost:3000/teacher.html',
+  url: 'http://localhost:3100/teacher.html',
   runScripts: 'outside-only',
   pretendToBeVisual: true,
   virtualConsole,

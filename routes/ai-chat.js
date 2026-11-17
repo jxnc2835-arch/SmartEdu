@@ -1,13 +1,19 @@
 /**
  * AI 智能问答引擎 - 模块化版本
- * 
- * 架构说明：
- * - routes/ai/date-utils.js    : 日期工具函数
- * - routes/ai/session.js       : 会话管理（内存+持久化）
- * - routes/ai/data-analyzer.js : 数据分析函数
- * - routes/ai/llm-client.js    : LLM 调用（askZhipu/callLLM）
- * - routes/ai/prompt-builder.js: 意图路由 + 提示词构建
- * 
+ *
+ * 架构说明（真实关系，避免误判 ai/ 目录为死代码）：
+ * - routes/ai.js（旧主线）在 529 行 require('./ai-chat')，把本模块作为
+ *   子路由统一挂载到 AI 路由上；旧版问答引擎已废弃（同名路由冲突 +
+ *   两套会话格式混写 ai_sessions.json），由本模块统一接管：
+ *     /ai/smart、/ai/chat、/ai/capabilities、/api/ai/config、/api/ai/test
+ * - routes/ai/ 目录是被本文件实际引用的底层模块（非死代码，勿删）：
+ *   - routes/ai/date-utils.js    : 日期工具函数
+ *   - routes/ai/session.js       : 会话管理（内存+持久化；当前未接入运行链路，
+ *                                  仅供单测 test/ai-session.test.js 与后续复用）
+ *   - routes/ai/data-analyzer.js : 数据分析函数
+ *   - routes/ai/llm-client.js    : LLM 调用（askZhipu/callLLM）
+ *   - routes/ai/prompt-builder.js: 意图路由 + 提示词构建
+ *
  * 本文件作为统一入口，负责：
  * 1. 依赖注入（db, fs, authMiddleware 等）
  * 2. 会话初始化与定时清理
@@ -73,6 +79,11 @@ function initChatSubRouter(deps) {
   // 启动时加载
   loadClassNames();
   loadCourseNames();
+
+  // 注入数据库给本地分析器（让 AI 问答能查真实数据）
+  dataAnalyzer.setDb(db);
+  // 注入班级列表（让 AI 问答能从问题中识别"测绘2301"等班级自然语文过滤）
+  promptBuilder.setClassNames(CLASS_NAMES);
 
   // ===== 会话管理（内存 + 文件持久化） =====
   const sessionMemory = new Map();
@@ -212,17 +223,22 @@ function initChatSubRouter(deps) {
     }
   });
 
-  // GET /ai/chat - 兼容旧接口
-  router.get('/ai/chat', async (req, res) => {
+  // GET /ai/chat - 兼容旧接口（与 /ai/smart 一致，须鉴权，防止未授权调用消耗 LLM API key）
+  router.get('/ai/chat', authMiddleware, async (req, res) => {
     const { question, session_id: sid } = req.query;
     if (!question) return res.json({ code: 1, message: '请输入问题' });
-    // 转发到 smart 接口
-    const result = await llmClient.handleAiQuestion(question, sid, {
-      db, runtimeConfig, getSessionHistory, addMessage, updateSessionContext,
-      routeIntent: promptBuilder.routeIntent, loadDataForIntent: dataAnalyzer.loadDataForIntent,
-      formatLocalAnswer: promptBuilder.formatLocalAnswer, getSuggestions: promptBuilder.getSuggestions
-    });
-    res.json(result);
+    try {
+      // 转发到 smart 接口
+      const result = await llmClient.handleAiQuestion(question, sid, {
+        db, runtimeConfig, getSessionHistory, addMessage, updateSessionContext,
+        routeIntent: promptBuilder.routeIntent, loadDataForIntent: dataAnalyzer.loadDataForIntent,
+        formatLocalAnswer: promptBuilder.formatLocalAnswer, getSuggestions: promptBuilder.getSuggestions
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('[AI Chat] 错误:', err.message?.substring(0, 200));
+      res.status(500).json({ code: 1, message: 'AI 问答处理失败，请重试' });
+    }
   });
 
   // GET /ai/capabilities - 能力列表
@@ -297,6 +313,38 @@ function initChatSubRouter(deps) {
       }
     } catch (err) {
       res.json({ code: 1, message: `连接失败: ${err.message?.substring(0, 100)}` });
+    }
+  });
+
+  // GET /api/ai/usage - P2·实用性：AI 用量聚合（按日期汇总调用次数 / 总 token / 估算成本），供教师端"AI 用量"卡片
+  router.get('/api/ai/usage', authMiddleware, (req, res) => {
+    try {
+      const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      // 总量汇总
+      const totalR = db.exec(
+        "SELECT COUNT(*) AS calls, COALESCE(SUM(input_tokens),0) AS inTok, COALESCE(SUM(output_tokens),0) AS outTok, COALESCE(SUM(cost),0) AS cost FROM ai_usage WHERE date >= ?", [since]
+      )[0];
+      const total = totalR ? {
+        calls: totalR.values[0][0] || 0,
+        inputTokens: totalR.values[0][1] || 0,
+        outputTokens: totalR.values[0][2] || 0,
+        cost: totalR.values[0][3] || 0
+      } : { calls: 0, inputTokens: 0, outputTokens: 0, cost: 0 };
+      // 按模型分布（近 N 天）
+      const byModelR = db.exec(
+        "SELECT model, COUNT(*) AS calls, COALESCE(SUM(input_tokens + output_tokens),0) AS tok FROM ai_usage WHERE date >= ? GROUP BY model ORDER BY calls DESC LIMIT 10", [since]
+      )[0];
+      const byModel = byModelR ? byModelR.values.map(v => ({ model: v[0] || 'unknown', calls: v[1], tokens: v[2] })) : [];
+      // 近 7 天日趋势
+      const trendR = db.exec(
+        "SELECT date, COUNT(*) AS calls, COALESCE(SUM(input_tokens + output_tokens),0) AS tok FROM ai_usage WHERE date >= ? GROUP BY date ORDER BY date ASC", [since]
+      )[0];
+      const trend = trendR ? trendR.values.map(v => ({ date: v[0], calls: v[1], tokens: v[2] })) : [];
+      res.json({ code: 0, data: { days, total, byModel, trend } });
+    } catch (e) {
+      console.error('[AI Usage] 查询失败:', e.message?.substring(0, 200));
+      res.json({ code: 1, message: 'AI 用量查询失败', data: { days: 30, total: { calls: 0, inputTokens: 0, outputTokens: 0, cost: 0 }, byModel: [], trend: [] } });
     }
   });
 

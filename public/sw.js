@@ -7,7 +7,7 @@
  *  - 新版本安装后自动 skipWaiting，一次刷新即生效
  */
 
-const CACHE_VERSION = 'smartedu-v8';
+const CACHE_VERSION = 'smartedu-v11-facelib';
 const KEEP_CACHES = [CACHE_VERSION];
 
 // 需要缓存的静态资源特征
@@ -15,6 +15,8 @@ function isStaticAsset(request) {
   if (request.method !== 'GET') return false;
   const url = new URL(request.url);
   if (url.origin !== location.origin) return false;
+  // 关键脚本不走 SW 缓存拦截（face-api 等），始终走网络，避免缓存的旧/损坏副本导致 ERR_FAILED
+  if (['face-api.min.js', 'face-api.js'].includes(url.pathname.split('/').pop())) return false;
   // 明确的静态资源类型
   if (['script', 'style', 'image', 'font', 'manifest', 'icon'].includes(request.destination)) return true;
   return /\.(js|css|svg|png|jpe?g|gif|webp|ico|woff2?|ttf|map)(\?|$)/i.test(url.pathname);

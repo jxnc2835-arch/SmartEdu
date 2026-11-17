@@ -3,12 +3,12 @@ services:
   smartedu:
     build: .
     ports:
-      - "3000:3000"
-      - "3443:3443"
+      - "3100:3100"
+      - "3543:3543"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - HTTPS_PORT=3443
+      - PORT=3100
+      - HTTPS_PORT=3543
       - JWT_SECRET=${JWT_SECRET:-change-me-to-a-strong-random-string-at-least-32-chars}
       # 未设置会启动前直接报错(容器内 server.js 强制要求显式配置管理员密码, 空值会无限崩溃循环)
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:?请在 .env 或环境中设置 DEFAULT_ADMIN_PASSWORD(>=8位强密码)}
@@ -27,7 +27,7 @@ services:
       - smartedu-backups:/app/config/backups
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 3s
       retries: 3

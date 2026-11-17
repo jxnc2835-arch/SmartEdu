@@ -1,4 +1,5 @@
 ﻿const express = require('express');
+const fs = require('fs');
 const { formatDate } = require('../utils/helpers');
 
 /**
@@ -25,51 +26,76 @@ module.exports = {
 
     // Export students as Excel
     router.get('/api/export/students', authMiddleware, async (req, res) => {
-      const { class_name, grade, dorm, search } = req.query;
-      const where = ['1=1'];
-      const params = [];
-      if (class_name) { where.push('class_name=?'); params.push(class_name); }
-      if (grade) { where.push('grade=?'); params.push(grade); }
-      if (dorm) { where.push('dorm LIKE ?'); params.push(`%${dorm}%`); }
-      if (search) {
-        where.push('(name LIKE ? OR student_id LIKE ? OR phone LIKE ?)');
-        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      try {
+        const { class_name, grade, dorm, search } = req.query;
+        const where = ['1=1'];
+        const params = [];
+        if (class_name) { where.push('class_name=?'); params.push(class_name); }
+        if (grade) { where.push('grade=?'); params.push(grade); }
+        if (dorm) { where.push('dorm LIKE ?'); params.push(`%${dorm}%`); }
+        if (search) {
+          where.push('(name LIKE ? OR student_id LIKE ? OR phone LIKE ?)');
+          params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+        const sql = `SELECT student_id AS 学号, name AS 姓名, gender AS 性别, dorm AS 宿舍, class_name AS 班级, phone AS 电话 FROM students WHERE ${where.join(' AND ')}`;
+        const rows = db.exec(sql, params)[0]?.values || [];
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('学生列表');
+        // Header row
+        worksheet.addRow(['学号','姓名','性别','宿舍','班级','电话']);
+        // Data rows
+        rows.forEach(row => worksheet.addRow(row));
+        const buf = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="students.xlsx"');
+        res.end(buf);
+      } catch (e) {
+        // P1修复：async 路由异常兜底（Express 5 下未捕获 rejection 会导致响应挂起）
+        console.error('[export/students] 导出失败:', e);
+        if (!res.headersSent) res.json({ code: 1, message: '导出失败：' + e.message });
       }
-      const sql = `SELECT student_id AS 学号, name AS 姓名, gender AS 性别, dorm AS 宿舍, class_name AS 班级, phone AS 电话 FROM students WHERE ${where.join(' AND ')}`;
-      const rows = db.exec(sql, params)[0]?.values || [];
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('学生列表');
-      // Header row
-      worksheet.addRow(['学号','姓名','性别','宿舍','班级','电话']);
-      // Data rows
-      rows.forEach(row => worksheet.addRow(row));
-      const buf = await workbook.xlsx.writeBuffer();
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="students.xlsx"');
-      res.end(buf);
     });
+
+    // P1修复：PDF 中文字体按平台自动选择，Windows 缺 simhei 时逐级回退（原硬编码路径在非 Windows/缺字体环境直接 500）
+    function registerChineseFont(doc) {
+      const candidates = process.platform === 'win32'
+        ? ['C:/Windows/Fonts/simhei.ttf', 'C:/Windows/Fonts/msyh.ttc', 'C:/Windows/Fonts/simsun.ttc']
+        : ['/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'];
+      for (const p of candidates) {
+        try {
+          if (fs.existsSync(p)) { doc.registerFont('Chinese', p); return; }
+        } catch (e) { /* 尝试下一个候选 */ }
+      }
+      // 全部缺失时仍注册默认路径，让后续逻辑报出明确错误而非静默
+      doc.registerFont('Chinese', candidates[0]);
+    }
 
     // Export attendance as PDF
     router.get('/api/export/attendance', authMiddleware, (req, res) => {
-      const { date, class_name } = req.query;
-      const where = ['1=1'];
-      const params = [];
-      if (date) { where.push('r.date=?'); params.push(date); }
-      if (class_name) { where.push('s.class_name=?'); params.push(class_name); }
-      const sql = `SELECT r.date, r.time, s.name, s.student_id, r.type, r.status FROM records r LEFT JOIN students s ON r.student_id = s.student_id WHERE ${where.join(' AND ')}`;
-      const rows = db.exec(sql, params)[0]?.values || [];
-      const doc = new PDFDocument({margin:30});
-      doc.registerFont('Chinese','C:/Windows/Fonts/simhei.ttf');
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="attendance.pdf"');
-      doc.pipe(res);
-      doc.font('Chinese').fontSize(18).text('考勤记录', {align:'center'});
-      doc.moveDown();
-      rows.forEach(row => {
-        const [d,t,name,sid,type,status] = row;
-        doc.font('Chinese').fontSize(12).text(`${d} ${t} | ${name} (${sid}) | ${type} | ${status}`);
-      });
-      doc.end();
+      try {
+        const { date, class_name } = req.query;
+        const where = ['1=1'];
+        const params = [];
+        if (date) { where.push('r.date=?'); params.push(date); }
+        if (class_name) { where.push('s.class_name=?'); params.push(class_name); }
+        const sql = `SELECT r.date, r.time, s.name, s.student_id, r.type, r.status FROM records r LEFT JOIN students s ON r.student_id = s.student_id WHERE ${where.join(' AND ')}`;
+        const rows = db.exec(sql, params)[0]?.values || [];
+        const doc = new PDFDocument({margin:30});
+        registerChineseFont(doc);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename="attendance.pdf"');
+        doc.pipe(res);
+        doc.font('Chinese').fontSize(18).text('考勤记录', {align:'center'});
+        doc.moveDown();
+        rows.forEach(row => {
+          const [d,t,name,sid,type,status] = row;
+          doc.font('Chinese').fontSize(12).text(`${d} ${t} | ${name} (${sid}) | ${type} | ${status}`);
+        });
+        doc.end();
+      } catch (e) {
+        console.error('[export/attendance] 导出失败:', e);
+        if (!res.headersSent) res.status(500).json({ code: 1, message: 'PDF 导出失败：' + e.message });
+      }
     });
 
     // 综合性查寝报告（日报/周报/月报）PDF

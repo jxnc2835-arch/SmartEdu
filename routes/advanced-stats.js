@@ -23,6 +23,15 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
 
   const router = express.Router();
 
+  // 根据辅导员/班主任 classScope 解析有效班级：空 scope 默认第一个；越界返回 null（触发 403）
+  // 注：middleware/auth.js 写入 req.user.allowed_classes，此处优先读该字段
+  function resolveScopedClass(req, className) {
+    const sc = (req.user && (req.user.allowed_classes || req.user.classScope)) || [];
+    if (!sc || !sc.length) return className || '';
+    if (className && !sc.includes(className)) return null;
+    return className || sc[0];
+  }
+
   /**
    * GET /api/stats/conduct
    * 获取操行量化评分列表（需认证）
@@ -30,10 +39,16 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   router.get('/api/stats/conduct', authMiddleware, (req, res) => {
     try {
       const days = parseInt(req.query.days) || 30;
-      const { class_name } = req.query;
+      let { class_name } = req.query;
+      class_name = resolveScopedClass(req, class_name);
+      if (class_name === null) return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       const endDate = localDateStr();
-      const d = new Date(); d.setDate(d.getDate() - days);
-      const startDate = beijingDateStr(d);
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量回退，与公开版(dashboard.js)口径一致。
+      // 旧版 beijingDateStr(今天-30) 因该函数忽略参数恒返回"今天"→ 窗口塌缩成 1 天 → 全 0。
+      const [ey, em, ed] = endDate.split('-').map(Number);
+      const es = new Date(ey, em - 1, ed);
+      es.setDate(es.getDate() - days + 1);
+      const startDate = `${es.getFullYear()}-${String(es.getMonth()+1).padStart(2,'0')}-${String(es.getDate()).padStart(2,'0')}`;
       const sql = `
         SELECT s.id, s.name, s.dorm, s.class_name,
           COUNT(DISTINCT CASE WHEN r.status='在寝' THEN r.date END) as normal_days,
@@ -85,8 +100,11 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
       const days = parseInt(req.query.days) || 30;
       const { class_name } = req.query;
       const endDate = localDateStr();
-      const d = new Date(); d.setDate(d.getDate() - days);
-      const startDate = (() => { const utc = d.getTime() + d.getTimezoneOffset() * 60000; const bj = new Date(utc + 8 * 3600 * 1000); return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`; })();
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量回退，与 conduct/公开版口径一致
+      const [py, pm, pd] = endDate.split('-').map(Number);
+      const ps = new Date(py, pm - 1, pd);
+      ps.setDate(ps.getDate() - days + 1);
+      const startDate = `${ps.getFullYear()}-${String(ps.getMonth()+1).padStart(2,'0')}-${String(ps.getDate()).padStart(2,'0')}`;
       const result = db.exec(`
         SELECT s.dorm, s.class_name,
           COUNT(DISTINCT s.id) as total_students,
@@ -123,10 +141,15 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   router.get('/api/stats/dorm-rank', authMiddleware, (req, res) => {
     try {
       const days = parseInt(req.query.days) || 30;
-      const { class_name } = req.query;
+      let { class_name } = req.query;
+      class_name = resolveScopedClass(req, class_name);
+      if (class_name === null) return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       const endDate = localDateStr();
-      const d = new Date(); d.setDate(d.getDate() - days);
-      const startDate = (() => { const utc = d.getTime() + d.getTimezoneOffset() * 60000; const bj = new Date(utc + 8 * 3600 * 1000); return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`; })();
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量回退，与 conduct/公开版口径一致
+      const [py, pm, pd] = endDate.split('-').map(Number);
+      const ps = new Date(py, pm - 1, pd);
+      ps.setDate(ps.getDate() - days + 1);
+      const startDate = `${ps.getFullYear()}-${String(ps.getMonth()+1).padStart(2,'0')}-${String(ps.getDate()).padStart(2,'0')}`;
       const result = db.exec(`
         SELECT s.dorm, s.class_name, 
           COUNT(DISTINCT s.id) as total_students,
@@ -163,10 +186,15 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   router.get('/api/stats/attention', authMiddleware, (req, res) => {
     try {
       const days = parseInt(req.query.days) || 30;
-      const { class_name } = req.query;
+      let { class_name } = req.query;
+      class_name = resolveScopedClass(req, class_name);
+      if (class_name === null) return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       const endDate = localDateStr();
-      const d = new Date(); d.setDate(d.getDate() - days);
-      const startDate = (() => { const utc = d.getTime() + d.getTimezoneOffset() * 60000; const bj = new Date(utc + 8 * 3600 * 1000); return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`; })();
+      // 起点 = 今天(clamped) - (days-1)；按本地日期分量回退，与 conduct/公开版口径一致
+      const [py, pm, pd] = endDate.split('-').map(Number);
+      const ps = new Date(py, pm - 1, pd);
+      ps.setDate(ps.getDate() - days + 1);
+      const startDate = `${ps.getFullYear()}-${String(ps.getMonth()+1).padStart(2,'0')}-${String(ps.getDate()).padStart(2,'0')}`;
       const sql = `
         SELECT s.id, s.name, s.dorm, s.class_name,
           COUNT(CASE WHEN r.status IN ('未归','不在寝') THEN 1 END) as absent_count,
@@ -207,7 +235,9 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   // 宿舍异常检测
   router.get('/api/stats/dorm-anomaly', authMiddleware, (req, res) => {
     try {
-      const { class_name } = req.query;
+      let { class_name } = req.query;
+      class_name = resolveScopedClass(req, class_name);
+      if (class_name === null) return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       const today = localDateStr();
       const sql = `
         SELECT s.dorm, COUNT(DISTINCT r.student_id) as count, GROUP_CONCAT(DISTINCT s.name) as names
@@ -275,7 +305,9 @@ function init(_db, _scheduleSave, _addLog, authMiddleware, requireRole, localDat
   // 请假趋势
   router.get('/api/stats/leave-trend', authMiddleware, (req, res) => {
     try {
-      const { class_name } = req.query;
+      let { class_name } = req.query;
+      class_name = resolveScopedClass(req, class_name);
+      if (class_name === null) return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       const sql = `
         SELECT strftime('%Y-%m', l.start_date) as month,
           COALESCE(SUM(CASE WHEN l.type='事假' THEN 1 ELSE 0 END),0) as 事假,

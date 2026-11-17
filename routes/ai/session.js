@@ -1,6 +1,10 @@
 /**
  * AI 会话管理模块
  * 处理会话历史、消息存储、上下文更新
+ *
+ * 注：当前未接入运行链路。ai-chat.js 自带 sessionMemory 持久化，
+ * 不使用本模块；本文件仅供 test/ai-session.test.js 单测与后续复用，
+ * 勿当作死代码删除（它是 routes/ai/ 模块化问答引擎的一部分）。
  */
 const path = require('path');
 const fs = require('fs');

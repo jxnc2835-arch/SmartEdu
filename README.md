@@ -66,10 +66,10 @@ npm start
 ```
 
 服务启动后访问：
-- 教师端：http://localhost:3000/teacher.html
-- 学生端：http://localhost:3000/student.html
-- 数据大屏：http://localhost:3000/dashboard.html
-- Swagger API：http://localhost:3000/swagger
+- 教师端：http://localhost:3100/teacher.html
+- 学生端：http://localhost:3100/student.html
+- 数据大屏：http://localhost:3100/dashboard.html
+- Swagger API：http://localhost:3100/swagger
 
 ### 4. 默认账号
 
@@ -117,8 +117,8 @@ npm start
 ## API 文档
 
 启动服务后访问：
-- Swagger UI：http://localhost:3000/swagger
-- Health Check：http://localhost:3000/health
+- Swagger UI：http://localhost:3100/swagger
+- Health Check：http://localhost:3100/health
 
 ### 认证方式
 
@@ -151,7 +151,7 @@ npx jest test/checkin.test.js
 npx jest --coverage
 ```
 
-当前覆盖率：126/129 通过
+当前覆盖率：133/133 通过（21 个测试文件全部通过）
 
 ---
 
@@ -167,15 +167,15 @@ docker build -t smartedu .
 docker-compose up -d
 ```
 
-访问：http://localhost:3000
+访问：http://localhost:3100
 
 ### 生产环境配置
 
 ```env
 NODE_ENV=production
 HTTPS_MODE=true
-PORT=3000
-HTTPS_PORT=3443
+PORT=3100
+HTTPS_PORT=3543
 ```
 
 需要 SSL 证书：

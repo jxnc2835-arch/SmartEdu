@@ -33,6 +33,13 @@ function init(opts) {
    */
   function scopeOf(req) {
     const s = req.user && req.user.classScope;
+    const role = req.user && req.user.role;
+    // [修复·问题3] 辅导员/班主任未绑定班级时 classScope 为空；旧逻辑把"空 scope"当作
+    // "全部"放行，造成越权查看全校数据。此处改为"无匹配"(1=0)，杜绝越权；已绑定班级的
+    // 辅导员仍按所带班级正常过滤。
+    if ((role === 'counselor' || role === 'teacher') && (!s || !s.length)) {
+      return { clause: '1=0', params: [] };
+    }
     return (s && s.length) ? { clause: `class_name IN (${s.map(() => '?').join(',')})`, params: s } : { clause: '', params: [] };
   }
 
@@ -44,8 +51,8 @@ function init(opts) {
     res.json({ code: 0, data: limitPerClass(allStudents) });
   });
 
-  // 获取所有唯一宿舍列表（供批量操作快速选择）
-  router.get('/api/dorms/list', authMiddleware, (req, res) => {
+  // 获取所有宿舍列表（公开）
+  router.get('/api/students/dorms', (req, res) => {
     try {
       const rows = db.exec("SELECT DISTINCT dorm FROM students WHERE dorm IS NOT NULL AND dorm != '' ORDER BY dorm")[0]?.values || [];
       res.json({ code: 0, data: rows.map(r => r[0]) });
@@ -286,7 +293,6 @@ function init(opts) {
   router.put('/api/students/:id', authMiddleware, (req, res) => {
     const { id } = req.params;
     const { name, student_id, gender, dorm, class_name, phone } = req.body;
-    // console.log(`[PUT /api/students/${id}] body:`, req.body); // DEBUG: disabled in production
     const fields = [];
     const params = [];
     if (name !== undefined) { fields.push('name=?'); params.push(name); }
@@ -296,47 +302,129 @@ function init(opts) {
     if (class_name !== undefined) { fields.push('class_name=?'); params.push(class_name); }
     if (phone !== undefined) { fields.push('phone=?'); params.push(phone); }
     if (!fields.length) return res.json({ code: 1, message: '无更新字段' });
-    // 优先用 id 匹配（数据库真实 id）
+    // 兼容两种 id：真实主键 id（整数）与 student_id（学号，列表接口返回的 id 实为学号）
+    // 先按主键 id 匹配，0 行则回退按 student_id 匹配；仍 0 行如实返回未找到（避免假"成功"）
     const numericId = parseInt(id);
-    if(!isNaN(numericId) && numericId>0){
-      try{
+    let changed = false;
+    let lastErr = '';
+    if (!isNaN(numericId) && numericId > 0) {
+      try {
         db.run(`UPDATE students SET ${fields.join(', ')} WHERE id=?`, [...params, numericId]);
-        scheduleSave();
-        console.log(`[PUT] Updated by id=${numericId}`);
-        return res.json({ code: 0, message: '更新成功' });
-      }catch(e){
-        console.error('[PUT] Update by id failed:',e.message);
-        return res.json({ code: 1, message: '更新失败: '+e.message });
-      }
+        changed = db.getRowsModified() > 0;
+      } catch (e) { lastErr = e.message; }
     }
-    // 否则用学号匹配
-    try{
-      db.run(`UPDATE students SET ${fields.join(', ')} WHERE student_id=?`, [...params, id]);
-      scheduleSave();
-      console.log(`[PUT] Updated by student_id=${id}`);
-      return res.json({ code: 0, message: '更新成功' });
-    }catch(e){
-      console.error('[PUT] Update by student_id failed:',e.message);
-      return res.json({ code: 1, message: '更新失败: '+e.message });
+    if (!changed) {
+      try {
+        db.run(`UPDATE students SET ${fields.join(', ')} WHERE student_id=?`, [...params, String(id)]);
+        changed = db.getRowsModified() > 0;
+      } catch (e) { lastErr = e.message; }
     }
+    if (!changed) {
+      console.error('[PUT] 学生更新未命中:', id, lastErr);
+      return res.json({ code: 1, message: lastErr ? ('更新失败: ' + lastErr) : '未找到该学生，更新失败' });
+    }
+    scheduleSave();
+    console.log(`[PUT] 学生更新成功 (${changed ? 'id' : 'student_id'}=${id})`);
+    return res.json({ code: 0, message: '更新成功' });
   });
 
   router.delete('/api/students/:id', authMiddleware, (req, res) => {
     const { id } = req.params;
+    // P0修复：先精确定位目标学生（按主键 id 优先，回退学号），再级联清理关联数据
+    // 旧逻辑 "WHERE id=? OR student_id=?" 单条语句可能同时命中两条不同记录（主键N的学生A + 学号N的学生B）
+    let targetStudentId = null;
     const numericId = parseInt(id);
-    const isNumeric = !isNaN(numericId) && String(numericId) === String(id);
-    if(isNumeric){
-      db.run("DELETE FROM students WHERE id=?", [numericId]);
-    } else {
-      db.run("DELETE FROM students WHERE student_id=? OR id=?", [id, id]);
+    if (!isNaN(numericId) && String(numericId) === String(id)) {
+      const byPk = db.exec("SELECT student_id FROM students WHERE id=?", [numericId])[0]?.values?.[0];
+      if (byPk) targetStudentId = byPk[0];
     }
-    scheduleSave();
-    res.json({ code: 0, message: '删除成功' });
+    if (!targetStudentId) {
+      const byNo = db.exec("SELECT student_id FROM students WHERE student_id=?", [String(id)])[0]?.values?.[0];
+      if (byNo) targetStudentId = byNo[0];
+    }
+    if (!targetStudentId) {
+      return res.json({ code: 1, message: '未找到该学生，可能已被删除' });
+    }
+    try {
+      db.run("DELETE FROM students WHERE student_id=?", [targetStudentId]);
+      // 级联清理关联记录，防止孤儿数据（查寝/课堂签到、请假、告警）
+      db.run("DELETE FROM records WHERE student_id=?", [targetStudentId]);
+      db.run("DELETE FROM leaves WHERE student_id=?", [targetStudentId]);
+      try { db.run("DELETE FROM absence_alerts WHERE student_id=?", [targetStudentId]); } catch (e) { /* 表不存在则忽略 */ }
+      scheduleSave();
+      addLog?.('删除学生', `学号 ${targetStudentId} 及其关联签到/请假记录已删除`, 'INFO');
+      res.json({ code: 0, message: '删除成功（已同步清理关联记录）' });
+    } catch (e) {
+      res.json({ code: 1, message: '删除失败: ' + e.message });
+    }
   });
 
-  // 宿舍管理 CRUD
-router.get('/api/dorms/all', authMiddleware, (req, res) => {
+  // 获取所有唯一宿舍列表（供批量操作快速选择）
+  router.get('/api/dorms/list', authMiddleware, (req, res) => {
+    try {
+      const rows = db.exec("SELECT DISTINCT dorm FROM students WHERE dorm IS NOT NULL AND dorm != '' ORDER BY dorm")[0]?.values || [];
+      res.json({ code: 0, data: rows.map(r => r[0]) });
+    } catch (e) {
+      res.json({ code: 1, message: e.message });
+    }
+  });
+
+// 同步学生管理 → 宿舍管理：按 students.dorm 自动补建缺失宿舍并校正入住人数
+router.post('/api/dorms/sync', authMiddleware, (req, res) => {
   try {
+    const stuRows = db.exec("SELECT dorm, COUNT(*) as c FROM students WHERE dorm IS NOT NULL AND dorm != '' GROUP BY dorm")[0]?.values || [];
+    const dormRows = db.exec("SELECT id, building, room, capacity, gender, floor, occupied FROM dorms")[0]?.values || [];
+    const dormMap = new Map();
+    dormRows.forEach(r => dormMap.set(String(r[1]) + '|' + String(r[2]), { id: r[0], capacity: r[3] || 6, gender: r[4] || '', floor: r[5] || 0, occupied: r[6] || 0 }));
+
+    const normGender = g => (g === 'male' ? '男' : g === 'female' ? '女' : (g || ''));
+    const dormGender = dormStr => {
+      const g = db.exec("SELECT gender, COUNT(*) FROM students WHERE dorm=? GROUP BY gender ORDER BY COUNT(*) DESC LIMIT 1", [dormStr])[0]?.values?.[0]?.[0];
+      return normGender(g);
+    };
+
+    let created = 0, updated = 0, genderFixed = 0, capacityRaised = 0;
+    const unparsed = [];
+
+    for (const [dormStr, count] of stuRows) {
+      const s = String(dormStr).trim();
+      const m = s.match(/^(.+?栋)\s*(.+)$/);
+      if (!m) { unparsed.push(s); continue; }
+      const building = m[1].trim();
+      const room = m[2].trim();
+      const existing = dormMap.get(building + '|' + room);
+      if (existing) {
+        if (Number(existing.occupied) !== Number(count)) {
+          db.run("UPDATE dorms SET occupied=? WHERE id=?", [count, existing.id]);
+          updated++;
+        }
+        if (Number(count) > Number(existing.capacity)) {
+          db.run("UPDATE dorms SET capacity=? WHERE id=?", [count, existing.id]);
+          capacityRaised++;
+        }
+        if (!existing.gender) {
+          const g = dormGender(s);
+          if (g) { db.run("UPDATE dorms SET gender=? WHERE id=?", [g, existing.id]); genderFixed++; }
+        }
+      } else {
+        const num = parseInt(room.replace(/\D/g, ''), 10) || 0;
+        const floor = num >= 100 ? Math.floor(num / 100) : 0;
+        const g = dormGender(s) || '男';
+        const capacity = Math.max(6, Number(count));
+        db.run("INSERT INTO dorms(id, building, room, capacity, gender, floor, occupied) VALUES(?,?,?,?,?,?,?)",
+          ['dorm_' + Date.now() + '_' + created, building, room, capacity, g, floor, count]);
+        created++;
+      }
+    }
+    scheduleSave();
+    res.json({ code: 0, message: '同步完成', data: { total: stuRows.length, created, updated, genderFixed, capacityRaised, unparsed: [...new Set(unparsed)] } });
+  } catch (e) {
+    res.json({ code: 1, message: '同步失败: ' + e.message });
+  }
+});
+
+// 宿舍管理 CRUD
+router.get('/api/dorms/all', authMiddleware, (req, res) => {  try {
     const rows = db.exec("SELECT * FROM dorms ORDER BY building, room")[0]?.values || [];
     res.json({ code: 0, data: rows.map(r => ({
       id: r[0], building: r[1]||'', room: r[2]||'', capacity: r[3]||6, gender: r[4]||'', floor: r[5]||0, occupied: r[6]||0
@@ -378,6 +466,7 @@ router.put('/api/dorms/:id', authMiddleware, (req, res) => {
     if (!fields.length) return res.json({ code: 1, message: '无更新字段' });
     params.push(id);
     db.run(`UPDATE dorms SET ${fields.join(', ')} WHERE id=?`, params);
+    if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该宿舍，更新失败' });
     scheduleSave();
     res.json({ code: 0, message: '更新成功' });
   } catch (e) {
@@ -389,6 +478,7 @@ router.delete('/api/dorms/:id', authMiddleware, (req, res) => {
   try {
     const { id } = req.params;
     db.run("DELETE FROM dorms WHERE id=?", [id]);
+    if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该宿舍，删除失败' });
     scheduleSave();
     res.json({ code: 0, message: '删除成功' });
   } catch (e) {

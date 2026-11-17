@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#4f46e5" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="学管 SmartEdu" />
 <link rel="manifest" href="/manifest.json" />
@@ -43,6 +43,20 @@ body.keyboard-open{padding-bottom:20px}
 .form-group input[type="tel"]{inputmode:numeric;keyboard:auto}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#4f46e5;background:#fff;box-shadow:0 0 0 3px rgba(79,70,229,0.08)}
 .form-group textarea{resize:vertical;min-height:80px;font-family:inherit}
+/* 录音指示器（可见脉冲动画） */
+.rec-indicator{display:none;align-items:center;gap:8px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:8px 12px;margin-top:8px;font-size:13px;color:#991b1b}
+.rec-indicator.active{display:flex}
+.rec-dot{width:12px;height:12px;border-radius:50%;background:#dc2626;animation:recPulse 1s infinite}
+.rec-timer{font-weight:700;font-variant-numeric:tabular-nums}
+.rec-wave{display:flex;align-items:flex-end;gap:2px;height:16px}
+.rec-wave span{width:3px;background:#dc2626;border-radius:2px;animation:recWave 0.8s infinite}
+.rec-wave span:nth-child(1){height:40%;animation-delay:0s}
+.rec-wave span:nth-child(2){height:90%;animation-delay:.15s}
+.rec-wave span:nth-child(3){height:60%;animation-delay:.3s}
+.rec-wave span:nth-child(4){height:100%;animation-delay:.45s}
+.rec-wave span:nth-child(5){height:50%;animation-delay:.6s}
+@keyframes recPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.4)}}
+@keyframes recWave{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
 /* 按钮 - 增强触摸反馈 */
 .btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.15s text-align:center;margin-top:8px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .btn:active{transform:scale(0.98);opacity:0.95}
@@ -60,23 +74,26 @@ body.keyboard-open{padding-bottom:20px}
 .loc-info{background:#eef2ff;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:8px;display:none;border:1px solid #c7d2fe}
 .loc-info .label{color:#6366f1}
 /* 摄像头 */
-.camera-box{background:#0f172a;border-radius:12px;overflow:hidden;min-height:240px;display:flex;align-items:center;justify-content:center;position:relative;border:2px solid #e2e8f0}
+.camera-box{background:#0f172a;border-radius:12px;overflow:hidden;min-height:240px;position:relative;border:2px solid #e2e8f0}
 .camera-box:focus-within{border-color:#4f46e5}
-.camera-box video,.camera-box canvas{width:100%;display:block}
-.camera-box canvas{position:absolute;top:0;left:0}
+/* video 用 auto 高度自然撑开；canvas 绝对定位覆盖 video 区域，高度由 JS 动态同步 */
+.camera-box video{width:100%;height:auto;display:block}
+.camera-box canvas{position:absolute;top:0;left:0;width:100%;pointer-events:none;display:block}
 .camera-box .placeholder{color:#94a3b8;text-align:center;padding:40px}
 .camera-box .placeholder .icon{font-size:48px;margin-bottom:8px;opacity:0.7}
 .face-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;white-space:nowrap}
-/* 活体检测 UI */
-.camera-box.has-liveness{min-height:300px}
-.liveness-box{position:absolute;top:10px;left:10px;right:10px;background:rgba(15,23,42,0.82);backdrop-filter:blur(6px);border-radius:10px;padding:10px 12px;color:#fff;font-size:12px}
-.liveness-title{font-weight:600;font-size:12px;margin-bottom:6px;color:#a5b4fc}
-.liveness-steps{display:flex;gap:8px;margin-bottom:6px}
-.liveness-step{flex:1;text-align:center;padding:5px 4px;border-radius:8px;background:rgba(255,255,255,0.08);color:#cbd5e1;font-size:11px;transition:all 0.25s}
-.liveness-step.active{background:rgba(99,102,241,0.4);color:#fff;box-shadow:0 0 0 1.5px #818cf8}
-.liveness-step.done{background:rgba(16,185,129,0.35);color:#fff;box-shadow:0 0 0 1.5px #34d399}
-.liveness-status{font-size:11px;color:#e2e8f0;margin-bottom:5px;min-height:14px}
-.liveness-progress{height:5px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden}
+/* 活体检测 UI（精简版）：状态条贴在摄像头窗口底部，引导/进度/跳过按钮放到窗口下方 */
+.camera-box.has-liveness{min-height:260px}
+/* 窗口内极轻状态条：底部居中、半透明、不遮挡人脸检测区 */
+.liveness-strip{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);border-radius:8px;padding:5px 10px;color:#fff;font-size:12px;font-weight:600;pointer-events:none}
+/* 窗口下方活体引导面板：步骤 + 进度条 + 跳过按钮 */
+.liveness-panel{margin-top:8px;background:#eef2ff;border:1px solid #e0e7ff;border-radius:10px;padding:8px 10px}
+.liveness-panel .liveness-steps{margin-bottom:6px}
+.liveness-steps{display:flex;gap:8px}
+.liveness-step{flex:1;text-align:center;padding:6px 4px;border-radius:8px;background:#fff;color:#64748b;font-size:12px;font-weight:600;transition:all 0.25s}
+.liveness-step.active{background:#e0e7ff;color:#4f46e5;box-shadow:0 0 0 1.5px #818cf8}
+.liveness-step.done{background:#d1fae5;color:#047857;box-shadow:0 0 0 1.5px #34d399}
+.liveness-progress{height:5px;background:#e2e8f0;border-radius:4px;overflow:hidden}
 .liveness-bar{height:100%;width:0%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:4px;transition:width 0.3s}
 .liveness-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
 .liveness-badge.pass{background:rgba(16,185,129,0.25);color:#6ee7b7;border:1px solid rgba(16,185,129,0.5)}
@@ -141,6 +158,12 @@ body.keyboard-open{padding-bottom:20px}
 .success-page p{color:#64748b;font-size:14px;margin-top:4px}
 .empty-state{text-align:center;padding:30px;color:#64748b;font-size:14px}
 .empty-state .icon{font-size:40px;margin-bottom:8px;opacity:0.6}
+/* 记录列表限高：约显示 5 条，超出滚动查看 */
+#ciRecordsList,#lvMyList,#clMyList,#myLeaveProgress,#myAnnList{max-height:215px;overflow-y:auto;padding-right:2px;scrollbar-width:thin;scrollbar-color:#c7d2fe transparent}
+#ciRecordsList::-webkit-scrollbar,#lvMyList::-webkit-scrollbar,#clMyList::-webkit-scrollbar,#myLeaveProgress::-webkit-scrollbar,#myAnnList::-webkit-scrollbar{width:6px}
+#ciRecordsList::-webkit-scrollbar-thumb,#lvMyList::-webkit-scrollbar-thumb,#clMyList::-webkit-scrollbar-thumb,#myLeaveProgress::-webkit-scrollbar-thumb,#myAnnList::-webkit-scrollbar-thumb{background:#c7d2fe;border-radius:3px}
+body.dark #ciRecordsList,body.dark #lvMyList,body.dark #clMyList,body.dark #myLeaveProgress,body.dark #myAnnList{scrollbar-color:#475569 transparent}
+body.dark #ciRecordsList::-webkit-scrollbar-thumb,body.dark #lvMyList::-webkit-scrollbar-thumb,body.dark #clMyList::-webkit-scrollbar-thumb,body.dark #myLeaveProgress::-webkit-scrollbar-thumb,body.dark #myAnnList::-webkit-scrollbar-thumb{background:#475569}
 /* 登录页 */
 body.dark{background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);color:#e2e8f0}
 body.dark .tab-bar{background:rgba(15,23,42,0.92);border-color:#334155}
@@ -267,7 +290,7 @@ body.dark select,
       <img src="../assets/logo-smartedu.svg" alt="SmartEdu" class="icon" />
     </div>
     <h1>学管 <span style="color:#00d4ff">SmartEdu</span></h1>
-    <p style="color:rgba(148,163,184,0.9);font-size:13px;margin-bottom:20px">基于多模态感知与深度学习的<br><b>高校学生智能管理平台</b><br><span style="font-size:12px;color:rgba(148,163,184,0.7);margin-top:4px;display:inline-block">学生端 · 请登录您的账号</span></p>
+    <p style="color:rgba(148,163,184,0.9);font-size:13px;margin-bottom:20px">基于多模态感知与深度学习的<br><b>高校学生智能管理系统</b><br><span style="font-size:12px;color:rgba(148,163,184,0.7);margin-top:4px;display:inline-block">学生端 · 请登录您的账号</span></p>
     <div class="form-group">
       <label>选择班级</label>
       <div class="select-wrap" style="position:relative">
@@ -390,6 +413,16 @@ body.dark select,
 
 <!-- ===== 查寝签到 ===== -->
 <div class="page active" id="page-checkin">
+  <!-- 待完成查寝任务横幅：教师发布/当天 pending 任务时显示 -->
+  <div id="ciTaskBanner" style="display:none;background:linear-gradient(90deg,#fef3c7,#fde68a);border:1.5px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:14px;font-weight:600;color:#92400e">📢 待完成查寝任务</div>
+    <div id="ciTaskBannerBody" style="font-size:13px;color:#78350f;margin-top:6px;line-height:1.7"></div>
+  </div>
+  <!-- 教师公告横幅 -->
+  <div id="annBanner" style="display:none;background:linear-gradient(90deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;border-radius:12px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:14px;font-weight:600;color:#1d4ed8">📢 教师公告</div>
+    <div id="annBannerBody" style="margin-top:6px"></div>
+  </div>
   <div class="card">
     <h3>🏠 查寝签到 <span style="font-size:12px;color:#6c757d;font-weight:400" id="checkinDate"></span></h3>
     <div class="form-group"><label>备注（选填）</label><input id="ciNote" placeholder="如：在图书馆自习" style="padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;width:100%;outline:none" /></div>
@@ -406,19 +439,25 @@ body.dark select,
       <div class="camera-box" id="ciCamBox">
         <div class="placeholder" id="ciCamPlaceholder"><div class="icon">📸</div><p>点击拍照</p></div>
         <video id="ciVideo" autoplay playsinline style="display:none"></video>
-        <canvas id="ciOverlay" style="display:none"></canvas>
+        <!-- 绿框：用 DOM 元素画，不依赖 canvas 尺寸同步，更可靠 -->
+        <div id="ciFaceBox" style="position:absolute;border:3px solid #00ff88;border-radius:4px;display:none;pointer-events:none;box-shadow:0 0 8px rgba(0,255,136,0.5)"></div>
         <img class="captured-img" id="ciPhoto" style="display:none" />
-        <div class="face-hint" id="ciFaceHint" style="display:none">😊 请将人脸对准框内</div>
-        <!-- 活体检测引导 -->
-        <div class="liveness-box" id="ciLivenessBox" style="display:none">
-          <div class="liveness-title">🔐 活体检测（防照片代签）</div>
-          <div class="liveness-steps" id="ciLivenessSteps">
-            <div class="liveness-step" data-step="face">① 正对人脸</div>
-            <div class="liveness-step" data-step="blink">② 眨眨眼 😉</div>
-          </div>
-          <div class="liveness-status" id="ciLivenessStatus">正在初始化...</div>
-          <div class="liveness-progress"><div class="liveness-bar" id="ciLivenessBar"></div></div>
+        <!-- 极轻状态条：贴在窗口底部，不遮挡人脸检测区；活体引导/进度/跳过按钮移到窗口下方 -->
+        <div class="liveness-strip" id="ciLivenessBox" style="display:none">
+          <span id="ciLivenessStatus">正在初始化...</span>
         </div>
+      </div>
+      <!-- 活体检测引导：移到摄像头窗口下方，避免挤占人脸识别画面 -->
+      <div class="liveness-panel" id="ciLivenessPanel" style="display:none">
+        <div class="liveness-steps" id="ciLivenessSteps">
+          <div class="liveness-step" data-step="face">① 正对人脸</div>
+          <div class="liveness-step" data-step="blink">② 眨一下眼 👀</div>
+        </div>
+        <div class="liveness-progress"><div class="liveness-bar" id="ciLivenessBar"></div></div>
+        <!-- 兜底：模型加载失败/长时间检测不到人脸时，允许手动跳过（后端会标记 liveness_passed=0） -->
+        <button id="ciSkipLivenessBtn" onclick="skipLiveness()" style="display:none;margin-top:8px;width:100%;padding:6px 10px;background:rgba(239,68,68,0.18);border:1px solid rgba(239,68,68,0.4);color:#fca5a5;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">
+          ⏩ 模型异常/检测不到？输入学号跳过活体（人工复核，将记录日志）
+        </button>
       </div>
       <div class="cam-controls">
         <button class="cam-btn" id="ciCamBtn" onclick="toggleCam('ci')">📷 拍照</button>
@@ -429,11 +468,12 @@ body.dark select,
     </div>
     <button class="btn btn-outline" id="ciVoiceBtn" onclick="toggleVoiceCheckin()" style="margin-top:8px">🎤 语音签到（应急模式）</button>
     <div id="voiceCheckinArea" style="display:none;margin-top:10px">
-      <div class="form-group"><label>说出你的签到口令（自动识别）</label><textarea id="voiceText" placeholder="点击麦克风后说话..." rows="3"></textarea></div>
+      <div class="form-group"><label>说出你的签到口令（自动识别，也可手动输入）</label><textarea id="voiceText" placeholder="点击麦克风后说话，或在此手动输入..." rows="3" oninput="document.getElementById('voiceSubmitBtn').disabled = !this.value.trim()"></textarea></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" id="voiceRecordBtn" onclick="startVoiceRecord()">🎙️ 开始录音</button>
         <button class="btn btn-success" id="voiceSubmitBtn" onclick="submitVoiceCheckin()" disabled>✅ 提交语音签到</button>
       </div>
+      <div class="rec-indicator" id="voiceRecIndicator"><span class="rec-dot"></span><span class="rec-wave"><span></span><span></span><span></span><span></span><span></span></span><span id="voiceRecTimer">00:00</span><span id="voiceRecLabel">正在录音，请说话</span></div>
       <div id="voiceStatus" style="margin-top:8px;font-size:12px;color:#64748b;text-align:center"></div>
     </div>
     <button class="btn btn-outline" id="ciQrBtn" onclick="startQrScan('ci')" style="margin-top:8px">📷 扫码签到</button>
@@ -470,16 +510,14 @@ body.dark select,
     <div class="form-group"><label>开始日期</label><input type="date" id="lvStart" /></div>
     <div class="form-group"><label>结束日期</label><input type="date" id="lvEnd" /></div>
     <div class="form-group"><label>请假原因</label><textarea id="lvReason" placeholder="请详细说明请假原因..."></textarea></div>
-    <div class="form-group"><label>证明材料（选填，可拍照或上传图片）</label>
+    <div class="form-group">
       <div class="camera-box" style="min-height:160px" id="lvCamBox">
-        <div class="placeholder" id="lvCamPlaceholder"><div class="icon">📎</div><p>拍照或上传图片</p></div>
+        <div class="placeholder" id="lvCamPlaceholder"><div class="icon">📎</div><p>请上传证明图片</p></div>
         <video id="lvVideo" autoplay playsinline style="display:none"></video>
-        <canvas id="lvOverlay" style="display:none"></canvas>
+        <div id="lvFaceBox" style="position:absolute;border:3px solid #00ff88;border-radius:4px;display:none;pointer-events:none;box-shadow:0 0 8px rgba(0,255,136,0.5)"></div>
         <img class="captured-img" id="lvPhoto" style="display:none" />
       </div>
       <div class="cam-controls">
-        <button class="cam-btn" onclick="toggleCam('lv')">📷 拍照</button>
-        <button class="retake-btn" id="lvRetake" style="display:none" onclick="retakeCam('lv')">🔄 重拍</button>
         <button class="retake-btn cam-upload-btn" id="lvUploadBtn" onclick="document.getElementById('lvFileInput').click()">📁 上传图片</button>
         <input type="file" id="lvFileInput" accept="image/*" style="display:none" onchange="handleFileUpload(event)" />
       </div>
@@ -509,14 +547,15 @@ body.dark select,
       </div>
       <div style="font-size:11px;color:#64748b;margin-top:4px;text-align:center" id="clLocProgressText">正在获取高精度定位...</div>
     </div>
-    <button class="btn btn-outline" id="clQrBtn" onclick="startQrScan('cl')" style="margin-top:8px">📷 扫码签到</button>
+    <button class="btn btn-outline" id="clPhotoBtn" onclick="startClPhotoCheckin()" style="margin-top:8px">📷 拍照签到</button>
     <button class="btn btn-outline" id="clVoiceBtn" onclick="toggleClVoiceCheckin()" style="margin-top:8px">🎤 语音签到</button>
     <div id="clVoiceArea" style="display:none;margin-top:10px">
-      <div class="form-group"><label>说出你的签到口令（自动识别）</label><textarea id="clVoiceText" placeholder="点击麦克风后说话..." rows="3"></textarea></div>
+      <div class="form-group"><label>说出你的签到口令（自动识别，也可手动输入）</label><textarea id="clVoiceText" placeholder="点击麦克风后说话，或在此手动输入..." rows="3" oninput="document.getElementById('clVoiceSubmitBtn').disabled = !this.value.trim()"></textarea></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" id="clVoiceRecordBtn" onclick="startClVoiceRecord()">🎙️ 开始录音</button>
         <button class="btn btn-success" id="clVoiceSubmitBtn" onclick="submitClVoiceCheckin()" disabled>✅ 提交语音签到</button>
       </div>
+      <div class="rec-indicator" id="clVoiceRecIndicator"><span class="rec-dot"></span><span class="rec-wave"><span></span><span></span><span></span><span></span><span></span></span><span id="clVoiceRecTimer">00:00</span><span id="clVoiceRecLabel">正在录音，请说话</span></div>
       <div id="clVoiceStatus" style="margin-top:8px;font-size:12px;color:#64748b;text-align:center"></div>
     </div>
     <button class="btn btn-primary" id="clSubmit" disabled>✅ 签到</button>
@@ -543,29 +582,12 @@ body.dark select,
     <div style="font-size:11px;color:var(--cs-sub);margin-top:4px">基础100分 · 签到+1 · 缺勤-5 · 请假-1</div>
   </div>
   <div class="card">
-    <h3>📊 我的考勤统计</h3>
-    <div class="stats" id="myStats" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
-      <div class="s-card green"><div class="n" id="myChecked">-</div><div class="l">✅ 已签到</div></div>
-      <div class="s-card red"><div class="n" id="myAbsent">-</div><div class="l">🔴 未归次数</div></div>
-      <div class="s-card blue"><div class="n" id="myRate">-%</div><div class="l">📈 出勤率</div></div>
-    </div>
-    <div style="margin-top:12px">
-      <h4 style="font-size:13px;color:var(--gray);margin-bottom:8px">📅 最近7天查寝记录</h4>
-      <div id="myWeeklyChart" style="height:150px;display:flex;align-items:flex-end;gap:4px;padding:10px 0"></div>
-    </div>
-  </div>
-  <div class="card">
     <h3>📝 我的请假进度</h3>
     <div id="myLeaveProgress"><div class="empty-state"><p>暂无请假记录</p></div></div>
   </div>
   <div class="card">
-    <h3>📋 历史记录</h3>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('checkin')">🏠 查寝</button>
-      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('leave')">📝 请假</button>
-      <button class="btn btn-outline" style="flex:1;padding:8px;font-size:13px" onclick="loadMyRecords('class')">🏫 课堂</button>
-    </div>
-    <div id="myRecords"><div class="empty-state"><p>请先选择身份，再点击上方筛选</p></div></div>
+    <h3>📢 公告记录</h3>
+    <div id="myAnnList"><div class="empty-state"><p>暂无公告</p></div></div>
   </div>
 </div>
 
@@ -580,6 +602,24 @@ body.dark select,
   <div style="text-align:center;padding:8px;color:rgba(255,255,255,0.6);font-size:12px">
     将二维码置于框内，自动识别<br/>
     <span id="qrScanMode" style="font-weight:600;color:#a5b4fc">查寝签到</span>
+  </div>
+</div>
+
+<!-- ===== 课堂拍照签到遮罩 ===== -->
+<div id="photoCheckinOverlay" class="qr-overlay" style="display:none">
+  <div class="qr-overlay-header">
+    <span style="font-size:16px;font-weight:600">📷 拍照签到</span>
+    <button onclick="closeClPhotoCheckin()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:4px">✕</button>
+  </div>
+  <div style="width:100%;max-width:400px;margin:0 auto">
+    <video id="clPhotoVideo" autoplay playsinline style="width:100%;border-radius:12px;background:#000"></video>
+    <img id="clPhotoPreview" style="display:none;width:100%;border-radius:12px" />
+  </div>
+  <div id="clPhotoStatus" style="text-align:center;padding:10px;color:#fff;font-size:14px">正在启动摄像头...</div>
+  <div style="display:flex;gap:12px;margin-top:8px;justify-content:center">
+    <button class="btn btn-primary" id="clPhotoCaptureBtn" onclick="captureClPhoto()" style="min-width:120px">📸 拍照</button>
+    <button class="btn btn-outline" id="clPhotoRetakeBtn" onclick="retakeClPhoto()" style="display:none;min-width:120px;color:#fff;border-color:rgba(255,255,255,0.5)">🔄 重拍</button>
+    <button class="btn btn-success" id="clPhotoSubmitBtn" onclick="submitClPhotoCheckin()" style="display:none;min-width:120px">✅ 确认签到</button>
   </div>
 </div>
 
@@ -673,7 +713,7 @@ async function loadStudentDashboard(){
     }
     // 30天日历
     const d=new Date();const days=[];
-    for(let i=29;i>=0;i--){const t=new Date(d);t.setDate(t.getDate()-i);days.push(t.toISOString().slice(0,10));}
+    for(let i=29;i>=0;i--){const t=new Date(d);t.setDate(t.getDate()-i);days.push(bjDateStr(t));}
     const cr=await fetch('/api/students');const cj=await cr.json();
     if(cj.code===0&&cj.data){
       const records=cj.data.filter(s=>s.id===myStudentId);
@@ -872,15 +912,39 @@ function showInstallPrompt() {
 // ===== 全局状态 =====
 let myStudentId = localStorage.getItem('myStudentId') || '';
 let myClassName = localStorage.getItem('myClassName') || '';
+let myDorm = localStorage.getItem('myDorm') || '';
 let myStudentToken = localStorage.getItem('myStudentToken') || '';
 let cameraStream = null, camMode = '', photoData = '', faceDetected = false, modelsLoaded = false, detInterval = null;
 let landmarkLoaded = false;          // 关键点+表情模型是否就绪（活体检测前置）
+let expressionLoaded = false;        // 表情模型是否就绪（活体 blink 辅助信号，可选）
 let livenessPassed = false;          // 活体检测是否通过
 let livenessScore = 0;               // 活体置信度（基于眨眼动作稳定性）
 let blinkCount = 0;                  // 检测到的眨眼次数
-let eyeState = 'open';               // 当前眼睛状态（用于眨眼边沿检测）
+let eyeState = 'open';               // 当前眼睛状态（兼容保留）
+let closedFrames = 0;                // 当前闭眼段持续帧数（兼容保留，眨眼模式下按通道判定，暂不使用）
+let prevLivenessClosed = false;      // 上一帧是否处于闭眼（兼容保留，眨眼模式下按通道判定，暂不使用）
 let livenessActive = false;          // 活体检测循环是否在运行
 let livenessMode = '';               // 当前活体检测所属模式
+let livenessSkipped = false;         // 用户手动跳过了活体检测（兜底通道）
+let livenessSkipReason = '';         // 跳过原因（manual_学号 / auto_timeout 等，供后端审计）
+// ===== 眨眼活体检测（唯一活体通道）=====
+// 三通道判定：① EAR 相对动态基线骤降  ② 表情 blink 概率  ③ EAR 绝对值兜底
+// EAR 取「眼睛开合度」（眼皮到眼角的水平/竖直比），人脸正面、睁眼时典型 0.25~0.45，闭眼骤降到 <0.15。
+// 基线只在"稳定睁眼"时抬升（只抬不降、封顶 0.50），避免眨眼帧污染基线把降幅门槛压低（旧坑）
+let livenessBaselineEar = null;    // 睁眼 EAR 动态基线（滑动衰减，仅稳定睁眼时抬升）
+let livenessEarSamples = [];       // 近 30 帧 EAR 样本（用于判断是否"稳定睁眼"）
+let prevEarSample = 0;            // 上一帧 EAR（用于骤降判定）
+let livenessEarDropSeenAt = 0;     // 最近一次"骤降"时间戳（用于 3s 兜底窗口）
+let livenessEarDropGraceMs = 3000; // 骤降后 3s 内有效（容忍采样滑过闭眼帧）
+let livenessEarDropRatio = 0.30;   // EAR 相对基线骤降 ≥ 30% 视为一次眨眼（基线 0.28 时要求 EAR ≤0.196；睁眼 0.28~0.35 不误触发）
+let livenessEarAbsolute = 0.20;    // EAR 绝对值 < 0.20 兜底（您实际眨眼瞬态最低 0.20~0.23；睁眼 0.28~0.35 不会误触发）
+let livenessEarCeil = 0.45;        // EAR 合理上限（睁眼 0.25~0.35，封顶 0.45 防 landmark 抖动虚高）
+let livenessBlinkExpr = 0.20;      // 表情 blink 概率 ≥ 0.20 视为一次眨眼
+// ===== 窗口最低点判定（治"采样稀释"）=====
+let livenessWindowMs = 600;          // 近 0.6s 窗口（采样 100ms 时约 6 帧）
+let livenessEarWindow = [];          // [{t, ear}] 近窗口 EAR 样本
+let livenessWindowDropRatio = 0.20;  // 窗口最低点相对基线降幅 ≥ 20% 即判眨眼（比单帧 30% 宽，容忍采样稀释）
+let livenessOk = false;           // 本周期是否已判定到一次有效眨眼
 const locState = { ci: null, cl: null };
 const OFFLINE_QUEUE = []; // 离线队列
 let isOnline = navigator.onLine; // 网络状态
@@ -934,7 +998,8 @@ async function loadOfflineRecords() {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const index = store.index('synced');
-      const request = index.getAll('false');
+      // P0修复：记录以布尔 false 存入，原查询传字符串 'false' → IDB 键类型不同永远查不到 → 离线记录永不重传
+      const request = index.getAll(false);
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
@@ -1048,7 +1113,8 @@ window.addEventListener('offline', () => {
 });
 
 function syncOfflineData() {
-  if (OFFLINE_QUEUE.length === 0 || !isOnline) return;
+  // P0修复：原守卫要求内存队列非空才继续，页面刷新后内存队列清空但 IndexedDB 仍有待同步记录会被永久跳过
+  if (!isOnline) return;
   
   // 首先同步 IndexedDB 中的离线记录
   loadOfflineRecords().then(async (records) => {
@@ -1102,7 +1168,8 @@ function syncOfflineData() {
         OFFLINE_QUEUE.length = 0;
         localStorage.removeItem('offlineQueue');
       }
-  }).catch(() => {});
+    }).catch(() => {});
+  }
 }
 
 // 刷新当前标签页数据
@@ -1111,13 +1178,12 @@ function refreshCurrentTab() {
   pages.forEach(p => {
     if (p.classList.contains('active')) {
       const id = p.id;
-      if (id === 'page-checkin') loadCheckinData();
+      if (id === 'page-checkin') { loadCheckinData(); loadPendingCheckinTasks(); }
       else if (id === 'page-leave') { loadMyLeaves(); }
       else if (id === 'page-class') { loadMyClass(); }
       else if (id === 'page-my') { loadMyStatistics(); }
     }
   });
-}
 }
 
 // ===== 人脸特征提取 =====
@@ -1183,7 +1249,7 @@ function loadOfflineQueue() {
 
 loadOfflineQueue();
 
-function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2500)}
+function toast(m, duration){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),duration||2500)}
 
 // ===== 确认对话框 =====
 function confirmDialog(title, message) {
@@ -1234,6 +1300,12 @@ function todayStr(){
   const m=String(d.getMonth()+1).padStart(2,'0');
   const day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
+}
+
+// 北京时间日期串（P1修复：records.date 以北京时间存储，前端对比窗口禁用 toISOString 的 UTC 口径，否则每天 0-8 点会偏移一天）
+function bjDateStr(d){
+  const base = d instanceof Date ? d : new Date();
+  return new Date(base.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 // 统一时间格式化：中文年月日格式
@@ -1300,7 +1372,9 @@ async function loadStudents() {
     if (myStudentId && studentMap[myStudentId]) {
       const s = studentMap[myStudentId];
       myClassName = s.class_name || '';
+      myDorm = s.dorm || '';
       localStorage.setItem('myClassName', myClassName);
+      localStorage.setItem('myDorm', myDorm);
       const cls = s.class_name || '未分班';
       if (classSel) classSel.value = cls;
       onStudentSearch(); // 过滤学生列表
@@ -1383,12 +1457,18 @@ document.addEventListener('DOMContentLoaded', () => {
 // 未登录时服务器拒绝 upgrade，登录成功/掉线后用当前 token 重建连接）
 // 协议自适应：HTTPS 页面下用 wss://（自签证书手机会警告但可继续），HTTP 页面下用 ws://
 let ws = null;
+let wsReconnectAttempts = 0;        // 连续重连次数（指数退避用）
+let wsReconnectTimer = null;        // 重连定时器句柄
+const WS_MAX_RECONNECT = 8;         // 连续失败 N 次后停止重连（避免无限刷屏）
 function connectStudentWS() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  // 清理既有重连定时器，避免重复排队
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/?token=${encodeURIComponent(myStudentToken || '')}`);
   ws.onopen = () => {
     console.log('WebSocket connected');
+    wsReconnectAttempts = 0; // 连上即清零退避计数
   };
   ws.onmessage = (event) => {
     try {
@@ -1409,13 +1489,25 @@ function connectStudentWS() {
             });
           }
           
-          // 如果在请假页面，刷新列表
-          if (document.getElementById('page-leave').classList.contains('active')) {
-            loadMyLeaves();
-          }
-          // 无论是否在请假页面，都刷新（因为审批结果需要实时看到）
+          // 请假审批结果实时刷新（P1修复：原条件内外各调一次导致同屏双拉取）
           loadMyLeaves();
         }
+      }
+      if (msg.type === 'announcement' && myStudentId) {
+        // 教师发布新公告：弹提示 + 桌面通知 + 刷新公告横幅
+        toast(`📢 新公告：${esc(msg.data.title)}`);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('📢 ' + msg.data.title, {
+            body: msg.data.content || '',
+            icon: '/icons/icon-192.svg',
+            badge: '/icons/icon-96.svg',
+            tag: msg.data.id || 'announcement'
+          });
+        }
+        loadAnnouncements();
+        // 若正停留在"我的"页，同步刷新公告记录列表
+        const mp = document.getElementById('page-my');
+        if (mp && mp.classList.contains('active')) loadMyAnnouncements();
       }
       if (msg.type === 'leave_updated' && myStudentId && msg.data.student_id === myStudentId) {
         // 教师审批后，刷新学生端的请假列表
@@ -1433,15 +1525,58 @@ function connectStudentWS() {
         
         loadMyLeaves();
       }
+      if (msg.type === 'course_updated' && myStudentId) {
+        // 教师端创建/删除课程：防抖刷新今日课表下拉，无需手动刷新页面
+        clearTimeout(window._courseRefreshTimer);
+        window._courseRefreshTimer = setTimeout(() => {
+          loadCourses();
+          // 课堂页可见时同步刷新签到记录区
+          const cp = document.getElementById('page-class');
+          if (cp && cp.classList.contains('active')) loadMyClass();
+        }, 600);
+        const act = msg.data && msg.data.action === 'deleted' ? '课程已更新（删除）' : '课程表已更新';
+        toast(`🔄 ${act}，课表已自动刷新`);
+      }
+      if (msg.type === 'checkin_task' && myStudentId) {
+        // 教师发布查寝任务：查寝页横幅 + toast + 桌面通知
+        const t = msg.data;
+        const tClass = t.class_name || '';
+        // 仅对本人班级或全年级（class_name 为空）显示（班级名归一化比较）
+        const relevant = !normClassName(tClass) || normClassName(tClass) === normClassName(myClassName);
+        if (relevant) {
+          renderCheckinTaskBanner(t);
+          toast(`📢 新查寝任务：${tClass || '全年级'} · 日期 ${t.date}${t.remark ? ' · ' + t.remark : ''}`);
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('新查寝任务', {
+              body: `班级：${tClass || '全年级'}\n日期：${t.date}${t.remark ? '\n备注：' + t.remark : ''}`,
+              icon: '/icons/icon-192.svg',
+              tag: 'checkin-task-' + t.id
+            });
+          }
+          // 切到查寝页让横幅可见
+          const cp = document.getElementById('page-checkin');
+          if (cp && !cp.classList.contains('active')) switchTab('checkin');
+        }
+      }
     } catch (e) {
       console.error('WebSocket message parse error', e);
     }
   };
-  ws.onerror = (e) => console.error('WebSocket error', e);
+  ws.onerror = (e) => { /* 实际结果在 onclose 统一处理；不再单独打 error 刷屏 */ };
   ws.onclose = () => {
-    console.warn('WebSocket closed');
-    // 已登录状态下掉线（含 token 过期/服务器重启）5 秒后用当前 token 重连
-    if (myStudentToken) setTimeout(connectStudentWS, 5000);
+    if (!myStudentToken) return; // 未登录不重连（服务器会拒绝 upgrade）
+    // 首次断开时探测会话有效性：token 过期（401）则弹登录层并停止重连，
+    // 治"token 过期后 WS 静默连不上、学生收不到查寝通知却毫无感知"
+    if (!_sessionExpiredHandled) probeStudentSession();
+    if (wsReconnectAttempts >= WS_MAX_RECONNECT) {
+      console.warn('WebSocket 连续 ' + WS_MAX_RECONNECT + ' 次重连失败，停止重连（避免刷屏）。可刷新页面重试。');
+      return;
+    }
+    wsReconnectAttempts++;
+    // 指数退避：1s → 2s → 4s → 8s → …（上限 30s），避免服务器宕机时疯狂重连刷红字
+    const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts - 1), 30000);
+    console.warn('WebSocket closed，' + (delay/1000) + 's 后第 ' + wsReconnectAttempts + '/' + WS_MAX_RECONNECT + ' 次重连…');
+    wsReconnectTimer = setTimeout(connectStudentWS, delay);
   };
 }
 connectStudentWS();
@@ -1462,11 +1597,14 @@ function doLogin() {
       return;
     }
     myStudentToken = j.token;
+    _sessionExpiredHandled = false; // 重新登录成功，恢复会话过期处理
     localStorage.setItem('myStudentToken', myStudentToken);
     myStudentId = id;
     myClassName = j.student.class_name || '';
+    myDorm = j.student.dorm || '';
     localStorage.setItem('myStudentId', id);
     localStorage.setItem('myClassName', myClassName);
+    localStorage.setItem('myDorm', myDorm);
     document.getElementById('loginOverlay').style.display = 'none';
     
     // 如果必须修改密码，显示强制修改密码界面
@@ -1483,6 +1621,7 @@ function doLogin() {
     document.getElementById('userBar').style.display = 'flex';
     document.getElementById('userBarName').textContent = `👤 ${esc(j.student.name)}（${j.student.dorm}）`;
     toast(`✅ 欢迎，${j.student.name}`);
+    loadAnnouncements();
     // 登录成功后用新 token 重建 WebSocket（WS 鉴权后，未登录建立的连接会被服务器拒绝）
     connectStudentWS();
     // 重新加载各模块数据
@@ -1646,32 +1785,141 @@ async function doLogout() {
   localStorage.removeItem('myClassName');
   localStorage.removeItem('myStudentToken');
   // 主动断开 WebSocket 会话（token 已失效，避免服务器侧残留连接）
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  wsReconnectAttempts = 0;
   if (ws && ws.readyState === WebSocket.OPEN) { ws.onclose = null; ws.close(); }
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('forcePwdOverlay').style.display = 'none';
   document.getElementById('userBar').style.display = 'none';
   // 重置所有功能状态
   resetCi();
+  ciActiveTask = null; ciStepDone = { voice: false, qrcode: false };
+  const ciBanner = document.getElementById('ciTaskBanner');
+  if (ciBanner) ciBanner.style.display = 'none';
   document.getElementById('lvReason').value = '';
   document.getElementById('lvMyList').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
   document.getElementById('clMyList').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
-  document.getElementById('myRecords').innerHTML = '<div class="empty-state"><p>请先登录</p></div>';
   document.getElementById('loginBtn').disabled = true;
   document.getElementById('loginStudentInfo').textContent = '';
   toast('👋 已退出');
 }
 
 // ===== 查寝 =====
+// 当前生效的查寝任务（含教师勾选的 required_steps）与独立通道完成状态
+// required_steps 为教师发布任务时勾选的必做项（location/photo/voice/qrcode），空则默认 定位+拍照
+let ciActiveTask = null;
+let ciStepDone = { voice: false, qrcode: false };
+const CI_STEP_LABELS = { location: '📍 获取位置', photo: '📷 拍照/上传照片', voice: '🎤 语音签到', qrcode: '📷 扫码签到' };
+
 function checkCiReady(){
   const loc=locState.ci, p=photoData;
   // 摄像头模式下要求通过活体检测；模型未就绪时降级放行（后端会如实标记 liveness_passed=0）
-  const livenessOk = (camMode==='ci' && photoData && photoData.startsWith('data:image'))
-    ? (landmarkLoaded ? livenessPassed : true)
+  // 用户手动跳过活体（livenessSkipped）时也可提交，避免活体检测故障卡死签到
+  const livenessOk = (camMode==='ci' && p && p.startsWith('data:image'))
+    ? ((landmarkLoaded && livenessPassed) || livenessSkipped)  // [P0修复] 模型未加载时必须拒绝提交（除非手动跳过）
     : true;
-  document.getElementById('ciSubmit').disabled = !(myStudentId&&loc&&p&&livenessOk);
+  // 教师勾选的必做步骤：无任务时默认要求 定位+拍照（传统每日签到行为不变）
+  const req = (ciActiveTask && Array.isArray(ciActiveTask.required_steps) && ciActiveTask.required_steps.length)
+    ? ciActiveTask.required_steps : ['location','photo'];
+  let ok = !!myStudentId;
+  if (req.includes('location') && !loc) ok = false;
+  if (req.includes('photo') && !(p && livenessOk)) ok = false;
+  if (req.includes('voice') && !ciStepDone.voice) ok = false;
+  if (req.includes('qrcode') && !ciStepDone.qrcode) ok = false;
+  document.getElementById('ciSubmit').disabled = !ok;
   const hint=document.getElementById('ciLivenessStatus');
-  if(!livenessOk && hint){
-    hint.textContent='⚠️ 请先完成活体检测（眨眨眼）再提交';
+  if(req.includes('photo') && p && !livenessOk && hint && !livenessSkipped){
+    hint.textContent='⚠️ 请先完成活体检测（眨一下眼睛）再提交，或点「⏩ 跳过活体」走人工复核';
+  }
+  updateCiTaskStepStatus();
+}
+// 横幅内逐项完成状态实时刷新（任务要求的步骤对应 ⬜/✅）
+function updateCiTaskStepStatus(){
+  if (!ciActiveTask) return;
+  const st = { location: !!locState.ci, photo: !!photoData, voice: ciStepDone.voice, qrcode: ciStepDone.qrcode };
+  (ciActiveTask.required_steps || []).forEach(k => {
+    const el = document.getElementById('ciStep_' + k);
+    if (el) { el.textContent = st[k] ? '✅ 已完成' : '⬜ 待完成'; el.style.color = st[k] ? '#166534' : '#b45309'; }
+  });
+}
+// 渲染查寝任务横幅（WS 实时推送 / 页面加载兜底共用）
+function renderCheckinTaskBanner(task) {
+  const banner = document.getElementById('ciTaskBanner');
+  const body = document.getElementById('ciTaskBannerBody');
+  if (!banner || !body) return;
+  // 新任务到来时重置独立通道（语音/扫码）完成状态
+  if (!ciActiveTask || ciActiveTask.id !== task.id) ciStepDone = { voice: false, qrcode: false };
+  ciActiveTask = task;
+  const tClass = task.class_name || '全年级';
+  const req = (Array.isArray(task.required_steps) && task.required_steps.length) ? task.required_steps : ['location','photo','voice','qrcode'];
+  if (!Array.isArray(task.required_steps) || !task.required_steps.length) task.required_steps = req;
+  const lines = [`班级：${esc(tClass)} · 日期：${esc(task.date || '')}`];
+  lines.push('需完成：' + req.map(k => `<span id="ciStep_${esc(k)}">⬜ 待完成</span> ${esc(CI_STEP_LABELS[k] || k)}`).join('　'));
+  if (task.remark) lines.push(`备注：${esc(task.remark)}`);
+  if (task.created_at) lines.push(`发布：${esc(String(task.created_at).slice(0, 19).replace('T',' '))}`);
+  body.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+  banner.style.display = 'block';
+  checkCiReady();
+}
+// 班级名归一化（去首尾空白），避免教师端发布班级与学生端 class_name 因空格差异匹配失败
+function normClassName(s){ return String(s||'').trim(); }
+// 会话过期统一处理：清本地态、弹登录层并明确提示（治"token 过期后页面看似已登录、
+// WS 连不上 / 接口 401 全被静默吞掉，学生收不到查寝通知也无感知"的问题）
+let _sessionExpiredHandled = false;
+function handleSessionExpired(){
+  if(_sessionExpiredHandled) return;
+  _sessionExpiredHandled = true;
+  myStudentId=''; myClassName=''; myStudentToken='';
+  localStorage.removeItem('myStudentId');
+  localStorage.removeItem('myClassName');
+  localStorage.removeItem('myStudentToken');
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.onclose = null; ws.close(); }
+  const lo = document.getElementById('loginOverlay');
+  if (lo) lo.style.display = 'flex';
+  toast('⚠️ 登录已过期，请重新登录后再接收查寝通知', 4000);
+}
+// 会话有效性探测：带 token 轻量请求，401 即判定过期（区分"网络不通"与"登录失效"）
+async function probeStudentSession(){
+  if (!myStudentId || !myStudentToken) return;
+  try {
+    const r = await fetch('/api/tasks/student?_probe=1&_t=' + Date.now(), { headers: { 'x-student-token': myStudentToken } });
+    if (r.status === 401) handleSessionExpired();
+  } catch (e) { /* 网络异常不判定过期 */ }
+}
+// 离线兜底：查寝页打开/刷新时拉取本人班级当天 pending 查寝任务（WS 未连接也能看到）
+async function loadPendingCheckinTasks() {
+  if (!myStudentId || !myStudentToken) return;
+  try {
+    const headers = { 'x-student-token': myStudentToken };
+    const url = `/api/tasks/student?status=pending&_t=${Date.now()}`;
+    const r = await fetch(url, { headers });
+    if (r.status === 401) { handleSessionExpired(); return; }
+    const j = await r.json();
+    if (j.code !== 0 || !j.data || !j.data.length) {
+      const b = document.getElementById('ciTaskBanner');
+      if (b) b.style.display = 'none';
+      ciActiveTask = null; ciStepDone = { voice: false, qrcode: false }; checkCiReady();
+      return;
+    }
+    const today = todayStr();
+    // 仅显示 pending 且（无班级限制 或 班级匹配）的任务（班级名归一化比较）
+    const visible = j.data.filter(t =>
+      t.status === 'pending' &&
+      (!normClassName(t.class_name) || normClassName(t.class_name) === normClassName(myClassName))
+    );
+    if (!visible.length) {
+      const b = document.getElementById('ciTaskBanner');
+      if (b) b.style.display = 'none';
+      ciActiveTask = null; ciStepDone = { voice: false, qrcode: false }; checkCiReady();
+      return;
+    }
+    // 取最近一条展示（多条合并备注）
+    const top = visible[0];
+    renderCheckinTaskBanner(top);
+  } catch (e) {
+    // 学生 token 拉 tasks 被 401/403 拦截时静默（实时 WS 通道兜底）
+    console.warn('加载查寝任务失败（WS 通道兜底）:', e);
   }
 }
 // 加载查寝记录
@@ -1700,7 +1948,7 @@ async function loadCheckinData() {
     // 本周统计
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekStart = weekAgo.toISOString().slice(0, 10);
+    const weekStart = bjDateStr(weekAgo);
     const weekRecords = j.data.filter(r => r.date >= weekStart);
     const weekChecked = weekRecords.filter(r => r.status === '在寝').length;
     const leaveStatuses = ['未归','病假','事假','公假','丧假','请假'];
@@ -1723,141 +1971,165 @@ async function loadCheckinData() {
   } catch(e) {
     console.error('加载查寝记录失败:', e);
     hideLoading();
-    list.innerHTML = '<div class="empty-state"><p>加载失败: ' + e.message + '</p></div>';
+    list.innerHTML = '<div class="empty-state"><p>加载失败: ' + esc(e.message || '网络异常') + '</p></div>';
   }
 }
 function startLocate(mode){
   const btn = document.getElementById(mode+'Locate');
   if (!navigator.geolocation) { toast('⚠️ 浏览器不支持定位'); return; }
-  
-  btn.disabled=true; btn.textContent='⏳ 高精度定位中...';
-  
-  // 多次采样提高精度
-  let samples = [];
-  let maxSamples = 5; // 最多采样5次
-  let sampleCount = 0;
-  
-  function sampleLocation() {
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          samples.push({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy || 100
-          });
-          sampleCount++;
-          
-          // 显示进度条
-          const progress = Math.round((sampleCount / maxSamples) * 100);
-          const avgAcc = (samples.reduce((sum, s) => sum + s.accuracy, 0) / samples.length).toFixed(0);
-          
-          const progressDiv = document.getElementById(mode+'LocProgress');
-          const progressBar = document.getElementById(mode+'LocProgressBar');
-          const progressText = document.getElementById(mode+'LocProgressText');
-          
-          if (progressDiv) {
-            progressDiv.style.display = 'block';
-            if (progressBar) progressBar.style.width = progress + '%';
-            if (progressText) progressText.textContent = `采样中... (${sampleCount}/${maxSamples}) 当前精度: ${avgAcc}米`;
-          }
-          
-          document.getElementById(mode+'Address').textContent = `采样中... (${sampleCount}/${maxSamples}) 平均精度: ${avgAcc}米`;
-          
-          if (sampleCount >= maxSamples) {
-            resolve();
-          } else {
-            // 等待1秒后继续采样
-            setTimeout(sampleLocation, 1000);
-          }
-        },
-        (err) => {
-          console.warn('采样失败:', err);
-          resolve(); // 即使失败也继续
-        },
-        {
-          enableHighAccuracy: true, // 启用高精度（使用GPS）
-          timeout: 15000,           // 延长超时时间
-          maximumAge: 0             // 不使用缓存位置
-        }
-      );
-    });
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isSecure = location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1';
+  if (isMobile && !isSecure) {
+    toast('⚠️ 手机浏览器在非 HTTPS / localhost 下可能无法定位，建议访问 HTTPS 地址或使用校园网');
   }
-  
-  // 开始采样
-  sampleLocation().then(async () => {
-    // 计算平均位置（按精度加权）
-    if (samples.length === 0) {
-      toast('⚠️ 定位失败，请检查GPS权限');
-      btn.disabled=false; 
-      btn.textContent='📍 获取位置';
+
+  btn.disabled=true; btn.textContent='⏳ 高精度定位中...';
+
+  const progressDiv = document.getElementById(mode+'LocProgress');
+  const progressBar = document.getElementById(mode+'LocProgressBar');
+  const progressText = document.getElementById(mode+'LocProgressText');
+  const addrEl = document.getElementById(mode+'Address');
+  if(progressDiv){ progressDiv.style.display='block'; }
+  if(progressBar){ progressBar.style.width='5%'; }
+  if(progressText){ progressText.textContent='正在获取高精度定位...'; }
+
+  // 采样策略：手机端为主——动态采样最多 8 次（让 GPS 收敛），加"收敛早退"避免白等；
+  // 电脑端（网络定位）保持 3 次即可，网络定位精度本就有限，不必长等。
+  const maxSamples = isMobile ? 8 : 3;
+  const sampleDelay = 800;   // 采样间隔
+  const overallTimeout = isMobile ? 25000 : 12000; // 整体兜底超时（手机端放宽让 GPS 收敛）
+  const CONVERGE_MS = 2500;  // 收敛早退窗口：近 2.5s 内坐标稳定即提前结束
+  const MOVE_EPS_M = 15;     // 收敛判据：与最近样本位移 <15m 视为已稳定
+  const samples = [];
+  let finished = false;
+
+  const haversineM = (a, b) => {
+    const R = 6371000, r = Math.PI/180;
+    const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+
+  const finish = async () => {
+    if(finished) return; finished=true;
+    if(progressDiv) progressDiv.style.display='none';
+    if(samples.length===0){
+      toast('⚠️ 定位失败：未获取到有效位置，请检查 GPS/定位权限，或确认是否为 HTTPS 访问');
+      btn.disabled=false; btn.textContent='📍 重新获取位置';
       return;
     }
-    
-    // 加权平均：精度越高（数值越小）权重越大
-    const totalWeight = samples.reduce((sum, s) => sum + (1 / s.accuracy), 0);
-    const avgLat = samples.reduce((sum, s) => sum + (s.lat / s.accuracy), 0) / totalWeight;
-    const avgLng = samples.reduce((sum, s) => sum + (s.lng / s.accuracy), 0) / totalWeight;
-    const avgAccuracy = samples.reduce((sum, s) => sum + s.accuracy, 0) / samples.length;
-    
-    const finalAccuracy = avgAccuracy.toFixed(0);
-    locState[mode] = {lat: avgLat, lng: avgLng, accuracy: parseInt(finalAccuracy)};
-    
-    // 先显示坐标
+    // 多因子加权：精度(1/accuracy) × 时间新鲜度(越新越重) × 与历史均值一致性(离群漂移点降权)
+    const n = samples.length;
+    let latSum=0, lngSum=0, accSum=0;
+    samples.forEach((s,idx)=>{ latSum+=s.lat; lngSum+=s.lng; accSum+=s.accuracy; });
+    const meanLat = latSum/n, meanLng = lngSum/n;
+    let totalWeight=0; const weighted=[];
+    samples.forEach((s,idx)=>{
+      const wAcc = 1/Math.max(s.accuracy,1);                 // 精度因子
+      const wTime = (idx+1)/n;                                // 新鲜度因子（越靠后越新）
+      const dispM = haversineM({lat:meanLat,lng:meanLng},{lat:s.lat,lng:s.lng});
+      const wCons = 1/(1+dispM/25);                            // 一致性因子（离群点位移大→降权）
+      const w = wAcc*wTime*wCons;
+      totalWeight+=w;
+      weighted.push({lat:s.lat,lng:s.lng,w});
+    });
+    const avgLat = weighted.reduce((sum,p)=>sum+p.lat*p.w,0)/totalWeight;
+    const avgLng = weighted.reduce((sum,p)=>sum+p.lng*p.w,0)/totalWeight;
+    const avgAccuracy = Math.round(accSum/n);
+    locState[mode] = {lat: avgLat, lng: avgLng, accuracy: avgAccuracy};
+
     const coordAddr = `${avgLat.toFixed(6)}, ${avgLng.toFixed(6)}`;
-    document.getElementById(mode+'Address').textContent = coordAddr + `（正在获取地址...）`;
-    document.getElementById(mode+'LocInfo').style.display = 'block';
-      
-      // 从服务器获取地图配置（支持高德/腾讯/百度）
-      try {
-        const configRes = await fetch('/api/config/map');
-        const mapConfig = await configRes.json();
-        
-        if (mapConfig.provider === 'tencent' && mapConfig.tencentKey) {
-          const txUrl = `https://apis.map.qq.com/ws/geocoder/v1/?location=${avgLat},${avgLng}&key=${mapConfig.tencentKey}`;
-          const r = await fetch(txUrl);
-          const d = await r.json();
-          if (d.status === 0 && d.result) {
-            const precise = d.result.address_detail;
-            const parts = [precise.province, precise.city, precise.district, precise.street].filter(Boolean);
-            if (precise.nearby?.length) parts.push(precise.nearby[0]);
-            document.getElementById(mode+'Address').textContent = (parts.join(' ') || d.result.address) + `（精度：${finalAccuracy}米）`;
-          }
-        } else if (mapConfig.provider === 'baidu' && mapConfig.baiduKey) {
-          const bdUrl = `https://api.map.baidu.com/reverse_geocoding/v3/?ak=${mapConfig.baiduKey}&location=${avgLat},${avgLng}&output=json&coordtype=wgs84ll`;
-          const r = await fetch(bdUrl);
-          const d = await r.json();
-          if (d.status === 0 && d.result) {
-            document.getElementById(mode+'Address').textContent = d.result.formatted_address + `（精度：${finalAccuracy}米）`;
-          }
-        } else if (mapConfig.provider === 'amap' && mapConfig.amapKey) {
-          // 高德地图逆地理编码（wgs84坐标需先转换，高德默认返回gcj02格式地址）
-          const amUrl = `https://restapi.amap.com/v3/geocode/regeo?location=${avgLng},${avgLat}&key=${mapConfig.amapKey}&radius=1000&extensions=all`;
-          const r = await fetch(amUrl);
-          const d = await r.json();
-          if (d.status === '1' && d.regeocode) {
-            const a = d.regeocode.addressComponent;
-            const parts = [a.province, a.city, a.district].filter(Boolean);
-            const poi = a.neighbourhood?.name || a.street + (a.streetNumber || '');
-            if (poi) parts.push(poi);
-            document.getElementById(mode+'Address').textContent = parts.join(' ') + `（精度：${finalAccuracy}米）`;
-          }
-        } else {
-          throw new Error('未配置地图API');
+    const accNote = `（精度：${avgAccuracy}米，正在解析地址...）`;
+    addrEl.textContent = coordAddr + accNote;
+    document.getElementById(mode+'LocInfo').style.display='block';
+
+    try {
+      const configRes = await fetch('/api/config/map');
+      const mapConfigJson = await configRes.json();
+      // 接口返回 {code:0, data:{provider, amapKey,...}}，需取 data 字段
+      const mapConfig = mapConfigJson.data || mapConfigJson;
+      let address = '';
+      if (mapConfig.provider === 'tencent' && mapConfig.tencentKey) {
+        const txUrl = `https://apis.map.qq.com/ws/geocoder/v1/?location=${avgLat},${avgLng}&key=${mapConfig.tencentKey}`;
+        const r = await fetch(txUrl); const d = await r.json();
+        if (d.status === 0 && d.result) {
+          const precise = d.result.address_detail;
+          const parts = [precise.province, precise.city, precise.district, precise.street].filter(Boolean);
+          if (precise.nearby?.length) parts.push(precise.nearby[0]);
+          address = parts.join(' ') || d.result.address;
         }
-      } catch(e) {
-        console.warn('地址解析失败:', e);
-        document.getElementById(mode+'Address').textContent = coordAddr + `（精度：${finalAccuracy}米）`;
+      } else if (mapConfig.provider === 'baidu' && mapConfig.baiduKey) {
+        const bdUrl = `https://api.map.baidu.com/reverse_geocoding/v3/?ak=${mapConfig.baiduKey}&location=${avgLat},${avgLng}&output=json&coordtype=wgs84ll`;
+        const r = await fetch(bdUrl); const d = await r.json();
+        if (d.status === 0 && d.result) address = d.result.formatted_address;
+      } else if (mapConfig.provider === 'amap' && mapConfig.amapKey) {
+        const amUrl = `https://restapi.amap.com/v3/geocode/regeo?location=${avgLng},${avgLat}&key=${mapConfig.amapKey}&radius=1000&extensions=all`;
+        const r = await fetch(amUrl); const d = await r.json();
+        if (d.status === '1' && d.regeocode) {
+          const re = d.regeocode;
+          // 优先用高德拼好的完整地址 formatted_address（最可靠）
+          if (re.formatted_address) {
+            address = re.formatted_address;
+          } else {
+            // 兜底：手动拼（高德字段为 neighborhood 美式拼写；街道在 streetNumber.street）
+            const a = re.addressComponent;
+            const parts = [a.province, a.city, a.district].filter(Boolean);
+            const poi = (a.neighborhood && a.neighborhood.name) || (a.streetNumber && a.streetNumber.street + (a.streetNumber.number || ''));
+            if (poi) parts.push(poi);
+            address = parts.join(' ');
+          }
+        }
       }
-      
-      // 隐藏进度条
-      const progressDiv = document.getElementById(mode+'LocProgress');
-      if (progressDiv) progressDiv.style.display = 'none';
-      
-      btn.className='locate-btn success'; btn.textContent='✅ 定位成功'; btn.disabled=false;
-      if(mode==='ci') checkCiReady();
-      if(mode==='cl') checkClReady();
+      if(address) addrEl.textContent = address + `（精度：${avgAccuracy}米）`;
+      else addrEl.textContent = coordAddr + `（精度：${avgAccuracy}米）`;
+    } catch(e) {
+      console.warn('地址解析失败:', e);
+      addrEl.textContent = coordAddr + `（精度：${avgAccuracy}米）`;
+    }
+
+    btn.className='locate-btn success'; btn.textContent='✅ 定位成功'; btn.disabled=false;
+    if(mode==='ci') checkCiReady();
+    if(mode==='cl') checkClReady();
+  };
+
+  const takeSample = () => new Promise((resolve)=>{
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        samples.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy || 100 });
+        resolve(true);
+      },
+      (err)=>{ console.warn('定位采样失败:', err); resolve(false); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
   });
+
+  (async ()=>{
+    for(let i=0;i<maxSamples;i++){
+      if(finished) break;
+      const progress = Math.round((i/maxSamples)*100);
+      if(progressBar) progressBar.style.width=progress+'%';
+      if(progressText) progressText.textContent=`采样中... (${i}/${maxSamples})`;
+      addrEl && (addrEl.textContent=`采样中... (${i}/${maxSamples})`);
+      await takeSample();
+      // 收敛早退：至少采 3 次后，若与上一样本位移 <15m 且当前精度 ≤ 上一轮均值，说明 GPS 已稳定，提前结束
+      const last = samples[samples.length-1];
+      if(samples.length>=3 && last){
+        const prev = samples[samples.length-2];
+        const moveM = haversineM(prev, last);
+        const avgAccSoFar = samples.reduce((s,x)=>s+x.accuracy,0)/samples.length;
+        if(moveM < MOVE_EPS_M && last.accuracy <= avgAccSoFar){
+          if(progressText) progressText.textContent='定位已收敛，完成采样';
+          break;
+        }
+      }
+      if(i<maxSamples-1 && !finished) await new Promise(r=>setTimeout(r,sampleDelay));
+    }
+    await finish();
+  })();
+
+  // 兜底：整体超时后强制结束，避免浏览器回调不触发导致按钮卡住
+  setTimeout(()=>{ if(!finished) finish(); }, overallTimeout);
 }
 
 // 人脸模型加载（仅在需要时触发）
@@ -1865,60 +2137,150 @@ function startLocate(mode){
 async function loadFaceModels() {
   if (modelsLoaded) return;
   await loadFaceApi(); // 先确保 face-api.js 已加载
+
+  // ===== 诊断日志：记录模型加载全过程，方便在浏览器 Console 定位问题 =====
+  console.log('[活体诊断] 开始加载人脸模型...');
+  console.log('[活体诊断] faceapi 对象:', typeof faceapi, '| detectSingleFace:', typeof faceapi?.detectSingleFace, '| detectLandmarks:', typeof faceapi?.detectLandmarks);
+
+  // ===== 移动端关键：强制 tf.js 优先用 WebGL 后端（GPU 推理，比 CPU 快 5~10 倍）=====
+  // 不 setBackend 时 tf.js 默认可能落到 CPU（尤其某些安卓 WebView），导致三模型推理极慢、卡顿。
+  let _finalBackend = 'cpu (未指定)';
+  try {
+    if (typeof tf !== 'undefined') {
+      _finalBackend = tf.getBackend();
+      // 已有 GPU 后端则保留；否则强制试 webgl
+      if (_finalBackend === 'cpu' || !_finalBackend) {
+        try {
+          await tf.setBackend('webgl');
+          await tf.ready();
+          _finalBackend = 'webgl';
+          console.log('[活体诊断] ✓ tf.js 已切换到 WebGL 后端（GPU 加速）');
+        } catch (webglErr) {
+          console.warn('[活体诊断] ⚠️ WebGL 后端不可用，回退 CPU:', webglErr.message);
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+  console.log('[活体诊断] tfjs backend:', _finalBackend);
+
+  // 检查 WebGL 支持
+  try {
+    const _c = document.createElement('canvas');
+    const _gl = _c.getContext('webgl') || _c.getContext('experimental-webgl');
+    if (_gl) {
+      const _dbg = _gl.getExtension('WEBGL_debug_renderer_info');
+      const _renderer = _dbg ? _gl.getParameter(_dbg.UNMASKED_RENDERER) : _gl.getParameter(_gl.RENDERER);
+      console.log('[活体诊断] WebGL OK:', _renderer);
+    } else {
+      console.warn('[活体诊断] ⚠️ WebGL 不可用！tf.js 将使用 CPU 后端（移动端已降采样+跳表情模型缓解）');
+    }
+  } catch (e) {
+    console.warn('[活体诊断] ⚠️ WebGL 检查异常:', e.message);
+  }
+
   const sources = [
-    '/models/',  // 本地优先（离线/答辩演示稳定）
-    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'
+    '/models/',  // 本地优先（离线/演示稳定）
+    'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights/'  // 原版 face-api 官方权重 CDN 回退（jsdelivr GitHub 镜像，实测 200）
   ];
   let lastErr = null;
+  // [P1] 模型加载失败自动重试 1 次：同一源连续失败 2 次后判定该源不可用，换下一源
   for (const base of sources) {
-    try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri(base);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(base);   // 68点关键点：眨眼检测
-      await faceapi.nets.faceExpressionNet.loadFromUri(base);    // 表情：blink 概率辅助
-      modelsLoaded = true;
-      landmarkLoaded = true;
-      console.log('✓ 人脸模型已加载:', base);
-      return;
-    } catch (e) {
-      lastErr = e;
-      console.warn('模型加载失败，尝试下一个源:', base, e.message);
+    let attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        console.log('[活体诊断] 加载模型源:', base, '| 第', attempts, '次');
+        const t0 = performance.now();
+        await faceapi.nets.tinyFaceDetector.loadFromUri(base);
+        const t1 = performance.now();
+        let lmOk = false;
+        try {
+          await faceapi.nets.faceLandmark68Net.loadFromUri(base);   // 68点关键点：眨眼检测
+          const t2 = performance.now();
+          const tinyOk = faceapi.nets.tinyFaceDetector.isLoaded;
+          lmOk = faceapi.nets.faceLandmark68Net.isLoaded;
+          console.log('[活体诊断] 模型 isLoaded: tiny=' + tinyOk + ' landmark=' + lmOk + ' | 耗时: tiny=' + (t1 - t0).toFixed(0) + 'ms landmark=' + (t2 - t1).toFixed(0) + 'ms');
+        } catch (lmErr) {
+          console.warn('[活体诊断] 关键点模型加载失败，降级为纯脸检测（眨眼判定暂不可用）:', lmErr.message);
+        }
+        // 表情模型（活体 blink 辅助信号）独立加载，失败不阻断核心人脸检测
+        expressionLoaded = false;
+        try { await faceapi.nets.faceExpressionNet.loadFromUri(base); expressionLoaded = true; }
+        catch (ee) { console.warn('表情模型加载失败，活体检测降级为纯眨眼模式:', ee.message); }
+        // ===== 部分加载即降级运行（治本）=====
+        // 只要人脸检测器就绪就标记 modelsLoaded，让检测循环/脸判定先跑起来；
+        // 关键点缺失时 landmarkLoaded=false，analyzeLiveness 需 landmark，
+        // 但此时用户至少能走"跳过活体"兜底，不再整链卡死在"未检测到人脸"。
+        const tinyOkNow = faceapi.nets.tinyFaceDetector.isLoaded;
+        if (tinyOkNow) {
+          modelsLoaded = true;
+          landmarkLoaded = lmOk;
+          console.log('[活体诊断] ✓ 人脸模型已加载:', base,
+            '（关键点:', lmOk ? 'OK' : '缺失', '| 表情:', expressionLoaded ? 'OK' : '跳过', '）');
+          return; // 检测器就绪即返回（部分加载也算成功，不再 throw）
+        }
+        // 检测器都没加载上才视为失败，继续尝试下一源
+        const emsg = '人脸检测器权重未真正加载（isLoaded=' + tinyOkNow + '，可能权重文件损坏）: ' + base;
+        console.warn(emsg);
+        lastErr = new Error(emsg);
+        break;  // 该源无效 → 换下一源
+      } catch (e) {
+        // tinyFaceDetector 加载抛错（网络/文件 404）→ 该源作废，换下一源
+        lastErr = e;
+        console.warn('[活体诊断] 模型加载失败（第'+attempts+'次）:', base, '| 错误:', e.message, '| 堆栈:', (e.stack || '').substring(0, 200));
+        if (attempts < 2) {
+          console.log('[活体诊断] 1 秒后自动重试...');
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
     }
   }
   modelsLoaded = false;
   landmarkLoaded = false;
+  console.error('[活体诊断] ❌ 所有模型源均加载失败:', lastErr?.message);
   throw lastErr || new Error('模型加载失败');
+}
+
+// 辅助：从 video 元素取当前帧到 canvas（face-api 传 video 时依赖 video.width 属性，
+// 移动端浏览器常不更新该属性导致检测永远失败；手动 drawImage 后传 canvas 最可靠）
+let _detectCanvas = null;
+function _getDetectCanvas(video) {
+  if (!_detectCanvas) _detectCanvas = document.createElement('canvas');
+  const w = video.videoWidth || 640, h = video.videoHeight || 480;
+  if (_detectCanvas.width !== w || _detectCanvas.height !== h) {
+    _detectCanvas.width = w; _detectCanvas.height = h;
+  }
+  _detectCanvas.getContext('2d').drawImage(video, 0, 0, w, h);
+  return _detectCanvas;
 }
 
 async function toggleCam(mode){
   const video=document.getElementById(mode+'Video');
   const ph=document.getElementById(mode+'CamPlaceholder');
-  
+
   // 如果摄像头已经在运行，直接拍照
-  if (cameraStream) { 
-    capturePhoto(mode); 
-    return; 
+  if (cameraStream) {
+    capturePhoto(mode);
+    return;
   }
-  
+
   // 检查浏览器是否支持摄像头
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     let msg = '⚠️ 当前浏览器不支持摄像头功能';
     const ua = navigator.userAgent;
-    
     if (/MicroMessenger/i.test(ua)) {
       msg += '（微信内置浏览器限制，请使用手机自带Chrome/Safari）';
     } else if (/QQ\//i.test(ua) || /MQQBrowser/i.test(ua)) {
       msg += '（QQ内置浏览器限制，请使用手机自带Chrome/Safari）';
     } else if (/Android/i.test(ua) || /iPhone|iPad|iPod/i.test(ua)) {
-      // 移动端HTTP下getUserMedia不可用，引导使用上传照片
       msg += '（手机浏览器通过HTTP访问无法使用摄像头，请点击下方「📁 上传照片」按钮代替）';
     } else {
       msg += '（请使用Chrome/Safari浏览器）';
     }
-    
     toast(msg);
     return;
   }
-  
+
   // 检查HTTPS/localhost（移动端必须HTTPS才能使用摄像头）
   const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -1929,52 +2291,87 @@ async function toggleCam(mode){
     }
     return;
   }
-  
-  // 首次使用摄像头时，异步加载人脸检测模型（不阻塞界面）
-  loadFaceModels().catch(() => {}); // 加载失败也不影响拍照功能
-  
+
   try{
-    // 简化约束，提高兼容性
-    const constraints = { 
-      video: { 
+    // 前置加载人脸模型，避免打开摄像头后模型未就绪导致无法检测
+    const modelPromise = loadFaceModels().then(()=>true).catch(()=>false);
+
+    const constraints = {
+      video: {
+        facingMode: isMobile ? 'user' : 'user',
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
       audio: false
     };
-    
-    // 尝试获取摄像头
+
     cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    // 检查是否成功获取到视频流
     if (!cameraStream.getVideoTracks().length) {
       throw new Error('未获取到视频轨道');
     }
-    
+
     video.srcObject = cameraStream;
     video.style.display = 'block';
     ph.style.display = 'none';
-    document.getElementById(mode+'Overlay').style.display = 'block';
+    // 显示 DOM 绿框（初始隐藏，检测到人脸时由 detectFace 动态定位显示）
+    const faceBox = document.getElementById(mode+'FaceBox');
+    if(faceBox) faceBox.style.display = 'none';
     camMode = mode;
-    
-    // 等待视频加载
+
     await new Promise((resolve) => {
       video.onloadedmetadata = () => {
         video.play().then(resolve).catch(resolve);
       };
     });
-    
+
     if(mode==='ci'){
-      document.getElementById('ciFaceHint').style.display='block';
-      // 启动活体检测引导
-      const lb=document.getElementById('ciLivenessBox');
-      if(lb) lb.style.display='block';
+      document.getElementById('ciLivenessBox').style.display='block';
+      document.getElementById('ciLivenessPanel').style.display='block';
       document.getElementById('ciCamBox').classList.add('has-liveness');
       resetLivenessState();
       livenessActive=true; livenessMode='ci';
-      if(modelsLoaded) detInterval=setInterval(()=>detectFace('ci'),300);
+      const st=document.getElementById('ciLivenessStatus');
+      if(st) st.textContent='正在加载人脸检测模型...';
+      // 等待模型加载完成后启动检测循环
+      modelPromise.then((ok)=>{
+        if(!livenessActive || camMode!=='ci') return;
+        if(ok && modelsLoaded){
+          if(st) st.textContent='请将人脸对准框内，眨一下眼睛（正常眨眼即可）';
+          detInterval=setInterval(()=>detectFace('ci'),isMobile?150:100);
+          // 兜底①：6秒内仍未检测到人脸 → 高亮「跳过活体」按钮
+          setTimeout(()=>{
+            if(!livenessActive || livenessPassed || livenessSkipped) return;
+            if(!faceDetected){
+              const skipBtn=document.getElementById('ciSkipLivenessBtn');
+              if(skipBtn) skipBtn.style.display='block';
+              if(st) st.textContent='⚠️ 6秒未检测到人脸，可调整角度/光线，或点「⏩ 跳过活体」走人工复核';
+              st.style.color='#fca5a5';
+            }
+          }, 6000);
+          // 兜底②：已检测到人脸但 12 秒内没眨动 → 自动放行（标记人工复核），彻底避免卡死
+          // 治本：眨眼是唯一的活体通道，超时是"眨不动/不会眨"场景下的最后保险
+          setTimeout(()=>{
+            if(!livenessActive || livenessPassed || livenessSkipped) return;
+            if(faceDetected){
+              livenessPassed=true; livenessScore=1; livenessSkipReason='auto_timeout';
+              updateLivenessUI(); checkCiReady();
+              const skipBtn=document.getElementById('ciSkipLivenessBtn');
+              if(skipBtn) skipBtn.style.display='none';
+              if(st){ st.textContent='⚠️ 12秒未检测到眨眼，已自动放行（将人工复核）'; st.style.color='#fbbf24'; }
+            }
+          }, 12000);
+        } else {
+          landmarkLoaded=false; livenessPassed=false;
+          // 模型加载失败 → 高亮「跳过活体」兜底按钮，用户可手动放行
+          if(st) st.textContent='⚠️ 人脸模型加载失败，无法自动活体检测；可点击下方「⏩ 跳过活体」走人工复核';
+          st.style.color = '#fca5a5';
+          const skipBtn = document.getElementById('ciSkipLivenessBtn');
+          if (skipBtn) skipBtn.style.display = 'block';
+          checkCiReady();
+        }
+      });
     }
-  }catch(e){ 
+  }catch(e){
     let msg = '⚠️ 无法访问摄像头';
     if (e.name === 'NotAllowedError') {
       msg = '⚠️ 摄像头权限被拒绝，请在浏览器设置中允许访问摄像头';
@@ -1987,89 +2384,222 @@ async function toggleCam(mode){
     } else if(location.protocol !== 'https:') {
       msg += '；摄像头功能需要HTTPS协议';
     }
-    toast(msg); 
+    toast(msg);
     console.error('Camera error:', e);
   }
 }
 
-// 计算眼睛纵横比 EAR（Eye Aspect Ratio）：闭眼时接近 0，睁眼时约 0.3
-function computeEAR(eyePts){
-  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-  const v1=dist(eyePts[1],eyePts[5]); // 垂直
-  const v2=dist(eyePts[2],eyePts[4]); // 垂直
-  const h=dist(eyePts[0],eyePts[3]);  // 水平
-  return (v1+v2)/(2*h);
-}
-
 // 综合人脸检测 + 活体检测（眨眼）
+// 用检测锁防止并发重叠（首次推理较慢时 setInterval 会累积多个未完成调用）
+let _detectLock = {};
+let _diagLogged = false, _diagLogged2 = false, _diagLogged3 = false; // 诊断标志
 async function detectFace(mode){
-  const video=document.getElementById(mode+'Video'),overlay=document.getElementById(mode+'Overlay');
+  const video=document.getElementById(mode+'Video');
   if(!video.videoWidth)return;
-  overlay.width=video.videoWidth; overlay.height=video.videoHeight;
-  const ctx=overlay.getContext('2d'); ctx.clearRect(0,0,overlay.width,overlay.height);
+  // 并发锁：上一帧还在推理中则直接跳过本帧，避免状态机错乱
+  if(_detectLock[mode]) return;
+  _detectLock[mode]=true;
   try{
-    let det;
-    if(landmarkLoaded){
-      det=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}))
-        .withFaceLandmarks().withFaceExpressions();
-    } else {
-      det=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5}));
+    // 从 video 取当前帧到 canvas（face-api 对 <video> 元素的 width/height 支持不稳定）
+    const frame = _getDetectCanvas(video);
+    // ===== 首帧诊断日志（只输出一次，不刷屏）=====
+    if (!_diagLogged) {
+      _diagLogged = true;
+      console.log('[活体诊断] detectFace 首次运行 | video:', video.videoWidth+'x'+video.videoHeight,
+        '| canvas:', frame.width+'x'+frame.height,
+        '| offset:', video.offsetWidth+'x'+video.offsetHeight,
+        '| modelsLoaded:', modelsLoaded, '| landmarkLoaded:', landmarkLoaded,
+        '| tfjs backend:', typeof tf !== 'undefined' ? tf.getBackend() : 'n/a');
     }
+    let det;
+    // 先试正常阈值，失败再试低阈值（不同摄像头/光线下人脸分数差异大）
+    // 关键：detectSingleFace 未 await 时返回「惰性 Thenable」，它带有 .withFaceLandmarks() 方法，
+    // 内部会正确关联 faceBox + 原始 canvas 输入，避免 toNetInput 类型错误。
+    // 官方推荐：faceapi.detectSingleFace(input).withFaceLandmarks()
+    // 移动端（CPU/弱 WebGL）降输入尺寸到 288、跳过表情模型，显著降低单帧推理耗时
+    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const inputSize = isMobile ? 288 : 416;
+    const tryDetect = async (threshold) => {
+      const options = new faceapi.TinyFaceDetectorOptions({ inputSize: inputSize, scoreThreshold: threshold });
+      const t0 = performance.now();
+      let det;
+      if (landmarkLoaded && expressionLoaded && !isMobile) {
+        // 检测 + 关键点 + 表情 三步链式（官方 API，内部正确关联 canvas 媒体输入）
+        // 表情模型提供 blink 概率，是比 EAR 更可靠的眨眼信号（专为检测眨眼设计）
+        det = await faceapi.detectSingleFace(frame, options).withFaceLandmarks().withFaceExpressions();
+      } else if (landmarkLoaded) {
+        det = await faceapi.detectSingleFace(frame, options).withFaceLandmarks();
+      } else {
+        det = await faceapi.detectSingleFace(frame, options);
+      }
+      const elapsed = performance.now() - t0;
+      // 首帧输出检测结果
+      if (!_diagLogged2) {
+        _diagLogged2 = true;
+        if (det) {
+          // WithFaceLandmarks 的 box 在 det.detection.box（顶层 .box 不存在）
+          const _b = det.detection ? det.detection.box : det.box;
+          console.log('[活体诊断] 检测成功 (阈值'+threshold+'): box='+JSON.stringify(_b)+' 耗时='+elapsed.toFixed(0)+'ms'
+            + (det.landmarks ? ' | landmarks 点数='+det.landmarks.positions.length : ' | 无 landmarks'));
+        } else {
+          console.log('[活体诊断] 检测失败 (阈值'+threshold+'): 未检测到人脸 耗时='+elapsed.toFixed(0)+'ms | canvas尺寸='+frame.width+'x'+frame.height);
+        }
+      }
+      if (!det) return undefined; // 无脸，直接返回
+      // 规范化：把 box 提到顶层（WithFaceLandmarks/WithFaceDetection 的 box 在 .detection.box）
+      if (det.detection && !det.box) det.box = det.detection.box;
+      if (!det.box) return undefined; // 防御：box 仍缺失则本帧不画框，避免读 undefined 崩
+      return det; // det 含 .box（已规范化）和 .landmarks
+    };
+    det = await tryDetect(0.15);
+    if (!det) det = await tryDetect(0.05); // 兜底：低阈值重试（模糊/弱光场景）
+    // DOM 绿框：坐标换算从 canvas 像素空间到 CSS 渲染空间
+    // canvas 内部尺寸 = videoWidth×videoHeight，video 渲染尺寸 = offsetWidth×offsetHeight
+    const faceBox = document.getElementById(mode+'FaceBox');
     if(det){
       faceDetected=true;
-      ctx.strokeStyle='#00ff88'; ctx.lineWidth=3; ctx.strokeRect(det.box.x,det.box.y,det.box.width,det.box.height);
-      const hint=document.getElementById(mode+'FaceHint');
-      if(hint) hint.textContent='✅ 检测到人脸！';
-      // 活体检测（仅查寝签到场景）
+      const b=det.box; // 已规范化的检测框
+      if(faceBox){
+        const scaleX = video.offsetWidth / video.videoWidth;
+        const scaleY = video.offsetHeight / video.videoHeight;
+        faceBox.style.display='block';
+        faceBox.style.left  =(b.x      * scaleX) + 'px';
+        faceBox.style.top   =(b.y      * scaleY) + 'px';
+        faceBox.style.width =(b.width  * scaleX) + 'px';
+        faceBox.style.height=(b.height * scaleY) + 'px';
+      }
       if(mode==='ci' && landmarkLoaded && livenessActive) analyzeLiveness(det);
+      else {
+        // lv 模式无活体要求，仅在底部状态条给出检测反馈（ci 模式交由 analyzeLiveness 管理文案）
+        const hint=document.getElementById(mode+'LivenessStatus');
+        if(hint) hint.textContent='🔍 检测到人脸';
+      }
     } else {
       faceDetected=false;
-      const hint=document.getElementById(mode+'FaceHint');
-      if(hint) hint.textContent='😊 未检测到人脸';
+      if(faceBox) faceBox.style.display='none';
+      const st=document.getElementById('ciLivenessStatus');
+      if(st && !livenessPassed && livenessActive){
+        // 眨眼模式：未检测到人脸 → 直接提示调整角度/光线，眨眼即可识别
+        st.textContent='⚠️ 未检测到人脸，请调整角度/光线；眨一下眼睛可识别';
+        st.style.color='#fca5a5';
+        const skipBtn=document.getElementById('ciSkipLivenessBtn');
+        if(skipBtn && !livenessSkipped) skipBtn.style.display='block';
+      }
     }
-  }catch(e){}
+  }catch(e){
+    console.warn('人脸检测帧异常:', e);
+    faceDetected=false;
+    const fb=document.getElementById(mode+'FaceBox');
+    if(fb) fb.style.display='none';
+  } finally {
+    _detectLock[mode]=false;
+  }
 }
 
-// 活体分析：基于双眼 EAR + 表情 blink 概率做眨眼边沿检测
+// 活体分析：基于「眨眼」判定（EAR 骤降 + 表情 blink + EAR 绝对兜底 三通道 OR）
+// 关键修复：EAR 基线"只抬不降"且仅在稳定睁眼时抬升，避免眨眼帧污染基线；
+// 配合 3s 兜底窗口（骤降后 3s 内有效）容忍采样滑过闭眼帧。
+function computeEAR(landm){
+  // face-api 的 68 点 landmark：landm = det.landmarks.positions（数组，每项 {x,y}）。
+  // 若传入的是 FaceLandmarks68 对象则取其 .positions。取不到坐标一律安全返回 -1（不抛错）。
+  const pts = Array.isArray(landm) ? landm : (landm && landm.positions ? landm.positions : null);
+  if(!pts || pts.length < 50) return -1; // landmark 不可用时负值标记，调用方跳过
+  // ===== 4 点 v/h EAR（您实际数据验证可用：睁眼 0.21~0.28，闭眼 <0.15）=====
+  // 每眼取「内眼角、外眼角、上睑中点、下睑中点」4 点：
+  //   水平跨度 h = 内外眼角距离；竖直开合 v = 上睑中点与下睑中点的 |Δy|。
+  // 闭眼时 v→0、EAR→0；睁眼稳定时 EAR 约 0.2~0.3。
+  const Linner=36, Louter=41, Ltop=38, Lbot=39;   // 左眼 内/外/上/下
+  const Rinner=42, Router=47, Rtop=44, Rbot=45;   // 右眼 内/外/上/下
+  const earFor = (iInner, iOuter, iTop, iBot) => {
+    const a = pts[iInner], b = pts[iOuter], c = pts[iTop], d = pts[iBot];
+    if(!a || !b || !c || !d) return 0;
+    const h = Math.hypot(b.x-a.x, b.y-a.y);                  // 水平跨度（内外眼角）
+    const v = Math.abs((c.y+d.y)/2 - (a.y+b.y)/2);           // 竖直开合（上下睑中点）
+    return (h===0)?0:v/h;
+  };
+  const L = earFor(Linner, Louter, Ltop, Lbot);
+  const R = earFor(Rinner, Router, Rtop, Rbot);
+  const e = (L+R)/2;
+  // 封顶到合理区间（防 landmark 抖动导致虚高）
+  return Math.max(0, Math.min(e, 0.5));
+}
+var _earDiag = 0; // 诊断日志节流计数（模块级，跨调用保持）
 function analyzeLiveness(det){
-  let ear=1;
-  try{
-    const left=det.landmarks.getLeftEye();
-    const right=det.landmarks.getRightEye();
-    ear=(computeEAR(left)+computeEAR(right))/2;
-  }catch(e){ ear=1; }
-
-  // 表情模型的 blink 概率（辅助信号）
-  let exprBlink=0;
-  try{ exprBlink=det.expressions?.blink||0; }catch(e){}
-
-  const closed = ear < 0.21 || exprBlink > 0.4;
-  const open = ear > 0.27 && exprBlink < 0.25;
-
-  // 眨眼边沿：闭 -> 开 视为一次有效眨眼
-  if(eyeState==='closed' && open){
-    blinkCount++;
-    livenessScore=Math.min(1, livenessScore+0.5);
-    if(blinkCount>=1){
-      livenessPassed=true;
-      updateLivenessUI();
-    }
+  // face-api 的 68 点 landmark 坐标在 det.landmarks.positions（数组）。
+  const landm = det.landmarks?.positions || det.landmarks?.landmarks;
+  if(!landm) return; // 无 landmark 时不判活体（等待 landmark 模型就绪）
+  const now = Date.now();
+  const curEar = computeEAR(landm);
+  if(curEar < 0) return; // landmark 不可用（取不到坐标），本帧跳过
+  // ===== 动态基线：只在"稳定睁眼"时抬升（近 20 帧里 ≥75% 帧 EAR>0.15），且只抬不降、封顶 0.50 =====
+  livenessEarSamples.push(curEar);
+  if(livenessEarSamples.length > 30) livenessEarSamples.shift();
+  const recent = livenessEarSamples.slice(-20);
+  const stableOpenCount = recent.filter(e=>e>0.15).length;
+  const stableOpen = recent.length>=6 && stableOpenCount>=Math.max(6,recent.length*0.75);
+  if(livenessBaselineEar === null){
+    // 初始基线：取最近 20 帧 EAR 的中位数（比单帧稳得多，避免首帧异常把基线撑大）
+    const sortRecent = recent.slice().sort((a,b)=>a-b);
+    const mid = sortRecent[Math.floor(sortRecent.length/2)];
+    livenessBaselineEar = Math.max(Math.min(mid, livenessEarCeil), 0.10);
+  } else if(stableOpen && curEar > livenessBaselineEar*1.05 && curEar < livenessEarCeil){
+    // 仅稳定睁眼且当前 EAR 明显高于基线时，向当前值衰减抬升（封顶 0.50）
+    livenessBaselineEar = livenessBaselineEar*0.95 + Math.min(curEar, livenessEarCeil)*0.05;
   }
-  if(closed) eyeState='closed';
-  else if(open) eyeState='open';
-
-  // 实时状态文案
-  const st=document.getElementById('ciLivenessStatus');
-  if(st){
-    if(livenessPassed){
-      st.textContent='✅ 活体检测通过（已识别真人眨眼）';
-    } else if(closed){
-      st.textContent='👁️ 检测到闭眼...请自然眨眼';
-    } else if(blinkCount===0){
-      st.textContent='请面向摄像头并眨一下眼睛 😉';
-    } else {
-      st.textContent='继续保持良好的光线...';
-    }
+  // ===== 基线总闸封顶（防眼角漂移把基线撑大，且一旦被撑大必须能拉回）=====
+  // 基线若超出合理区间 [0.10, 0.50]，立即强制拉回最近 20 帧 EAR 中位数
+  if(livenessBaselineEar > livenessEarCeil || livenessBaselineEar < 0.08){
+    const sortRecent = recent.slice().sort((a,b)=>a-b);
+    livenessBaselineEar = Math.max(Math.min(sortRecent[Math.floor(sortRecent.length/2)], livenessEarCeil), 0.08);
+  }
+  // ===== 四通道判定一次有效眨眼 =====
+  const baseline = livenessBaselineEar || 0.20;
+  // ① EAR 相对基线骤降（当前帧比基线低 40% 以上即算）
+  const drop = (curEar <= baseline*(1-livenessEarDropRatio)) && (curEar > 0.02);
+  // ② EAR 绝对值兜底（物理闭眼；睁眼不会误触发）
+  const absolute = curEar < livenessEarAbsolute && curEar > 0.02;
+  // ③ 表情 blink 概率（防御：blink 字段可能缺失/非数字，取不到按 0）
+  const _blinkP = det.expressions && typeof det.expressions.blink === 'number' ? det.expressions.blink : 0;
+  const exprBlink = _blinkP >= livenessBlinkExpr;
+  // ④ 窗口最低点判定（治"采样稀释"：近 0.6s 内 EAR 最低点比基线低 25% 即算，容忍闭眼瞬态被采样滑过）
+  livenessEarWindow.push({t: now, ear: curEar});
+  while(livenessEarWindow.length && livenessEarWindow[0].t < now - livenessWindowMs) livenessEarWindow.shift();
+  let windowMin = Infinity;
+  for(const s of livenessEarWindow) if(s.ear < windowMin) windowMin = s.ear;
+  const windowDrop = (isFinite(windowMin) && windowMin <= baseline*(1-livenessWindowDropRatio)) && windowMin > 0.02;
+  // ⑤ 绝对降幅通道：部分用户眨眼是"浅眨"（EAR 0.44→0.38 仅降 13.6%，相对阈值判不到），
+  //    但 EAR 绝对下降 ≥0.05 已是明确的闭眼动作，头部平移/俯仰不会造成这么大的 EAR 变化
+  const windowDropAbs = isFinite(windowMin) && (baseline - windowMin) >= 0.05 && windowMin > 0.02;
+  if(drop || absolute || exprBlink || windowDrop || windowDropAbs){
+    livenessEarDropSeenAt = now;
+  }
+  // 3s 兜底窗口：最近 3s 内出现过一次骤降/窗口低值即判过（容忍采样滑过闭眼帧）
+  const withinGrace = (now - livenessEarDropSeenAt) <= livenessEarDropGraceMs;
+  if(withinGrace && !livenessPassed){
+    livenessScore = 1; livenessPassed = true; livenessOk = true;
+    prevEarSample = curEar;
+    updateLivenessUI(); checkCiReady();
+    return;
+  }
+  prevEarSample = curEar;
+  // 诊断日志（节流）：输出 EAR + 窗口最低点 + 命中通道，便于按实际分布定阈值
+  _earDiag = (_earDiag||0)+1;
+  const _blinkVal = det.expressions && typeof det.expressions.blink === 'number' ? det.expressions.blink : null;
+  if(_earDiag % 6 === 1){
+    console.log('[活体诊断·眨眼] EAR='+curEar.toFixed(3)
+      +' 基线='+(livenessBaselineEar||0).toFixed(3)
+      +' 降幅='+(baseline?((baseline-curEar)/baseline*100):0).toFixed(0)+'%'
+      +' 窗口最低='+(isFinite(windowMin)?windowMin.toFixed(3):'-')
+      +' 绝对阈值='+livenessEarAbsolute+' 降幅阈值='+livenessEarDropRatio+' 窗口降幅='+livenessWindowDropRatio
+      +' blink='+(_blinkVal!=null?_blinkVal.toFixed(2):'-')
+      +' | 命中='+(drop?'骤降·':windowDrop?'窗口·':absolute?'绝对·':'')+(_blinkP>=livenessBlinkExpr?'表情':''));
+  }
+  // 实时状态文案（未通过时）
+  const st = document.getElementById('ciLivenessStatus');
+  if(st && !livenessPassed){
+    st.textContent = '请眨一下眼睛 👀  EAR='+curEar.toFixed(2)+'  基线='+(livenessBaselineEar||0).toFixed(2)
+      +'  窗口最低='+(isFinite(windowMin)?windowMin.toFixed(2):'-');
+    st.style.color = '';
   }
 }
 
@@ -2081,17 +2611,53 @@ function updateLivenessUI(){
   if(faceStep) faceStep.className='liveness-step '+(faceDetected?'done':'active');
   if(blinkStep){
     if(livenessPassed){ blinkStep.className='liveness-step done'; blinkStep.textContent='② 眨眼 ✓'; }
-    else { blinkStep.className='liveness-step active'; }
+    else { blinkStep.className='liveness-step active'; blinkStep.textContent='② 眨一下眼 👀'; }
   }
-  if(bar){ bar.style.width = livenessPassed ? '100%' : (blinkCount>0?'60%':'30%'); }
+  // 进度：通过=100%；检测到一次骤降=60%；还没=30%
+  if(bar){
+    let pct = 30;
+    if(livenessEarDropSeenAt) pct = 60;
+    if(livenessPassed) pct = 100;
+    bar.style.width = pct + '%';
+  }
 }
 
 // 重置活体检测状态（重拍/重新打开摄像头时）
 function resetLivenessState(){
   livenessPassed=false; livenessScore=0; blinkCount=0; eyeState='open';
+  closedFrames=0; prevLivenessClosed=false;
+  livenessBaselineEar=null; livenessEarSamples=[]; prevEarSample=0;
+  livenessEarWindow=[];
+  livenessEarDropSeenAt=0; livenessOk=false;
+  livenessSkipped=false;
   const st=document.getElementById('ciLivenessStatus');
-  if(st) st.textContent='请将人脸对准框内并眨眨眼 😉';
+  if(st){ st.textContent='请将人脸对准框内，眨一下眼睛（正常眨眼即可）'; st.style.color=''; }
+  // 「跳过活体」兜底按钮：默认收起，仅在模型加载失败 / 长时间检不到人脸时才高亮
+  const skipBtn=document.getElementById('ciSkipLivenessBtn');
+  if(skipBtn) skipBtn.style.display='none';
   updateLivenessUI();
+}
+
+// 兜底：模型加载失败/检测不到人脸时，允许用户手动跳过活体（后端会标记 liveness_passed=0）
+// [P0修复] 增加二次确认门槛：需输入本人学号，防止他人代跳，且后端记录审计
+async function skipLiveness(){
+  // 二次确认：必须输入本人学号
+  const inputId = prompt('活体检测异常，需人工复核。请输入您的学号以确认跳过（将记录审计日志）：');
+  if (inputId === null) return;
+  const sid = inputId.trim();
+  if (!sid) { toast('⚠️ 学号不能为空，无法跳过'); return; }
+  if (myStudentId && sid !== myStudentId) { toast('❌ 学号不匹配，无法跳过'); return; }
+
+  livenessSkipped=true; livenessPassed=false; livenessScore=0; livenessSkipReason='manual_'+sid;
+  const st=document.getElementById('ciLivenessStatus');
+  if(st) st.textContent='⚠️ 已跳过活体检测（人工复核，学号 '+sid+'）';
+  const btn=document.getElementById('ciSkipLivenessBtn');
+  if(btn) btn.style.display='none';
+  const blinkStep=document.querySelector('#ciLivenessSteps [data-step="blink"]');
+  if(blinkStep){ blinkStep.className='liveness-step done'; blinkStep.textContent='② 跳过 ⏩'; }
+  updateLivenessUI();
+  checkCiReady();
+  toast('⚠️ 已标记为人工复核（学号 '+sid+'），继续拍照提交');
 }
 
 // 图片压缩工具
@@ -2135,16 +2701,15 @@ function capturePhoto(mode){
     img.src = photoData;
     img.style.display = 'block';
     video.style.display = 'none';
-    document.getElementById(mode+'Overlay').style.display = 'none';
-    
-    const hint = document.getElementById(mode+'FaceHint');
-    if(hint) hint.style.display = 'none';
 
     // 更新按钮文字
     const camBtns = document.getElementById(mode+'CamBox').parentElement.querySelectorAll('.cam-btn');
     camBtns.forEach(b => b.textContent = '📷 重拍');
     const retake = document.getElementById(mode+'Retake');
     if(retake) retake.style.display = 'inline-flex';
+    // 隐藏 DOM 绿框
+    const faceBox = document.getElementById(mode+'FaceBox');
+    if(faceBox) faceBox.style.display = 'none';
 
     // 查寝场景：拍照后定格活体检测进度，停止实时循环（保留结果）
     if(mode==='ci'){
@@ -2152,6 +2717,8 @@ function capturePhoto(mode){
       document.getElementById('ciCamBox').classList.remove('has-liveness');
       const lb=document.getElementById('ciLivenessBox');
       if(lb) lb.style.display='none';
+      const lp=document.getElementById('ciLivenessPanel');
+      if(lp) lp.style.display='none';
       checkCiReady();
     }
     if(mode==='lv') checkLvReady();
@@ -2173,7 +2740,8 @@ function stopCam(){
   if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}
   if(detInterval){clearInterval(detInterval);detInterval=null;}
   document.querySelectorAll('video').forEach(v=>v.style.display='none');
-  document.querySelectorAll('canvas[style*="block"]').forEach(c=>c.style.display='none');
+  // 隐藏 DOM 绿框
+  document.querySelectorAll('[id$="FaceBox"]').forEach(el=>el.style.display='none');
 }
 
 // 提交查寝
@@ -2230,8 +2798,15 @@ document.getElementById('ciSubmit').onclick=async function(){
     const j=await res.json();
     if(j.code===0){
       let msg = '签到成功！';
-      if (faceHash) msg = '✅ 签到成功！人脸识别通过';
-      else msg = '✅ 签到成功！（该学生尚未注册人脸）';
+      if (j.data?.face_match) {
+        if (j.data.face_match.matched) {
+          msg = '✅ 签到成功！人脸识别通过（相似度:' + j.data.face_match.similarity.toFixed(4) + '）';
+        } else {
+          msg = '⚠️ 签到成功，但人脸比对失败（相似度:' + j.data.face_match.similarity.toFixed(4) + '，请核实身份）';
+        }
+      } else if (faceHash) {
+        msg = '✅ 签到成功！活体检测通过';
+      }
       toast(msg);
       resetCi();
       loadCheckinData();
@@ -2240,7 +2815,8 @@ document.getElementById('ciSubmit').onclick=async function(){
       btn.disabled=false; btn.textContent='✅ 提交签到';
     }
   } else {
-    // 离线模式：同时保存到 IndexedDB 和内存队列
+    // 离线模式：IndexedDB 为单一事实源，仅当其不可用时才回退到内存/localStorage 队列
+    // （P0修复：原实现两处都写，联网后同一条签到经 /api/checkin 与 /api/offline/sync 各发一次，造成重复记录）
     const offlineRecord = {
       type: 'checkin',
       userId: myStudentId,
@@ -2249,8 +2825,6 @@ document.getElementById('ciSubmit').onclick=async function(){
       createdAt: new Date().toISOString()
     };
     saveOfflineRecord(offlineRecord).then(() => {
-      OFFLINE_QUEUE.push(offlineRecord);
-      saveOfflineQueue();
       toast('📴 离线模式：数据已保存，联网后将自动同步');
     }).catch(() => {
       // IndexedDB 不可用时回退到 localStorage
@@ -2264,14 +2838,16 @@ document.getElementById('ciSubmit').onclick=async function(){
 };
 
 function resetCi(){
-  photoData=''; locState.ci=null;
+  // 仅重置签到按钮状态和照片（保留定位/活体结果）
+  // 说明：扫码/语音签到成功后也调用 resetCi，但不该清掉用户已采集的定位和活体结果，
+  // 否则「✅ 提交签到」按钮会被重新灰化，用户误以为功能坏了。
+  photoData='';
   document.getElementById('ciPhoto').style.display='none';
   document.getElementById('ciRetake').style.display='none';
   document.getElementById('ciCamBtn').textContent='📷 拍照';
-  document.getElementById('ciLocate').className='locate-btn'; document.getElementById('ciLocate').textContent='📍 获取位置';
-  document.getElementById('ciLocInfo').style.display='none';
-  document.getElementById('ciLocProgress').style.display='none';
-  document.getElementById('ciSubmit').disabled=true;
+  document.getElementById('ciCamMobileHint').style.display='none';
+  // 重新计算按钮可用状态（基于现有定位/活体结果）
+  checkCiReady();
 }
 
 // 上传照片功能（摄像头不可用时的备选方案）
@@ -2305,7 +2881,8 @@ function uploadPhoto(mode) {
         // 隐藏摄像头相关元素
         const video = document.getElementById(mode + 'Video');
         video.style.display = 'none';
-        document.getElementById(mode + 'Overlay').style.display = 'none';
+        const faceBox = document.getElementById(mode + 'FaceBox');
+        if (faceBox) faceBox.style.display = 'none';
         document.getElementById(mode + 'CamPlaceholder').style.display = 'none';
         
         // 显示重拍按钮
@@ -2327,7 +2904,8 @@ function uploadPhoto(mode) {
 // ===== 请假 =====
 function checkLvReady(){
   document.getElementById('lvSubmit').disabled=!myStudentId
-    ||!document.getElementById('lvReason').value.trim();
+    ||!document.getElementById('lvReason').value.trim()
+    ||!photoData;  // 证明材料改为必填：必须上传/拍照照片
 }
 document.getElementById('lvStart').value=todayStr();
 document.getElementById('lvEnd').value=todayStr();
@@ -2342,7 +2920,6 @@ function handleFileUpload(e){
     document.getElementById('lvPhoto').src=photoData;
     document.getElementById('lvPhoto').style.display='block';
     document.getElementById('lvCamPlaceholder').style.display='none';
-    document.getElementById('lvRetake').style.display='inline-flex';
     checkLvReady();
   };
   reader.readAsDataURL(file);
@@ -2354,6 +2931,14 @@ async function submitLeave(){
   // 显示确认对话框
   const confirmed = await confirmDialog('确认提交', '确定要提交请假申请吗？');
   if (!confirmed) {
+    btn.disabled = false;
+    btn.textContent = '📤 提交申请';
+    return;
+  }
+
+  // 证明材料改为必填：无照片则阻断提交
+  if (!photoData) {
+    toast('⚠️ 证明材料为必填项，请上传图片');
     btn.disabled = false;
     btn.textContent = '📤 提交申请';
     return;
@@ -2382,13 +2967,60 @@ async function submitLeave(){
     toast('✅ 请假已提交，等待审批');
     document.getElementById('lvReason').value='';
     document.getElementById('lvPhoto').style.display='none';
-    const retake=document.getElementById('lvRetake');
-    if(retake)retake.style.display='none';
     photoData='';
     loadMyLeaves();
     checkLvReady();
   } else toast('⚠️ '+j.message);
   btn.disabled=false; btn.textContent='📤 提交申请';
+}
+
+// 拉取并渲染教师公告横幅（最近 3 条，登录后与收到 WS 公告时调用）
+async function loadAnnouncements(){
+  if(!myStudentId) return;
+  const wrap=document.getElementById('annBanner');
+  const body=document.getElementById('annBannerBody');
+  if(!wrap||!body) return;
+  try{
+    const r=await fetch('/api/announcements',{headers:{'x-student-token':myStudentToken||''}});
+    const j=await r.json();
+    const rows=(j.data||[]).slice(0,3);
+    if(!rows.length){wrap.style.display='none';return;}
+    body.innerHTML=rows.map(a=>{
+      const t=(a.created_at||'').replace('T',' ').slice(5,16);
+      return `<div style="padding:6px 0;border-bottom:1px dashed #bfdbfe">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+          <span style="font-size:13px;font-weight:600;color:#1e40af">${esc(a.title)}</span>
+          <span style="font-size:11px;color:#60a5fa;white-space:nowrap">${esc(t)}</span>
+        </div>
+        <div style="font-size:12.5px;color:#1e3a8a;margin-top:2px;white-space:pre-wrap;word-break:break-word">${esc(a.content)}</div>
+      </div>`;
+    }).join('');
+    wrap.style.display='block';
+  }catch(e){ /* 静默失败，不打扰签到主流程 */ }
+}
+
+// ===== 公告记录（"我的"页持久列表，防止弹窗被忽略后看不到历史公告） =====
+async function loadMyAnnouncements(){
+  if(!myStudentId) return;
+  const box=document.getElementById('myAnnList');
+  if(!box) return;
+  try{
+    const r=await fetch('/api/announcements',{headers:{'x-student-token':myStudentToken||''}});
+    if(r.status===401) return;
+    const j=await r.json();
+    const rows=j.data||[];
+    if(!rows.length){box.innerHTML='<div class="empty-state"><p>暂无公告</p></div>';return;}
+    box.innerHTML=rows.map(a=>{
+      const t=(a.created_at||'').replace('T',' ').slice(0,16);
+      return `<div class="lv-card">
+        <div class="hd">
+          <span class="nm">📢 ${esc(a.title)}</span>
+          <span class="tag tg-gray" style="white-space:nowrap">${esc(t)}</span>
+        </div>
+        <div class="bd" style="white-space:pre-wrap;word-break:break-word">${esc(a.content)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){ /* 静默失败 */ }
 }
 
 async function loadMyLeaves(){
@@ -2467,48 +3099,6 @@ async function loadMyClass(){
   container.innerHTML=my.map(d=>`<div class="list-item"><div class="left"><div class="title">🏫 ${esc(d.course_name)||'课堂'} <span class="tag tag-green">${esc(d.status)}</span></div><div class="meta">${fmtTime(d.time, d.date)}</div></div></div>`).join('');
 }
 
-// ===== 我的记录 =====
-async function loadMyRecords(type){
-  if(!myStudentId){toast('⚠️ 请先选择身份');return;}
-  const container=document.getElementById('myRecords');
-  container.innerHTML='<div class="empty-state"><p>⏳ 加载中...</p></div>';
-  
-  const labels={checkin:{icon:'🏠',name:'查寝'},leave:{icon:'📝',name:'请假'},class:{icon:'🏫',name:'课堂'}};
-  const lb=labels[type]||{icon:'📋',name:'记录'};
-  const statusMap={'在寝':'tag-green','未归':'tag-red','请假':'tag-yellow','出勤':'tag-green','旷课':'tag-red','迟到':'tag-yellow','已批准':'tag-green','已驳回':'tag-red','待审批':'tag-yellow'};
-  
-  let data = [];
-  
-  if (type === 'leave') {
-    // 请假记录走单独的 /api/leaves 接口
-    const r = await fetch(`/api/leaves?student_id=${myStudentId}&_t=${Date.now()}`);
-    const j = await r.json();
-    data = (j.data || []).map(l => ({
-      status: l.status,
-      date: l.start_date,
-      time: l.end_date !== l.start_date ? ` ~ ${l.end_date}` : '',
-      course_name: l.type ? `(${l.type})` : '',
-      address: l.reason ? l.reason.slice(0, 40) : ''
-    }));
-  } else {
-    // 查寝和课堂记录走 /api/records 接口
-    const r = await fetch(`/api/records?student_id=${myStudentId}&type=${type}&_t=${Date.now()}`);
-    const j = await r.json();
-    data = j.data || [];
-  }
-  
-  if(!data.length){container.innerHTML='<div class="empty-state"><p>暂无记录</p></div>';return;}
-  
-  container.innerHTML=data.map(d=>{
-    const tc=statusMap[d.status]||'tag-gray';
-    return `<div class="list-item"><div class="left">
-      <div class="title">${lb.icon} ${lb.name} <span class="tag ${tc}">${esc(d.status)}</span></div>
-      <div class="meta">${fmtTime(d.time, d.date)} ${d.course_name?'· '+esc(d.course_name):''}</div>
-      ${d.address?`<div class="meta">📍 ${esc(d.address).slice(0,40)}</div>`:''}
-    </div></div>`;
-  }).join('');
-}
-
 // ===== 标签切换 =====
 function switchTab(name){
   if(!myStudentId){toast('⚠️ 请先登录');return;}
@@ -2518,56 +3108,24 @@ function switchTab(name){
   document.querySelector(`.tab-btn[onclick*="'${name}'"]`).classList.add('active');
   stopCam();
   if(myRefreshTimer){clearInterval(myRefreshTimer);myRefreshTimer=null;}
+  // P1修复：切换页签清空全局 photoData，防止查寝自拍被当作请假证明材料（跨模块污染）
+  photoData='';
   if(name==='checkin') loadCheckinData();
   if(name==='leave'){loadMyLeaves();document.getElementById('lvStart').value=todayStr();document.getElementById('lvEnd').value=todayStr();}
   if(name==='class'){loadCourses();loadMyClass();}
-  if(name==='my'){loadMyStatistics();loadStudentDashboard();myRefreshTimer=setInterval(()=>{loadMyStatistics();loadStudentDashboard();},30000);}
+  if(name==='my'){loadMyStatistics();loadMyAnnouncements();loadStudentDashboard();myRefreshTimer=setInterval(()=>{loadMyStatistics();loadStudentDashboard();},30000);}
 }
 
-// ===== 我的考勤统计 =====
+// ===== 我的请假进度（考勤统计卡片已按需求移除，仅保留请假进度渲染） =====
 async function loadMyStatistics() {
   if (!myStudentId) return;
-  
+
   try {
-    // 加载查寝记录
-    const recR = await fetch(`/api/records?student_id=${myStudentId}&type=checkin&_t=${Date.now()}`);
-    const recJ = await recR.json();
-    const records = recJ.data || [];
-    
     // 加载请假记录
     const lvR = await fetch(`/api/leaves?student_id=${myStudentId}&_t=${Date.now()}`);
     const lvJ = await lvR.json();
     const leaves = lvJ.data || [];
-    
-    // 计算统计
-    const checked = records.filter(r => r.status === '在寝').length;
-    const absent = records.filter(r => r.status === '未归').length;
-    const total = records.length;
-    const rate = total > 0 ? Math.round((checked / total) * 100) : 0;
-    
-    document.getElementById('myChecked').textContent = checked;
-    document.getElementById('myAbsent').textContent = absent;
-    document.getElementById('myRate').textContent = total > 0 ? rate + '%' : '-';
-    
-    // 最近7天图表
-    const chart = document.getElementById('myWeeklyChart');
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
-    }
-    
-    chart.innerHTML = days.map(date => {
-      const dayRec = records.find(r => r.date === date);
-      const status = dayRec ? dayRec.status : '无';
-      const colors = { '在寝': '#10b981', '未归': '#ef4444', '请假': '#f59e0b', '无': '#e2e8f0' };
-      const heights = { '在寝': 80, '未归': 40, '请假': 55, '无': 10 };
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
-        <div style="width:100%;height:${heights[status]||10}px;background:${colors[status]};border-radius:4px;transition:all 0.3s"></div>
-        <span style="font-size:10px;color:var(--gray)">${date.slice(5)}</span>
-      </div>`;
-    }).join('');
-    
+
     // 请假进度
     const progress = document.getElementById('myLeaveProgress');
     if (!leaves.length) {
@@ -2595,114 +3153,274 @@ async function loadMyStatistics() {
 }
 
 // ===== 语音签到（应急模式） =====
+// 双通道：① 原生 SpeechRecognition（桌面 Chrome/Edge，可自动转文字）
+//          ② MediaRecorder 通用录音（移动端/微信/Safari，设备无关，录完可试听）
+// 任一通道不可用时，始终提供「手动输入」兜底。
+// 展开/收起查寝语音签到区域（按钮 onclick 调用，之前缺失导致点按钮抛 ReferenceError、区域打不开）
+function toggleVoiceCheckin() {
+  const a = document.getElementById('voiceCheckinArea');
+  if (a) a.style.display = a.style.display === 'none' ? 'block' : 'none';
+}
+
 let recognition = null;
 let isRecording = false;
+let voiceRecordTimer = null;
+let mediaRecorder = null;          // MediaRecorder 实例
+let mediaStream = null;            // 麦克风媒体流
+let mediaChunks = [];              // 录音数据块
+let voiceAudioUrl = '';           // 录音试听 URL
+let voiceAudioBlob = null;       // 录音 blob（提交转 base64 用）
+let recStartTs = 0, recTick = null; // 录音计时
 
+// 把 ObjectURL 指向的 blob 读成 base64 dataURL（提交语音签到时上传音频用）
+function blobToBase64(objUrl) {
+  return new Promise((resolve) => {
+    if (!objUrl || !voiceAudioBlob) { resolve(''); return; }
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => resolve('');
+    fr.readAsDataURL(voiceAudioBlob);
+  });
+}
+
+// 原生语音识别（仅桌面浏览器可用）
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = 'zh-CN';
-  
+
   recognition.onresult = (event) => {
-    let finalTranscript = '';
-    let interimTranscript = '';
-    
+    let finalTranscript = '', interimTranscript = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript;
-      } else {
-        interimTranscript += transcript;
-      }
+      if (event.results[i].isFinal) finalTranscript += transcript;
+      else interimTranscript += transcript;
     }
-    
-    const voiceTextEl = document.getElementById('voiceText');
-    if (voiceTextEl) {
-      voiceTextEl.value = finalTranscript + interimTranscript;
-      document.getElementById('voiceSubmitBtn').disabled = !finalTranscript.trim();
+    const el = document.getElementById('voiceText');
+    if (el) {
+      el.value = finalTranscript + interimTranscript;
+      const sb = document.getElementById('voiceSubmitBtn');
+      if (sb) sb.disabled = !finalTranscript.trim();
     }
   };
-  
   recognition.onerror = (event) => {
-    console.error('语音识别错误:', event.error);
-    document.getElementById('voiceStatus').textContent = '❌ 识别失败：' + event.error;
-    stopVoiceRecord();
+    let msg = '❌ 识别失败：' + event.error;
+    if (event.error === 'no-speech') msg = '🎤 未检测到语音，请靠近麦克风大声说（也可手动输入）';
+    else if (event.error === 'audio-capture') msg = '❌ 无法捕获麦克风，请检查权限或浏览器';
+    else if (event.error === 'not-allowed') msg = '❌ 麦克风权限被拒绝';
+    else if (event.error === 'network') msg = '❌ 语音识别需要联网，当前网络可能受限';
+    const st = document.getElementById('voiceStatus');
+    if (st) st.textContent = msg;
+    if (event.error !== 'no-speech') stopVoiceRecord();
   };
-  
   recognition.onend = () => {
-    isRecording = false;
-    const btn = document.getElementById('voiceRecordBtn');
-    if (btn) {
-      btn.textContent = '🎙️ 开始录音';
-      btn.disabled = false;
-    }
+    if (isRecording) setVoiceRecUI(false);
   };
 }
 
-function toggleVoiceCheckin() {
-  const area = document.getElementById('voiceCheckinArea');
-  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+// MediaRecorder 是否可用（通用录音兜底）
+function voiceRecorderSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
 }
 
-function startVoiceRecord() {
-  if (!recognition) {
-    toast('⚠️ 您的浏览器不支持语音识别，请手动输入签到口令');
+// 选择最通用的录音格式（优先 mp4，Safari/iOS 都能回放；再 webm/ogg/opus）
+// 解决"默认 webm 在部分浏览器/手机端 <audio> 无法解码、回放显示 0/没声"的问题
+function pickAudioMime() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+  // 顺序关键：webm(opus) 在桌面 Chrome/Edge/Firefox 录制+回放都支持；
+  // mp4 容器（Apple Safari/iOS 可录但桌面 Chrome 无法回放 mp4 内的 opus），故 mp4 放最后兜底。
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg'];
+  for (const m of candidates) { if (MediaRecorder.isTypeSupported(m)) return m; }
+  return '';
+}
+
+// 创建 MediaRecorder，指定最优 MIME（避免默认 webm 在 Safari/手机无法回放）
+function createMediaRecorder(stream) {
+  const mime = pickAudioMime();
+  try { return mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+  catch (e) { try { return new MediaRecorder(stream); } catch (e2) { return null; } }
+}
+
+// 可视化录音指示器
+function setVoiceRecUI(recording) {
+  const ind = document.getElementById('voiceRecIndicator');
+  const btn = document.getElementById('voiceRecordBtn');
+  if (ind) ind.classList.toggle('active', recording);
+  if (btn) btn.textContent = recording ? '⏹️ 停止录音' : '🎙️ 开始录音';
+  if (!recording) stopRecTick();
+}
+
+function startRecTick() {
+  recStartTs = Date.now();
+  updateRecTick();
+  stopRecTick();
+  recTick = setInterval(updateRecTick, 500);
+}
+function updateRecTick() {
+  const el = document.getElementById('voiceRecTimer');
+  if (!el) return;
+  const s = Math.floor((Date.now() - recStartTs) / 1000);
+  el.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+function stopRecTick() {
+  if (recTick) { clearInterval(recTick); recTick = null; }
+}
+
+// 释放 MediaRecorder 资源
+function releaseMediaRecorder() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch (e) {}
+  }
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+  mediaRecorder = null;
+  mediaChunks = [];
+}
+
+async function startVoiceRecord() {
+  if (isRecording) { stopVoiceRecord(); return; }
+
+  const useSTT = !!recognition;
+  const useRec = voiceRecorderSupported();
+  const st = document.getElementById('voiceStatus');
+
+  // 两条通道都不可用（如微信/部分移动端 WebView）：直接引导手动输入，避免"假录音"
+  if (!useSTT && !useRec) {
+    if (st) st.textContent = '⚠️ 当前浏览器不支持语音识别/录音，请手动输入签到口令';
+    toast('⚠️ 请手动输入签到口令');
+    const tx = document.getElementById('voiceText');
+    if (tx) { tx.focus(); }
     return;
   }
-  
-  try {
-    recognition.start();
-    isRecording = true;
-    document.getElementById('voiceRecordBtn').textContent = '⏹️ 停止录音';
-    document.getElementById('voiceStatus').textContent = '🎤 正在录音，请说出签到内容...';
-  } catch (e) {
-    console.error('启动录音失败:', e);
+
+  // ① 原生语音识别（可自动转文字）
+  if (useSTT) {
+    try { recognition.start(); }
+    catch (e) { console.warn('原生识别启动失败，降级到通用录音:', e); }
   }
+
+  // ② MediaRecorder 通用录音（任何设备都有效，提供录音反馈）
+  if (useRec) {
+    let recorderOk = false, recErr = null;
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = createMediaRecorder(mediaStream);
+      if (!mediaRecorder) { releaseMediaRecorder(); throw new Error('MediaRecorder unavailable'); }
+      mediaChunks = [];
+      mediaRecorder.ondataavailable = (evt) => { if (evt.data && evt.data.size) mediaChunks.push(evt.data); };
+      mediaRecorder.onstop = () => {
+        if (mediaChunks.length) {
+          const blob = new Blob(mediaChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+          if (voiceAudioUrl) URL.revokeObjectURL(voiceAudioUrl);
+          voiceAudioUrl = URL.createObjectURL(blob);
+          voiceAudioBlob = blob;
+          const s2 = document.getElementById('voiceStatus');
+          // 移动端仅录音不转文字：录音完成后启用提交按钮，保证「录完就能提交」
+          const sb = document.getElementById('voiceSubmitBtn');
+          if (sb) sb.disabled = false;
+          if (s2) s2.textContent = '✅ 录音完成，可点击下方回放试听，确认无误后提交';
+          showVoiceReplay();
+        }
+        releaseMediaRecorder();
+      };
+      mediaRecorder.start(250); // 每 250ms 输出一块，确保数据完整、<audio> 可正常解码回放
+      recorderOk = true;
+    } catch (err) {
+      recErr = err;
+      console.warn('MediaRecorder 启动失败:', err);
+      releaseMediaRecorder();
+    }
+    // 仅当原生识别不可用、且录音也启动失败时，才提示手动输入
+    if (!recorderOk && !useSTT && st) {
+      st.textContent = '❌ 无法启动录音（' + (recErr && (recErr.name || recErr.message) || '权限不足') + '），请检查麦克风权限或手动输入口令';
+    }
+  }
+
+  isRecording = true;
+  setVoiceRecUI(true);
+  startRecTick();
+  if (st) st.textContent = '🔴 正在录音，请说出签到内容…（10 秒后自动结束）';
+
+  if (voiceRecordTimer) clearTimeout(voiceRecordTimer);
+  voiceRecordTimer = setTimeout(() => { if (isRecording) stopVoiceRecord(); }, 10000);
 }
 
 function stopVoiceRecord() {
-  if (recognition && isRecording) {
-    recognition.stop();
-    isRecording = false;
-    const btn = document.getElementById('voiceRecordBtn');
-    if (btn) btn.textContent = '🎙️ 开始录音';
-    document.getElementById('voiceStatus').textContent = '✅ 录音结束';
+  if (recognition && recognition.state !== 'idle') { try { recognition.stop(); } catch (e) {} }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') { try { mediaRecorder.stop(); } catch (e) {} }
+  if (voiceRecordTimer) { clearTimeout(voiceRecordTimer); voiceRecordTimer = null; }
+  isRecording = false;
+  setVoiceRecUI(false);
+}
+
+// 录音回放试听
+function showVoiceReplay() {
+  if (!voiceAudioUrl) return;
+  let wrap = document.getElementById('voiceReplayWrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'voiceReplayWrap';
+    wrap.style.cssText = 'margin-top:8px;display:none';
+    wrap.innerHTML = '<div style="background:#f1f5f9;border-radius:10px;padding:10px;font-size:12px;color:#475569">🔊 录音回放</div><audio controls style="width:100%;margin-top:6px"></audio>';
+    const area = document.getElementById('voiceCheckinArea');
+    const status = document.getElementById('voiceStatus');
+    if (area && status) area.insertBefore(wrap, status.nextSibling);
   }
+  const audio = wrap.querySelector('audio');
+  audio.src = voiceAudioUrl;
+  wrap.style.display = 'block';
 }
 
 async function submitVoiceCheckin() {
-  const text = document.getElementById('voiceText').value.trim();
-  if (!text) {
-    toast('⚠️ 请输入或说出签到口令');
-    return;
-  }
-  
+  const textEl = document.getElementById('voiceText');
+  let text = textEl.value.trim();
+  // 录音完成但未自动转文字（移动端 MediaRecorder 通道）：允许以录音为准提交，文案兜底
+  const hasAudio = !!voiceAudioUrl;
+  if (!text && !hasAudio) { toast('⚠️ 请说出或输入签到口令'); return; }
+  if (!text) text = '（语音签到，已录音频）';
+
   const btn = document.getElementById('voiceSubmitBtn');
   btn.disabled = true;
   btn.textContent = '⏳ 提交中...';
-  
+
   try {
-    const headers = {};
+    const headers = { 'Content-Type': 'application/json' };
     if (myStudentToken) headers['x-student-token'] = myStudentToken;
-    
-    const res = await fetch('/api/voice-checkin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({
-        student_id: myStudentId,
-        text: text,
-        date: todayStr(),
-        note: '应急语音签到'
-      })
-    });
-    
+
+    const body = { student_id: myStudentId, text, date: todayStr(), note: '应急语音签到' };
+    // 若录了音频但未转文字，把音频转 base64 一并上传，供后端存档/复核
+    if (hasAudio && !textEl.value.trim()) {
+      body.audioBase64 = await blobToBase64(voiceAudioUrl);
+    }
+
+    // 加 AbortController 超时保护（30s），防止网络挂起导致按钮永久卡在「提交中」
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    let res;
+    try {
+      res = await fetch('/api/voice-checkin', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const j = await res.json();
     if (j.code === 0) {
-      toast('✅ 语音签到成功！');
+      // 语音通道完成 → 满足任务 required_steps 中的 voice 项（若教师勾选）
+      ciStepDone.voice = true;
+      checkCiReady();
+      // 明确提示：语音是独立签到通道，已完成签到，下面「提交签到」是人脸+定位的传统通道，不必再点
+      toast('✅ 语音签到成功！（无需再点「✅ 提交签到」）', 4000);
       document.getElementById('voiceText').value = '';
-      document.getElementById('voiceSubmitBtn').disabled = true;
+      btn.disabled = true;
+      btn.textContent = '✅ 已提交';
       loadCheckinData();
     } else {
       toast('⚠️ ' + j.message);
@@ -2710,15 +3428,19 @@ async function submitVoiceCheckin() {
       btn.textContent = '✅ 提交语音签到';
     }
   } catch (e) {
-    toast('⚠️ 提交失败：' + e.message);
+    toast(e.name === 'AbortError' ? '⚠️ 提交超时，请检查网络后重试' : '⚠️ 提交失败：' + e.message);
     btn.disabled = false;
     btn.textContent = '✅ 提交语音签到';
   }
 }
 
-// ===== 课堂语音签到 =====
+// ===== 课堂语音签到（双通道：原生识别 + MediaRecorder 通用录音） =====
 let clRecognition = null;
 let isClRecording = false;
+let clVoiceRecordTimer = null;
+let clMediaRecorder = null, clMediaStream = null, clMediaChunks = [];
+let clRecStartTs = 0, clRecTick = null, clVoiceAudioUrl = '';
+let clVoiceAudioBlob = null; // 课堂录音 blob
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2735,8 +3457,18 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const el = document.getElementById('clVoiceText');
     if (el) { el.value = final + interim; document.getElementById('clVoiceSubmitBtn').disabled = !final.trim(); }
   };
-  clRecognition.onerror = () => { stopClVoiceRecord(); document.getElementById('clVoiceStatus').textContent = '❌ 识别失败，请重试'; };
-  clRecognition.onend = () => { isClRecording = false; const b=document.getElementById('clVoiceRecordBtn'); if(b){b.textContent='🎙️ 开始录音';b.disabled=false;} };
+  clRecognition.onerror = (ev) => {
+    let msg = '❌ 识别失败：' + ev.error;
+    if (ev.error === 'no-speech') msg = '🎤 未检测到语音，请靠近麦克风（也可手动输入）';
+    else if (ev.error === 'not-allowed') msg = '❌ 麦克风权限被拒绝';
+    else if (ev.error === 'network') msg = '❌ 语音识别需要联网';
+    const st = document.getElementById('clVoiceStatus');
+    if (st) st.textContent = msg;
+    if (ev.error !== 'no-speech') stopClVoiceRecord();
+  };
+  clRecognition.onend = () => {
+    if (isClRecording) setClRecUI(false);
+  };
 }
 
 function toggleClVoiceCheckin() {
@@ -2744,22 +3476,119 @@ function toggleClVoiceCheckin() {
   a.style.display = a.style.display === 'none' ? 'block' : 'none';
 }
 
-function startClVoiceRecord() {
-  if (!clRecognition) { toast('⚠️ 浏览器不支持语音识别，请手动输入'); return; }
-  try {
-    clRecognition.start(); isClRecording = true;
-    document.getElementById('clVoiceRecordBtn').textContent='⏹️ 停止录音';
-    document.getElementById('clVoiceStatus').textContent='🎤 正在录音，请说出签到内容...';
-  } catch(e) { console.error(e); }
+function setClRecUI(recording) {
+  const ind = document.getElementById('clVoiceRecIndicator');
+  const btn = document.getElementById('clVoiceRecordBtn');
+  if (ind) ind.classList.toggle('active', recording);
+  if (btn) btn.textContent = recording ? '⏹️ 停止录音' : '🎙️ 开始录音';
+  if (!recording) stopClRecTick();
+}
+function startClRecTick() {
+  clRecStartTs = Date.now(); updateClRecTick(); stopClRecTick();
+  clRecTick = setInterval(updateClRecTick, 500);
+}
+function updateClRecTick() {
+  const el = document.getElementById('clVoiceRecTimer');
+  if (!el) return;
+  const s = Math.floor((Date.now() - clRecStartTs) / 1000);
+  el.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+function stopClRecTick() { if (clRecTick) { clearInterval(clRecTick); clRecTick = null; } }
+function releaseClMediaRecorder() {
+  if (clMediaRecorder && clMediaRecorder.state !== 'inactive') { try { clMediaRecorder.stop(); } catch (e) {} }
+  if (clMediaStream) { clMediaStream.getTracks().forEach(t => t.stop()); clMediaStream = null; }
+  clMediaRecorder = null; clMediaChunks = [];
+}
+
+async function startClVoiceRecord() {
+  if (isClRecording) { stopClVoiceRecord(); return; }
+  const useSTT = !!clRecognition;
+  const useRec = voiceRecorderSupported();
+  const st = document.getElementById('clVoiceStatus');
+
+  // 两条通道都不可用（如微信/部分移动端 WebView）：直接引导手动输入，避免"假录音"
+  if (!useSTT && !useRec) {
+    if (st) st.textContent = '⚠️ 当前浏览器不支持语音识别/录音，请手动输入签到口令';
+    toast('⚠️ 请手动输入签到口令');
+    const tx = document.getElementById('clVoiceText');
+    if (tx) tx.focus();
+    return;
+  }
+
+  if (useSTT) { try { clRecognition.start(); } catch (e) { console.warn('原生识别启动失败:', e); } }
+
+  if (useRec) {
+    let recorderOk = false, recErr = null;
+    try {
+      clMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      clMediaRecorder = createMediaRecorder(clMediaStream);
+      if (!clMediaRecorder) { releaseClMediaRecorder(); throw new Error('MediaRecorder unavailable'); }
+      clMediaChunks = [];
+      clMediaRecorder.ondataavailable = (evt) => { if (evt.data && evt.data.size) clMediaChunks.push(evt.data); };
+      clMediaRecorder.onstop = () => {
+        if (clMediaChunks.length) {
+          const blob = new Blob(clMediaChunks, { type: clMediaRecorder.mimeType || 'audio/webm' });
+          if (clVoiceAudioUrl) URL.revokeObjectURL(clVoiceAudioUrl);
+          clVoiceAudioUrl = URL.createObjectURL(blob);
+          clVoiceAudioBlob = blob;
+          // 录音完成后启用提交按钮（移动端只录音不转文字也能提交）
+          const sb = document.getElementById('clVoiceSubmitBtn');
+          if (sb) sb.disabled = false;
+          const s2 = document.getElementById('clVoiceStatus');
+          if (s2) s2.textContent = '✅ 录音完成，可回放试听，确认无误后提交';
+          showClVoiceReplay();
+        }
+        releaseClMediaRecorder();
+      };
+      clMediaRecorder.start(250);
+      recorderOk = true;
+    } catch (err) {
+      recErr = err;
+      console.warn('MediaRecorder 启动失败:', err);
+      releaseClMediaRecorder();
+    }
+    if (!recorderOk && !useSTT && st) {
+      st.textContent = '❌ 无法启动录音（' + (recErr && (recErr.name || recErr.message) || '权限不足') + '），请检查麦克风权限或手动输入口令';
+    }
+  }
+
+  isClRecording = true;
+  setClRecUI(true);
+  startClRecTick();
+  if (st) st.textContent = '🔴 正在录音，请说出签到内容…（10 秒后自动结束）';
+  if (clVoiceRecordTimer) clearTimeout(clVoiceRecordTimer);
+  clVoiceRecordTimer = setTimeout(() => { if (isClRecording) stopClVoiceRecord(); }, 10000);
 }
 
 function stopClVoiceRecord() {
-  if (clRecognition && isClRecording) { clRecognition.stop(); isClRecording=false; const b=document.getElementById('clVoiceRecordBtn');if(b)b.textContent='🎙️ 开始录音'; document.getElementById('clVoiceStatus').textContent='✅ 录音结束'; }
+  if (clRecognition && clRecognition.state !== 'idle') { try { clRecognition.stop(); } catch (e) {} }
+  if (clMediaRecorder && clMediaRecorder.state !== 'inactive') { try { clMediaRecorder.stop(); } catch (e) {} }
+  if (clVoiceRecordTimer) { clearTimeout(clVoiceRecordTimer); clVoiceRecordTimer = null; }
+  isClRecording = false;
+  setClRecUI(false);
+}
+
+function showClVoiceReplay() {
+  if (!clVoiceAudioUrl) return;
+  let wrap = document.getElementById('clVoiceReplayWrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'clVoiceReplayWrap';
+    wrap.style.cssText = 'margin-top:8px;display:none';
+    wrap.innerHTML = '<div style="background:#f1f5f9;border-radius:10px;padding:10px;font-size:12px;color:#475569">🔊 录音回放</div><audio controls style="width:100%;margin-top:6px"></audio>';
+    const area = document.getElementById('clVoiceArea');
+    const status = document.getElementById('clVoiceStatus');
+    if (area && status) area.insertBefore(wrap, status.nextSibling);
+  }
+  wrap.querySelector('audio').src = clVoiceAudioUrl;
+  wrap.style.display = 'block';
 }
 
 async function submitClVoiceCheckin() {
-  const text = document.getElementById('clVoiceText').value.trim();
-  if (!text) { toast('⚠️ 请输入或说出签到口令'); return; }
+  const textEl = document.getElementById('clVoiceText');
+  let text = textEl.value.trim();
+  // 录音完成但未自动转文字（移动端 MediaRecorder 通道）：允许以录音为准提交，文案兜底
+  if (!text) text = '（语音签到，已录音频）';
   const courseId = document.getElementById('clCourse').value;
   if (!courseId) { toast('⚠️ 请先选择课程'); return; }
 
@@ -2834,32 +3663,46 @@ function closeQrScanner() {
   document.getElementById('qrScannerOverlay').style.display = 'none';
 }
 
+// 从二维码文本中提取宿舍信息（支持新版 JSON 与旧版 URL ?dorm= 两种格式）
+function extractQrDorm(text) {
+  try {
+    const data = JSON.parse(text);
+    if (data.dorm) return String(data.dorm).trim();
+  } catch (e) {
+    const m = text.match(/[?&]dorm=([^&]+)/);
+    if (m) return decodeURIComponent(m[1]).trim();
+  }
+  return '';
+}
+
 async function handleQrResult(text, mode) {
   // 停止扫描
   if (qrScannerInstance) {
     try { await qrScannerInstance.stop(); } catch(e) {}
     qrScannerInstance = null;
   }
-  
+
   const resultEl = document.getElementById('qrScanResult');
   resultEl.textContent = '✅ 扫码成功！处理中...';
-  
+
   try {
-    let data;
+    let data = {};
     // 尝试解析 JSON
     try {
       data = JSON.parse(text);
     } catch (e) {
-      // 如果不是 JSON，当作纯文本 token 处理
-      data = { type: mode === 'ci' ? 'checkin' : 'class', token: text };
+      // 如果不是 JSON，尝试提取宿舍信息兜底
+      const dorm = extractQrDorm(text);
+      data = { type: mode === 'ci' ? 'checkin' : 'class', dorm: dorm, token: text };
     }
-    
+
     if (data.type === 'checkin' || data.type === 'ci' || mode === 'ci') {
-      // 查寝签到 - 直接用扫码结果签到
+      // 查寝签到：必须校验宿舍归属，防止扫其他寝室二维码代签
+      const qrDorm = (data.dorm || extractQrDorm(text) || '').trim();
       const note = data.note || data.remark || '扫码签到';
       const headers = {'Content-Type': 'application/json'};
       if (myStudentToken) headers['x-student-token'] = myStudentToken;
-      
+
       const res = await fetch('/api/checkin', {
         method: 'POST',
         headers,
@@ -2868,17 +3711,22 @@ async function handleQrResult(text, mode) {
           date: todayStr(),
           status: '在寝',
           note: note,
+          dorm: qrDorm,
           offline: false
         })
       });
       const j = await res.json();
       if (j.code === 0) {
-        toast('✅ 扫码签到成功！');
+        // 扫码通道完成 → 满足任务 required_steps 中的 qrcode 项（若教师勾选）
+        ciStepDone.qrcode = true;
+        checkCiReady();
+        // 明确提示：扫码是独立签到通道，已完成签到，下面「提交签到」是人脸+定位的传统通道，不必再点
+        toast('✅ 扫码签到成功！（无需再点「✅ 提交签到」）', 4000);
         closeQrScanner();
         loadCheckinData();
       } else {
         resultEl.textContent = '❌ 签到失败: ' + j.message;
-        setTimeout(closeQrScanner, 2000);
+        setTimeout(closeQrScanner, 2500);
       }
     } else if (data.type === 'class' || mode === 'cl') {
       // 课堂签到 - 获取或选择课程
@@ -2924,6 +3772,99 @@ async function handleQrResult(text, mode) {
   }
 }
 
+// ===== 课堂拍照签到 =====
+let clPhotoStream = null;
+let clPhotoData = '';
+
+async function startClPhotoCheckin(){
+  if (!myStudentId) { toast('⚠️ 请先登录'); return; }
+  const courseId = document.getElementById('clCourse').value;
+  if (!courseId) { toast('⚠️ 请先选择课程'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('⚠️ 当前环境不支持拍照'); return; }
+  document.getElementById('photoCheckinOverlay').style.display='flex';
+  document.getElementById('clPhotoStatus').textContent='正在启动摄像头...';
+  document.getElementById('clPhotoPreview').style.display='none';
+  document.getElementById('clPhotoVideo').style.display='block';
+  document.getElementById('clPhotoCaptureBtn').style.display='inline-block';
+  document.getElementById('clPhotoRetakeBtn').style.display='none';
+  document.getElementById('clPhotoSubmitBtn').style.display='none';
+  clPhotoData='';
+  try {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }, audio:false }); }
+    catch(e1) { stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); }
+    clPhotoStream = stream;
+    document.getElementById('clPhotoVideo').srcObject = stream;
+    document.getElementById('clPhotoStatus').textContent='对准自己或现场，点击下方按钮拍照';
+  } catch(e) {
+    document.getElementById('clPhotoStatus').textContent='❌ 摄像头启动失败：'+e.message;
+  }
+}
+
+function stopClPhotoStream(){
+  if (clPhotoStream) { try{ clPhotoStream.getTracks().forEach(t=>t.stop()); }catch(e){} clPhotoStream=null; }
+}
+
+function closeClPhotoCheckin(){
+  stopClPhotoStream();
+  document.getElementById('photoCheckinOverlay').style.display='none';
+  clPhotoData='';
+}
+
+function captureClPhoto(){
+  const video=document.getElementById('clPhotoVideo');
+  if(!video.videoWidth){ toast('⚠️ 摄像头未就绪，请稍候'); return; }
+  const c=document.createElement('canvas'); c.width=video.videoWidth; c.height=video.videoHeight;
+  c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+  compressImage(c.toDataURL('image/jpeg',0.85), 0.7, 800).then(compressed=>{
+    clPhotoData=compressed;
+    document.getElementById('clPhotoPreview').src=compressed;
+    document.getElementById('clPhotoPreview').style.display='block';
+    document.getElementById('clPhotoVideo').style.display='none';
+    document.getElementById('clPhotoCaptureBtn').style.display='none';
+    document.getElementById('clPhotoRetakeBtn').style.display='inline-block';
+    document.getElementById('clPhotoSubmitBtn').style.display='inline-block';
+    document.getElementById('clPhotoStatus').textContent='确认照片无误后提交签到';
+  });
+}
+
+function retakeClPhoto(){
+  clPhotoData='';
+  document.getElementById('clPhotoPreview').style.display='none';
+  document.getElementById('clPhotoVideo').style.display='block';
+  document.getElementById('clPhotoCaptureBtn').style.display='inline-block';
+  document.getElementById('clPhotoRetakeBtn').style.display='none';
+  document.getElementById('clPhotoSubmitBtn').style.display='none';
+  document.getElementById('clPhotoStatus').textContent='对准自己或现场，点击下方按钮拍照';
+}
+
+async function submitClPhotoCheckin(){
+  if(!clPhotoData){ toast('⚠️ 请先拍照'); return; }
+  const courseId=document.getElementById('clCourse').value;
+  if(!courseId){ toast('⚠️ 请先选择课程'); closeClPhotoCheckin(); return; }
+  const btn=document.getElementById('clPhotoSubmitBtn');
+  btn.disabled=true; btn.textContent='⏳ 提交中...';
+  document.getElementById('clPhotoStatus').textContent='正在提交签到...';
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(myStudentToken) headers['x-student-token']=myStudentToken;
+    const body={ student_id:myStudentId, course_id:courseId, date:todayStr(), class_name:myClassName, note:'拍照签到', photo:clPhotoData };
+    if(locState.cl){ body.latitude=locState.cl.lat; body.longitude=locState.cl.lng; body.address=document.getElementById('clAddress').textContent; }
+    const res=await fetch('/api/class-checkin',{method:'POST',headers,body:JSON.stringify(body)});
+    const j=await res.json();
+    if(j.code===0){
+      toast('✅ 拍照签到成功！');
+      closeClPhotoCheckin();
+      loadMyClass();
+    } else {
+      document.getElementById('clPhotoStatus').textContent='❌ 签到失败：'+j.message;
+    }
+  }catch(e){
+    document.getElementById('clPhotoStatus').textContent='❌ 提交失败：'+e.message;
+  }
+  btn.disabled=false; btn.textContent='✅ 确认签到';
+}
+
 // ===== 底部弹出确认框（替代原生 confirm）=====
 let _bottomSheetResolve = null;
 
@@ -2963,6 +3904,8 @@ function toggleDark(){
 document.addEventListener('DOMContentLoaded', () => {
   loadStudents();
   loadCourses();
+  // 启动时会话校验：token 过期立即弹登录层（治"看似已登录实则失效，收不到查寝通知"）
+  probeStudentSession();
 });
 
 // ===== 加载动画工具 =====

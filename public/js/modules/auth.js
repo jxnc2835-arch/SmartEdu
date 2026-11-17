@@ -20,10 +20,14 @@ window.doLogin = async function() {
     if (j.code === 0) {
       window.setToken(j.token);
       window.currentUser = j.data || {};
+      // 标记本标签页会话为已登录，允许刷新、从数据大屏返回时恢复会话
+      try { window.sessionStorage.setItem('teacher_session_active', '1'); } catch (e) {}
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
-      document.getElementById('userName').textContent = window.currentUser.display_name || '管理员';
-      document.getElementById('userAvatar').textContent = (window.currentUser.display_name || 'A').slice(0, 1);
+      // 按真实身份显示：优先 display_name，否则用角色标识；非管理员绝不回退为"管理员"
+      const _name = window.currentUser.display_name || window.currentUser.role || '用户';
+      document.getElementById('userName').textContent = _name;
+      document.getElementById('userAvatar').textContent = (_name || 'U').slice(0, 1);
       window.initApp();
     } else {
       document.getElementById('loginErr').textContent = j.message || '登录失败';
@@ -35,6 +39,7 @@ window.doLogin = async function() {
 
 window.doLogout = function() {
   localStorage.removeItem('admin_token');
+  try { window.sessionStorage.removeItem('teacher_session_active'); } catch (e) {}
   location.reload();
 };
 

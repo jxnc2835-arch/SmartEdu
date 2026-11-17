@@ -53,15 +53,34 @@ window.showLoading = function(el, show) {
 };
 
 // ==================== Error Boundary ====================
+// 从 unhandledrejection 的 e.reason 提取人类可读原因（Error 对象 / 字符串 / 其它 reject 值）
+window.extractRejectionReason = function(reason) {
+  try {
+    if (!reason) return '未知原因';
+    if (reason instanceof Error) return reason.name + ': ' + reason.message;
+    if (typeof reason === 'string') return reason.slice(0, 120);
+    if (typeof reason === 'object') {
+      // 常见 reject 值：带 message 的对象 / axios error(有 status/response)
+      if (reason.message) return String(reason.message).slice(0, 120);
+      if (reason.code) return 'code=' + reason.code;
+      if (reason.status) return 'HTTP ' + reason.status;
+      try { return JSON.stringify(reason).slice(0, 120); } catch (_) { return '未知原因'; }
+    }
+    return String(reason).slice(0, 120);
+  } catch (_) {
+    return '未知原因';
+  }
+};
 window.addErrorBoundary = function() {
   window.addEventListener('error', (e) => {
     console.error('[JS Error]', e.message, e.filename, e.lineno);
-    showToast('页面运行异常，请刷新重试', 'error', 5000);
+    showToast('页面运行异常：' + (e.message || '未知错误') + '，请刷新重试', 'error', 6000);
   });
-  
+
   window.addEventListener('unhandledrejection', (e) => {
     console.error('[Unhandled Rejection]', e.reason);
-    showToast('操作失败，请重试', 'error', 5000);
+    const reason = window.extractRejectionReason(e.reason);
+    showToast('操作失败：' + reason + '，请重试', 'error', 6000);
   });
 };
 

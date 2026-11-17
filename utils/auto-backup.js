@@ -1,6 +1,6 @@
 /**
  * auto-backup.js - 自动定时备份模块
- * 每天凌晨 2 点自动备份数据库
+ * 每天下午 1 点自动备份数据库（不在启动时备份）
  */
 
 const fs = require('fs');
@@ -26,13 +26,13 @@ function initAutoBackup(db, dbFilePath, backupDirectory) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
 
-  // 启动时立即备份一次
-  performBackup('startup');
+  // 启动时不再备份（先生 2026-10-22 指示：频繁重启会产生大量 startup 备份，改为每天下午 1 点一份）
+  // performBackup('startup');
 
-  // 每天凌晨 2 点备份
-  scheduleDailyBackup(2, 0);
+  // 每天下午 1 点备份
+  scheduleDailyBackup(13, 0);
 
-  logger.info('自动备份已启用，每天 02:00 执行');
+  logger.info('自动备份已启用，每天 13:00 执行');
 }
 
 /**

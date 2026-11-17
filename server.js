@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const initSqlJs = require('sql.js');
+const Database = require('better-sqlite3');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');
@@ -67,13 +68,25 @@ process.on('uncaughtException', (err) => {
       const line = `[${new Date().toISOString()}] ${err?.message || String(err)}${isEpipe ? ' (EPIPE ignored)' : ''}\n${err?.stack || ''}\n\n`;
       fs.appendFileSync(logFile, line);
     } catch (e) { /* 日志落盘失败时忽略 */ }
-  // 不退出进程，继续运行（开发/测试环境）；生产环境建议改用 pm2 等进程守护
+  // 治本修复（P0 多实例互相覆盖 db 的隐患）：
+  // EPIPE 忽略、继续运行（避免死循环刷日志）；
+  // 其它致命 uncaughtException：记录日志后退出进程。
+  // 由 PM2（ecosystem.claw.config.js / ecosystem.config.js）自动拉起新实例，
+  // 不再"带病硬跑 + 周期回写 data.db"造成多实例互相覆盖。
+  // 无 PM2 守护时，退出即停服，符合"监听失败应停"的语义（见 739-742 EADDRINUSE 处理）。
+  if (!isEpipe) {
+    logger.error('[uncaughtException] 致命异常，进程将退出以交由进程守护重新拉起');
+    process.exit(1);
+  }
 });
 
 const {
   setDb, authMiddleware, requireRole, studentAuth,
   STUDENT_TOKENS, RESET_TOKENS, STUDENT_TOKEN_EXPIRY,
-  LOGIN_ATTEMPTS, checkLoginRateLimit, generateToken, validateToken
+  LOGIN_ATTEMPTS, checkLoginRateLimit, generateToken, validateToken,
+  // P1 修复：server.js 内 /api/ws-ticket 签发与 wsVerifyClient 票据校验都要用 JWT_SECRET，
+  // 此前未引入导致 ReferenceError → GET /api/ws-ticket 恒 500（见运行日志）
+  JWT_SECRET
 } = require('./middleware/auth');
 const { localDateStr, formatDate, nowTimestamp, saveBase64Photo, beijingStamp, compressImage, setAppDb } = require('./utils/helpers');
 const { createIndexes, optimizeDbConfig, paginate, batchInsert, healthCheck, vacuum } = require('./utils/database');
@@ -101,6 +114,11 @@ const { init: initMobileRoutes } = require('./routes/mobile');
 const { init: initMetricsRoutes } = require('./routes/metrics');
 
 // 创建 Express 应用（包含中间件、静态文件、错误处理）
+// 注意：createApp() 内部已按本项目需求配置了宽松的 Helmet CSP
+//（允许内联脚本 onclick/onchange + cdn.jsdelivr.net），切勿在此处再叠加默认
+//  app.use(helmet())，否则默认严格策略会覆盖 createApp 的配置，
+// 导致 teacher.html / student.html / dashboard.html 的内联事件与图表脚本被浏览器拦截，
+// 表现为"按钮点了没反应"。
 const app = createApp();
 
 // Trust proxy for reverse proxy deployments (nginx, cloud load balancers)
@@ -114,7 +132,7 @@ if (process.env.NODE_ENV !== 'test' && process.env.FORCE_HTTPS === 'true') {
   app.use((req, res, next) => {
     // 如果已有 HTTPS 证书且请求是 HTTP，则重定向
     if (req.protocol === 'http' && fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
-      const httpsUrl = `https://${req.headers.host.replace(':3000', ':3443')}${req.originalUrl}`;
+      const httpsUrl = `https://${req.headers.host.replace(':3100', ':3543')}${req.originalUrl}`;
       logger.info(`HTTP → HTTPS 重定向: ${req.originalUrl}`);
       return res.redirect(301, httpsUrl);
     }
@@ -130,9 +148,18 @@ const wss = new WebSocketServer({ server, verifyClient: wsVerifyClient });
 
 const { PORT, HTTPS_PORT, SSL_DIR, SSL_KEY, SSL_CERT, UPLOAD_DIR, BACKUP_DIR, DB_FILE: dbFile } = config;
 
+// P0 修复：HTTPS(3543) 上另有一个独立的 WebSocketServer 实例 wssHttps（见下方启动逻辑）。
+// 此前 broadcast() 只遍历 HTTP 的 wss.clients，导致 HTTPS 学生端连上后永远收不到实时推送
+//（表现为：教师发布查寝任务，HTTPS 学生端无弹窗/横幅，HTTP 学生端正常）。
+// 修复：wssHttps 提升为模块级变量，广播时两个实例都遍历。
+let wssHttps = null;
 function broadcast(msg) {
   const data = JSON.stringify(msg);
-  wss.clients.forEach(c => { if (c.readyState === 1) c.send(data); });
+  let sent = 0;
+  wss.clients.forEach(c => { if (c.readyState === 1) { c.send(data); sent++; } });
+  if (wssHttps) wssHttps.clients.forEach(c => { if (c.readyState === 1) { c.send(data); sent++; } });
+  // 查寝任务推送是关键业务通知，留一条可观测日志（含送达客户端数），便于排查"学生端没弹窗"
+  if (msg && msg.type === 'checkin_task') logger.info(`[WS] 广播 checkin_task → ${sent} 个在线客户端`);
 }
 
 // ==================== WebSocket 认证 ====================
@@ -186,8 +213,13 @@ function wsVerifyClient(info, done) {
 let db = null;
 let _saveTimer = null;
 let _saveLock = false;
+let _forceSaved = false;
 
 function forceSave() {
+  // P1修复：SIGINT/SIGTERM 先手动 forceSave 再 process.exit()，'exit' 钩子会再次触发造成整库双写；
+  // 加一次性标记，进程生命周期内只落盘一次
+  if (_forceSaved) return;
+  _forceSaved = true;
   if (_saveTimer) clearTimeout(_saveTimer);
   try {
     fs.writeFileSync(dbFile, Buffer.from(db.export()));
@@ -202,6 +234,16 @@ async function flushDb() {
   _saveLock = true;
   try {
     fs.writeFileSync(dbFile, Buffer.from(db.export()));
+    // P0·实用性：即时把 SQLite 文件同步到磁盘（WAL checkpoint），断电最多丢 ~0.3s
+    try {
+      const persistDb = new Database(dbFile);
+      persistDb.pragma('journal_mode = WAL');
+      persistDb.pragma('synchronous = FULL');
+      persistDb.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      persistDb.close();
+    } catch (e) {
+      logger.warn('SQLite 即时同步失败（不影响内存库）:', e.message);
+    }
   } catch (e) {
     logger.error('数据库写入失败:', e.message);
   } finally {
@@ -234,6 +276,36 @@ async function sendWebhook(message) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: message })
       });
+    }
+    // [新增] 微信推送服务（PushPlus）：个人微信可收，免费。token 即 pushplus.plus 的 Token
+    const ppEnabled = db.exec("SELECT value FROM settings WHERE key='pushplus_enabled'")[0]?.values?.[0];
+    const ppToken = db.exec("SELECT value FROM settings WHERE key='pushplus_token'")[0]?.values?.[0];
+    if (ppEnabled && ppEnabled[0] === '1' && ppToken && ppToken[0]) {
+      await fetch('https://www.pushplus.plus/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // PushPlus 用 html 渲染，\n 转 <br/> 才能在微信里换行
+        body: JSON.stringify({ token: ppToken[0], title: '学管SmartEdu通知', content: String(message).replace(/\n/g, '<br/>'), content_type: 'html' })
+      }).catch(() => {});
+    }
+    // [新增] 企业微信 / 钉钉 群机器人：配置后实时告警也推送到群聊
+    const wecomEnabled = db.exec('SELECT value FROM settings WHERE key=\'wecom_enabled\'')[0]?.values?.[0];
+    const wecomUrl = db.exec('SELECT value FROM settings WHERE key=\'wecom_webhook_url\'')[0]?.values?.[0];
+    if (wecomEnabled && wecomEnabled[0] === '1' && wecomUrl && wecomUrl[0]) {
+      await fetch(wecomUrl[0], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgtype: 'text', text: { content: message } })
+      }).catch(() => {});
+    }
+    const dingEnabled = db.exec('SELECT value FROM settings WHERE key=\'dingtalk_enabled\'')[0]?.values?.[0];
+    const dingUrl = db.exec('SELECT value FROM settings WHERE key=\'dingtalk_webhook_url\'')[0]?.values?.[0];
+    if (dingEnabled && dingEnabled[0] === '1' && dingUrl && dingUrl[0]) {
+      await fetch(dingUrl[0], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgtype: 'text', text: { content: message } })
+      }).catch(() => {});
     }
   } catch (e) { logger.error('Webhook 发送失败', e.message); }
 }
@@ -315,6 +387,83 @@ function mountRoutes() {
   const dashboardRouter = initDashboardRoutes(db, validateToken);
   app.use(dashboardRouter);
 
+  // 地图配置公开接口（前端定位地址反解用）：
+  // 必须注册在 statisticsRouter 之前，否则会被 statistics.js 里
+  // router.use('/api', authMiddleware) 的全局鉴权拦截返回 401。
+  // 直接挂到 app 上（与 /api/local-address 同层），不经过任何 sub-router 的全局 auth。
+  app.get('/api/config/map', (req, res) => {
+    try {
+      const cfg = config;
+      let provider = 'amap';
+      if (cfg.TENCENT_MAP_KEY && !cfg.AMAP_MAP_KEY) provider = 'tencent';
+      else if (cfg.BAIDU_MAP_KEY && !cfg.AMAP_MAP_KEY) provider = 'baidu';
+      res.json({ code: 0, data: {
+        provider,
+        amapKey: cfg.AMAP_MAP_KEY || '',
+        tencentKey: cfg.TENCENT_MAP_KEY || '',
+        baiduKey: cfg.BAIDU_MAP_KEY || ''
+      }});
+    } catch (e) { res.json({ code: 1, message: e.message }); }
+  });
+
+  // 任务 required_steps 解析（与 routes/system.js 同一套规则）：空/非法 → 默认全 4 项
+  const TASK_STEP_KEYS = ['location', 'photo', 'voice', 'qrcode'];
+  function parseTaskSteps(raw) {
+    if (!raw) return TASK_STEP_KEYS.slice();
+    try {
+      const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(arr)) {
+        const valid = arr.filter(k => TASK_STEP_KEYS.includes(k));
+        return valid.length ? valid : TASK_STEP_KEYS.slice();
+      }
+    } catch (e) { /* fallthrough */ }
+    return TASK_STEP_KEYS.slice();
+  }
+
+  // 学生端只读查寝任务（x-student-token 鉴权，离线兜底拉本人班级当天 pending 任务）
+  // 必须注册在 statisticsRouter 之前：statistics.js 有 router.use('/api', authMiddleware)
+  // 全局鉴权，学生 token 过不了教师 JWT 会被 401；挂在 app 层（与 /api/config/map 同层）可绕过。
+  // 直接读 STUDENT_TOKENS（与 /api/student-login 同一份共享对象），不走 studentAuth 中间件
+  // （studentAuth 因模块实例隔离其 STUDENT_TOKENS 永远为空，会把有效 token 误判 401）。
+  app.get('/api/tasks/student', (req, res) => {
+    const token = req.headers['x-student-token'];
+    const entry = token ? STUDENT_TOKENS[token] : undefined;
+    if (!entry || Date.now() > entry.expiresAt) {
+      if (token) delete STUDENT_TOKENS[token];
+      return res.status(401).json({ code: 1, message: '身份验证已过期，请重新登录' });
+    }
+    // 仅允许查本人班级或全年级任务，防止越权
+    const { status } = req.query;
+    let sql = "SELECT * FROM tasks WHERE (class_name=? OR class_name IS NULL OR class_name='')";
+    const params = [entry.class_name || ''];
+    if (status) { sql += " AND status=?"; params.push(status); }
+    sql += " ORDER BY created_at DESC";
+    const rows = db.exec(sql, params)[0]?.values || [];
+    const tasks = rows.map(r => ({
+      id: r[0], date: r[1], class_name: r[2], remark: r[3],
+      status: r[4], created_at: r[5], created_by: r[6] || 'system',
+      required_steps: parseTaskSteps(r[7])
+    }));
+    res.json({ code: 0, data: tasks });
+  });
+
+  // 学生端/教师端读取公告：学生 token 或教师 JWT 任一通过即可
+  // 必须注册在 statisticsRouter 之前（statistics.js 的 router.use('/api', authMiddleware)
+  // 只认教师 JWT，学生 token 会被 401 拦截；挂在 app 层绕过，与 /api/tasks/student 同理）
+  app.get('/api/announcements', (req, res) => {
+    const st = req.headers['x-student-token'];
+    const okStudent = st && STUDENT_TOKENS[st] && Date.now() <= STUDENT_TOKENS[st].expiresAt;
+    const okTeacher = validateToken(req.headers['x-auth-token'] || req.query.token);
+    if (!okStudent && !okTeacher) {
+      return res.status(401).json({ code: 1, message: '身份验证已过期，请重新登录' });
+    }
+    try {
+      const r = db.exec("SELECT id, title, content, created_at FROM announcements ORDER BY created_at DESC LIMIT 50")[0];
+      if (!r) return res.json({ code: 0, data: [] });
+      res.json({ code: 0, data: r.values.map(v => Object.fromEntries(r.columns.map((c, i) => [c, v[i]]))) });
+    } catch (e) { res.json({ code: 1, message: e.message }); }
+  });
+
   const statisticsRouter = initStatisticsRoutes(db, scheduleSave, addLog, broadcast, sendWebhook);
   app.use(statisticsRouter);
 
@@ -337,7 +486,7 @@ function mountRoutes() {
   // Register export routes for Excel and PDF reports
   const exportRouter = initExportRoutes({ db, scheduleSave, authMiddleware, PDFDocument, addLog });
   app.use(exportRouter);
-const monitorRouter = initMonitorRoutes({db, dbFile, authMiddleware, addLog, sendWebhook});
+const monitorRouter = initMonitorRoutes({db, dbFile, authMiddleware, addLog, sendWebhook, backupDir: config.BACKUP_DIR, aiConfigFile: path.join(config.ROOT_DIR, 'data', 'ai_config.json')});
 app.use(monitorRouter);
 
   // 活体检测专用路由（可单独调用）
@@ -355,7 +504,7 @@ const notifyRouter = initNotifyRoutes({ db, authMiddleware });
 app.use(notifyRouter);
 const alertsRouter = initAlertsRoutes({ db, authMiddleware, scheduleSave, addLog });
 app.use(alertsRouter);
-const webhookRouter = initWebhookRoutes({ db, authMiddleware, addLog });
+const webhookRouter = initWebhookRoutes({ db, authMiddleware, scheduleSave, addLog });
 app.use(webhookRouter);
 
 // CSRF 防护：在所有业务路由挂载后，对写操作进行 CSRF 验证
@@ -422,6 +571,35 @@ app.use((err, req, res, next) => {
     // 优化数据库性能
     optimizeDbConfig(db);
     
+    // P0·实用性：启动时把内存库快照回放成 better-sqlite3 文件，保证断电可恢复
+    try {
+      const persistDb = new Database(dbFile, { fileMustExist: !fs.existsSync(dbFile) });
+      persistDb.pragma('journal_mode = WAL');
+      persistDb.pragma('synchronous = NORMAL');
+      persistDb.exec('BEGIN IMMEDIATE');
+      const tables = db.exec("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL");
+      for (const row of tables[0].values) {
+        persistDb.exec(`DROP TABLE IF EXISTS ${row[0]}`);
+        if (row[1]) persistDb.exec(row[1]);
+      }
+      const tableNames = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].values.map(v => v[0]);
+      for (const t of tableNames) {
+        const data = db.exec(`SELECT * FROM "${t}"`);
+        if (data.length && data[0].values.length) {
+          const cols = data[0].columns;
+          const placeholders = cols.map(() => '?').join(',');
+          const ins = persistDb.prepare(`INSERT INTO "${t}" (${cols.join(',')}) VALUES (${placeholders})`);
+          for (const r of data[0].values) ins.run(...r);
+        }
+      }
+      persistDb.exec('COMMIT');
+      persistDb.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      persistDb.close();
+      logger.info('✅ 内存库已回放至 SQLite 文件（better-sqlite3 持久化）');
+    } catch (e) {
+      logger.warn('SQLite 回放失败，回退纯 sql.js 模式:', e.message);
+    }
+    
     // 执行数据库迁移
     runMigrations(db, dbFile);
     
@@ -459,6 +637,10 @@ app.use((err, req, res, next) => {
   try { db.run("ALTER TABLE leaves ADD COLUMN comment TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE leaves ADD COLUMN processed_at TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE leaves ADD COLUMN processed_by TEXT DEFAULT ''"); } catch(e) {}
+
+  // P2·实用性：AI 用量表（记录每次 LLM 调用的 token 与成本）
+  db.run(`CREATE TABLE IF NOT EXISTS ai_usage(id TEXT PRIMARY KEY, date TEXT, model TEXT, input_tokens INTEGER DEFAULT 0, output_tokens INTEGER DEFAULT 0, cost REAL DEFAULT 0, created_at TEXT);`);
+  try { db.run("CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage(date)"); } catch(e) {}
   db.run(`CREATE TABLE IF NOT EXISTS logs(id TEXT PRIMARY KEY, time TEXT, action TEXT, detail TEXT, level TEXT, operator TEXT DEFAULT '');`);
   try { db.run("ALTER TABLE logs ADD COLUMN operator TEXT DEFAULT ''"); } catch(e) {}
   db.run(`CREATE TABLE IF NOT EXISTS dorms(id TEXT PRIMARY KEY, building TEXT, room TEXT, capacity INTEGER DEFAULT 6, gender TEXT DEFAULT 'male', floor INTEGER, occupied INTEGER DEFAULT 0);`);
@@ -477,6 +659,19 @@ app.use((err, req, res, next) => {
   try { db.run("CREATE INDEX IF NOT EXISTS idx_leaves_status ON leaves(status)"); } catch(e) {}
   try { db.run("CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date)"); } catch(e) {}
   db.run(`CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, date TEXT, class_name TEXT, remark TEXT, status TEXT DEFAULT 'pending', created_at TEXT, created_by TEXT);`);
+  // 迁移：旧库 tasks 表补 required_steps 列（教师发布时勾选的学生端必做步骤，JSON 数组字符串）
+  try {
+    const tcols = db.exec("PRAGMA table_info(tasks)")[0]?.values.map(r => r[1]) || [];
+    if (!tcols.includes('required_steps')) {
+      db.run("ALTER TABLE tasks ADD COLUMN required_steps TEXT");
+      addLog('数据库迁移', 'tasks 表新增 required_steps 列');
+    }
+    // P1·实用性：销号闭环补 closed_at 列
+    if (!tcols.includes('closed_at')) {
+      db.run("ALTER TABLE tasks ADD COLUMN closed_at TEXT DEFAULT ''");
+      addLog('数据库迁移', 'tasks 表新增 closed_at 列');
+    }
+  } catch(e) { console.warn('tasks required_steps 迁移失败:', e.message); }
 
   // ==================== 新功能：异常闭环告警 ====================
   // 未归自动建单 → 推送辅导员 → 跟进登记 → 销号闭环
@@ -523,6 +718,11 @@ app.use((err, req, res, next) => {
   try { db.run("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE students ADD COLUMN face_hash TEXT DEFAULT ''"); } catch(e) {}
   try { db.run("ALTER TABLE visitors ADD COLUMN face_hash TEXT DEFAULT ''"); } catch(e) {}
+
+  // 公开健康检查（供 Docker / 负载均衡 / 云探针探活，无需鉴权）
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', ts: Date.now() });
+  });
 
   // 添加数据库健康检测 API
   app.get('/api/db/health', authMiddleware, (req, res) => {
@@ -690,24 +890,33 @@ app.use((err, req, res, next) => {
         if (fs.existsSync(SSL_KEY) && fs.existsSync(SSL_CERT)) {
           const https = require('https');
           const httpsServer = https.createServer({ key: fs.readFileSync(SSL_KEY), cert: fs.readFileSync(SSL_CERT) }, app);
-          const wssHttps = new WebSocketServer({ server: httpsServer, verifyClient: wsVerifyClient });
+          // 赋值给模块级 wssHttps（broadcast 需同时覆盖 HTTPS 实例，见 broadcast 定义处注释）
+          wssHttps = new WebSocketServer({ server: httpsServer, verifyClient: wsVerifyClient });
           wssHttps.on('connection', ws => { ws.on('error', (err) => logger.error('HTTPS WebSocket错误:', err.message)); });
           httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-            logger.info(`🔒 HTTPS: https://localhost:${HTTPS_PORT}`);
+            logger.info(`🔒 HTTPS · 学生端: https://localhost:${HTTPS_PORT}/student.html`);
           }).on('error', (err) => logger.error(`HTTPS服务器启动失败: ${err.message}`));
         }
       } catch(e) { logger.error(`HTTPS启动异常: ${e.message}`); }
     }, 1000);
   });
 
+  // P0 修复：自增上限改为基于 .env 的 PORT 动态计算（PORT+100），
+  // 原硬编码 3100 导致 .env 恰用 3100 时 3100<3100 恒假、EADDRINUSE 无处可逃。
+  const LISTEN_PORT_CEILING = PORT + 100;
+
   server.on('error', async (err) => {
-    if (err.code === 'EADDRINUSE' && listeningPort < 3100) {
-      // 端口被占用则递增重试（上限 3100），listeningPort 为可变变量，
+    if (err.code === 'EADDRINUSE' && listeningPort < LISTEN_PORT_CEILING) {
+      // 端口被占用则递增重试（上限 PORT+100），listeningPort 为可变变量，
       // 实际端口确定后由 listen 回调持久化到 .runtime-port
       listeningPort += 1;
       logger.warn(`端口 ${listeningPort - 1} 被占用，尝试端口 ${listeningPort}...`);
       await new Promise(resolve => setTimeout(resolve, 500));
       server.listen(listeningPort, '0.0.0.0');
+    } else if (err.code === 'EADDRINUSE') {
+      // 超过自增窗口仍被占：记录错误后退出，避免"僵尸实例回写数据库"
+      logger.error(`端口 ${PORT}-${LISTEN_PORT_CEILING} 均被占用，启动失败`);
+      process.exit(1);
     }
   });
 
@@ -723,6 +932,33 @@ app.use((err, req, res, next) => {
     try { fs.unlinkSync(path.join(config.ROOT_DIR, '.runtime-port')); } catch (e) {}
   });
 })();
+
+// ==================== /api/local-address 端点（手机同局域网扫码入口，无需鉴权） ====================
+app.get('/api/local-address', async (req, res) => {
+  try {
+    const nets = os.networkInterfaces();
+    const candidates = [];
+    for (const name of Object.keys(nets)) {
+      for (const ni of nets[name] || []) {
+        if (ni.family === 'IPv4' && !ni.internal && !ni.address.startsWith('169.254.')) {
+          candidates.push(ni.address);
+        }
+      }
+    }
+    const ip = candidates[0] || '';
+    if (!ip) return res.json({ code: 0, data: { ip: '', port: listeningPort, httpsPort: HTTPS_PORT, studentUrl: '', teacherUrl: '', studentQr: '', teacherQr: '' } });
+    const base = `http://${ip}:${listeningPort}`;
+    const studentUrl = `${base}/student.html`;
+    const teacherUrl = `${base}/teacher.html`;
+    const [studentQr, teacherQr] = await Promise.all([
+      QRCode.toDataURL(studentUrl, { margin: 1, width: 168 }),
+      QRCode.toDataURL(teacherUrl, { margin: 1, width: 168 })
+    ]);
+    res.json({ code: 0, data: { ip, port: listeningPort, httpsPort: HTTPS_PORT, studentUrl, teacherUrl, studentQr, teacherQr } });
+  } catch (e) {
+    res.json({ code: 1, message: e.message });
+  }
+});
 
 // ==================== /api/needs 端点 ====================
 app.get('/api/needs', (req, res) => {

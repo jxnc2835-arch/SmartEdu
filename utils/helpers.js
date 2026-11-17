@@ -84,13 +84,16 @@ function compressImage(inputPath, outputPath, options = {}) {
 }
 
 // 北京时间日期字符串：YYYY-MM-DD
-function beijingDateStr() {
-  const utc = new Date().getTime() + new Date().getTimezoneOffset() * 60000;
+// 可选参数 d：Date 对象（缺省=当前时间）。传参时返回该时刻对应的北京日期，
+// 修复旧版忽略参数导致"传 30 天前也返回今天"的窗口计算 bug。
+function beijingDateStr(d) {
+  const src = (d instanceof Date && !isNaN(d.getTime())) ? d : new Date();
+  const utc = src.getTime() + src.getTimezoneOffset() * 60000;
   const bj = new Date(utc + 8 * 3600 * 1000);
   const y = bj.getFullYear();
   const m = String(bj.getMonth() + 1).padStart(2, '0');
-  const d = String(bj.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const day = String(bj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // 北京时间完整时间字符串：YYYY-MM-DD HH:mm:ss

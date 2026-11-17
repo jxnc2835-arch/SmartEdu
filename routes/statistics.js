@@ -24,50 +24,35 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook) {
 
   // 数据隔离中间件：counselor/teacher 自动按其班级过滤
   // 注：有效班级写入 req.user.effective_class（req.query 在 Express 5 中为只读 getter，不可赋值）
+  // 关键：空字符串 cls='' 代表"全部班级"语义，与 undefined 同等对待——回退到 effective_class
   function applyUserClassFilter(req, res, next) {
     if (!req.user) return next();
     const role = req.user.role;
     if (role === 'super_admin' || role === 'admin' || role === 'dean') return next();
-    if ((role === 'counselor' || role === 'teacher') && req.user.allowed_classes?.length) {
-      // 如果 query 没有 class_name，自动注入
-      if (!req.query.class_name) {
-        req.user.effective_class = req.user.allowed_classes[0];
-      } else {
-        // 校验用户只能查自己班级
-        const allowed = req.user.allowed_classes;
-        if (!allowed.includes(req.query.class_name)) {
-          return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
+    // 将空字符串视为"未指定"，统一走 effective_class 兜底
+    const qCls = req.query.class_name;
+    if (qCls === undefined || qCls === null || qCls === '') {
+      delete req.query.class_name; // 移除空值，避免路由层误判
+      if (role === 'counselor' || role === 'teacher') {
+        const allowed = req.user.allowed_classes || [];
+        if (allowed.length) {
+          req.user.effective_class = allowed[0];
         }
-        req.user.effective_class = req.query.class_name;
       }
     } else {
-      // token 中没有 role，从 DB 查一次
-      const userRow = database.exec("SELECT role, class_name FROM users WHERE id=?", [req.user.userId])[0]?.values?.[0];
-      if (userRow) {
-        const userRole = userRow[0];
-        const userClasses = userRow[1] || '';
-        if (userRole === 'counselor' || userRole === 'teacher') {
-          req.user.role = userRole;
-          const allowed = userClasses.split(',').map(c=>c.trim()).filter(Boolean);
-          req.user.allowed_classes = allowed;
-          if (!req.query.class_name) {
-            req.user.effective_class = allowed[0] || '';
-          } else if (!allowed.includes(req.query.class_name)) {
-            return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
-          } else {
-            req.user.effective_class = req.query.class_name;
-          }
-        }
+      const allowed = req.user.allowed_classes || [];
+      if (allowed.length && !allowed.includes(qCls)) {
+        return res.status(403).json({ code: 1, message: '无权访问其他班级数据' });
       }
+      req.user.effective_class = qCls;
     }
     next();
   }
-  router.use(applyUserClassFilter);
 
   // ==================== 统计分析 ====================
   router.get('/api/stats', authMiddleware, (req, res) => {
     const days = parseInt(req.query.days) || 7;
-    // effective_class: 辅导员/班主任的数据隔离班级（中间件注入，兼容 Express 4/5）
+    // effective_class: 辅导员/班主任的数据隔离班级（中间件已清理空 cls 并注入 effective_class）
     const class_name = req.query.class_name || req.user?.effective_class || '';
     const endDate = new Date();
     const startDate = new Date();
@@ -104,8 +89,8 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook) {
         SUM(CASE WHEN status IN ('rejected','已驳回') THEN 1 ELSE 0 END) as rejected
       FROM leaves 
       WHERE created_at >= ? AND created_at <= ?
-      ${class_name ? "AND student_id IN (SELECT id FROM students WHERE class_name=?) AND class_name=?" : ""}
-    `, [startDateStr, endDateStr, ...(class_name ? [null, class_name] : [])])[0]?.values?.[0] || [0,0,0,0];
+      ${class_name ? "AND student_id IN (SELECT id FROM students WHERE class_name=?)" : ""}
+    `, [startDateStr, endDateStr, ...(class_name ? [class_name] : [])])[0]?.values?.[0] || [0,0,0,0];
 
     // 出勤率
     const totalCheckins = checkinStats[0];
@@ -141,7 +126,7 @@ function init(_db, _scheduleSave, _addLog, _broadcast, _sendWebhook) {
   router.get('/api/stats/overview', authMiddleware, (req, res) => {
     try {
       let now = localDateStr();
-      // effective_class: 数据隔离班级（中间件注入，兼容 Express 4/5）
+      // effective_class: 数据隔离班级（中间件已清理空 cls 并注入 effective_class）
       const class_name = req.query.class_name || req.user?.effective_class || '';
       // 如果今天没有签到记录，自动回退到最近有数据的日期
       const hasToday = database.exec("SELECT COUNT(*) FROM records WHERE type='checkin' AND date=?", [now])[0]?.values?.[0]?.[0] || 0;

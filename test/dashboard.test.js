@@ -89,3 +89,91 @@ describe('Dashboard API', () => {
     expect(res.body).toHaveProperty('data');
   });
 });
+
+// 回归测试：多班级辅导员场景下，公开接口 SQL 参数数量必须与占位符匹配
+// 背景：/api/dorms/public 和 /api/class-trend/public 在修复前用单 `?` 处理多班级，
+//       导致参数数量与 IN (?,?) 占位符不一致。
+describe('Dashboard - Multi-class Counselor Regression', () => {
+  let mockDb;
+
+  function createAppWithCounselor(dbMock, allowedClasses) {
+    const app = express();
+    const validateToken = () => ({
+      role: 'counselor',
+      userId: 2,
+      allowed_classes: allowedClasses,
+      classScope: allowedClasses
+    });
+    const router = initDashboardRoutes(dbMock, validateToken);
+    // 在路由前注入 counselor token 解析结果，模拟已带有效 token 的辅导员请求
+    app.use((req, res, next) => {
+      req.headers['x-auth-token'] = 'counselor-token';
+      next();
+    });
+    app.use(router);
+    return app;
+  }
+
+  beforeEach(() => {
+    mockDb = { exec: jest.fn() };
+    mockDb.exec.mockReturnValue([{ values: [] }]);
+  });
+
+  test('/api/dorms/public 多班级：SQL 占位符数量 = 参数数量（IN 模式）', async () => {
+    const app = createAppWithCounselor(mockDb, ['A班', 'B班']);
+    await request(app).get('/api/dorms/public');
+    const dormCall = mockDb.exec.mock.calls.find(([sql]) =>
+      sql.includes('FROM dorms') && sql.includes('d.building'));
+    expect(dormCall).toBeDefined();
+    const [sql, params] = dormCall;
+    const placeholderCount = (sql.match(/\?/g) || []).length;
+    // f.params = ['A班','B班']，params = [...f.params, ...f.params] = 4
+    // SQL 含 2 个 IN (?,?) 子句（countCond + existsCond），共 4 个占位符
+    expect(placeholderCount).toBe(params.length);
+  });
+
+  test('/api/class-trend/public 多班级：SQL 占位符数量 = 参数数量（IN 模式）', async () => {
+    const app = createAppWithCounselor(mockDb, ['A班', 'B班']);
+    await request(app).get('/api/class-trend/public').query({ days: 7 });
+    const trendCall = mockDb.exec.mock.calls.find(([sql]) =>
+      sql.includes('GROUP BY r.date') && sql.includes('r.type'));
+    expect(trendCall).toBeDefined();
+    const [sql, params] = trendCall;
+    const placeholderCount = (sql.match(/\?/g) || []).length;
+    // SQL: r.date >= ? AND r.date <= ? AND r.class_name IN (?,?)  → 4 个占位符
+    // params = [startDate, endDate, 'A班', 'B班'] = 4
+    expect(placeholderCount).toBe(params.length);
+    expect(params).toHaveLength(4);
+    expect(params[2]).toBe('A班');
+    expect(params[3]).toBe('B班');
+  });
+
+  test('/api/dorms/public 单班级：SQL 占位符数量 = 参数数量（单 ? 模式）', async () => {
+    const app = createAppWithCounselor(mockDb, ['A班']);
+    await request(app).get('/api/dorms/public');
+    const dormCall = mockDb.exec.mock.calls.find(([sql]) =>
+      sql.includes('FROM dorms') && sql.includes('d.building'));
+    expect(dormCall).toBeDefined();
+    const [sql, params] = dormCall;
+    const placeholderCount = (sql.match(/\?/g) || []).length;
+    // f.params = ['A班']，params = ['A班', 'A班'] = 2
+    // SQL: s2.class_name=? + EXISTS s.class_name=? → 2 个占位符
+    expect(placeholderCount).toBe(params.length);
+    expect(params).toEqual(['A班', 'A班']);
+  });
+
+  test('/api/class-trend/public 单班级：SQL 占位符数量 = 参数数量（单 ? 模式）', async () => {
+    const app = createAppWithCounselor(mockDb, ['A班']);
+    await request(app).get('/api/class-trend/public').query({ days: 7 });
+    const trendCall = mockDb.exec.mock.calls.find(([sql]) =>
+      sql.includes('GROUP BY r.date') && sql.includes('r.type'));
+    expect(trendCall).toBeDefined();
+    const [sql, params] = trendCall;
+    const placeholderCount = (sql.match(/\?/g) || []).length;
+    // SQL: r.date >= ? AND r.date <= ? AND r.class_name=? → 3 个占位符
+    // params = [startDate, endDate, 'A班'] = 3
+    expect(placeholderCount).toBe(params.length);
+    expect(params).toHaveLength(3);
+    expect(params[2]).toBe('A班');
+  });
+});

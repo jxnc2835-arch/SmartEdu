@@ -32,6 +32,30 @@ function init(_db, validateToken) {
     return clampedToday(database);
   }
 
+  function classScopeOf(req) {
+    return (req.user && req.user.allowed_classes) || (req.user && req.user.classScope) || [];
+  }
+
+  function limitedRole(req) {
+    const role = req.user && req.user.role;
+    return role === 'counselor' || role === 'teacher';
+  }
+
+  function classFilterFor(req, requestedClass) {
+    const scope = classScopeOf(req);
+    if (limitedRole(req)) {
+      if (!scope.length) return { empty: true, where: "1=0", params: [] };
+      if (requestedClass && scope.includes(requestedClass)) return { where: 'class_name=?', params: [requestedClass] };
+      return { where: `class_name IN (${scope.map(() => '?').join(',')})`, params: scope.slice() };
+    }
+    return requestedClass ? { where: 'class_name=?', params: [requestedClass] } : { where: '', params: [] };
+  }
+
+  function studentSqlFilter(req, requestedClass) {
+    const f = classFilterFor(req, requestedClass);
+    return f.empty ? { empty: true, where: '1=0', params: [] } : f;
+  }
+
   /**
    * GET /api/classes/public
    * 获取班级列表：辅导员/班主任仅返回所带班级；管理员/院领导未登录返回全部
@@ -39,7 +63,7 @@ function init(_db, validateToken) {
   router.get('/api/classes/public', (req, res) => {
     try {
       const role = req.user && req.user.role;
-      const scope = (req.user && req.user.classScope) || [];
+      const scope = (req.user && req.user.allowed_classes) || (req.user && req.user.classScope) || [];
       const isFull = !role || role === 'admin' || role === 'super_admin' || role === 'dean';
       if (!isFull) {
         if (!scope.length) return res.json({ code: 0, data: [] });
@@ -58,7 +82,13 @@ function init(_db, validateToken) {
 
   router.get('/api/classes/counts', (req, res) => {
     try {
-      const rows = database.exec("SELECT class_name, COUNT(*) FROM students GROUP BY class_name ORDER BY class_name")[0]?.values || [];
+      const scope = classScopeOf(req);
+      const isLimited = limitedRole(req);
+      if (isLimited && !scope.length) return res.json({ code: 0, data: [] });
+      const sql = isLimited
+        ? `SELECT class_name, COUNT(*) FROM students WHERE class_name IN (${scope.map(() => '?').join(',')}) GROUP BY class_name ORDER BY class_name`
+        : "SELECT class_name, COUNT(*) FROM students GROUP BY class_name ORDER BY class_name";
+      const rows = database.exec(sql, isLimited ? scope : undefined)[0]?.values || [];
       res.json({ code: 0, data: rows.map(r => ({ class_name: r[0], count: r[1] })) });
     } catch (e) {
       res.json({ code: 1, message: e.message });
@@ -68,7 +98,13 @@ function init(_db, validateToken) {
   // 兼容前端旧写�?c.name
   router.get('/api/classes/legacy-counts', (req, res) => {
     try {
-      const rows = database.exec("SELECT class_name, COUNT(*) FROM students GROUP BY class_name ORDER BY class_name")[0]?.values || [];
+      const scope = classScopeOf(req);
+      const isLimited = limitedRole(req);
+      if (isLimited && !scope.length) return res.json({ code: 0, data: [] });
+      const sql = isLimited
+        ? `SELECT class_name, COUNT(*) FROM students WHERE class_name IN (${scope.map(() => '?').join(',')}) GROUP BY class_name ORDER BY class_name`
+        : "SELECT class_name, COUNT(*) FROM students GROUP BY class_name ORDER BY class_name";
+      const rows = database.exec(sql, isLimited ? scope : undefined)[0]?.values || [];
       res.json({ code: 0, data: rows.map(r => ({ name: r[0], count: r[1] })) });
     } catch (e) {
       res.json({ code: 1, message: e.message });
@@ -79,6 +115,12 @@ function init(_db, validateToken) {
     try {
       const { class_name } = req.query;
       if (!class_name) return res.json({ code: 1, message: '请指定班级' });
+      if (limitedRole(req)) {
+        const scope = classScopeOf(req);
+        if (!scope.length || !scope.includes(class_name)) {
+          return res.json({ code: 1, message: '无权查看该班级数据' });
+        }
+      }
       const rows = database.exec("SELECT id, name, dorm FROM students WHERE class_name=? ORDER BY name", [class_name])[0]?.values || [];
       res.json({ code: 0, data: rows.map(r => ({ id: r[0], name: r[1], dorm: r[2] })) });
     } catch (e) {
@@ -94,8 +136,9 @@ function init(_db, validateToken) {
 
       // 辅导员/班主任班级隔离：仅能查所带班级。未指定或越权指定的班级汇总所带全部班级
       const role = req.user && req.user.role;
-      const scope = (req.user && req.user.classScope) || [];
+      const scope = (req.user && req.user.allowed_classes) || (req.user && req.user.classScope) || [];
       let clsCond = '';
+      let recJoin = '';
       let stuClsCond = '';
       let stuParams = [];
       let recParams = [];
@@ -106,24 +149,26 @@ function init(_db, validateToken) {
         }
         const inList = scope.map(() => '?').join(',');
         if (class_name && scope.includes(class_name)) {
-          clsCond = ' AND class_name=?'; stuClsCond = ' WHERE class_name=?';
+          clsCond = ' AND s.class_name=?'; recJoin = ' JOIN students s ON r.student_id = s.student_id'; stuClsCond = ' WHERE class_name=?';
           stuParams = [class_name]; recParams = [class_name];
         } else {
-          clsCond = ` AND class_name IN (${inList})`; stuClsCond = ` WHERE class_name IN (${inList})`;
+          clsCond = ` AND s.class_name IN (${inList})`; recJoin = ' JOIN students s ON r.student_id = s.student_id'; stuClsCond = ` WHERE class_name IN (${inList})`;
           stuParams = scope.slice(); recParams = scope.slice();
           returnedClass = '';
         }
       } else if (class_name) {
-        clsCond = ' AND class_name=?'; stuClsCond = ' WHERE class_name=?';
+        clsCond = ' AND s.class_name=?'; recJoin = ' JOIN students s ON r.student_id = s.student_id'; stuClsCond = ' WHERE class_name=?';
         stuParams = [class_name]; recParams = [class_name];
       }
 
       // 优先级：在寝(1) > 请假(2) > 未归/晚归/不在寝(3) > 缺席(4)
       const totalStudents = database.exec(`SELECT COUNT(*) FROM students${stuClsCond}`, stuParams)[0]?.values?.[0]?.[0] || 0;
       // 取每个学生当日最高优先级的状态
+      // [修复·问题4] 原逻辑按 records.class_name（去规范化副本，常为 NULL）过滤，
+      // 导致选中班级后"今日课程签到"计数不随班级变化。改为 JOIN students 用真实班级过滤。
       const statusSql=`
         WITH today_status AS (
-          SELECT student_id, MIN(CASE status
+          SELECT r.student_id, MIN(CASE r.status
             WHEN '在寝' THEN 1
             WHEN '请假' THEN 2
             WHEN '事假' THEN 2
@@ -135,9 +180,9 @@ function init(_db, validateToken) {
             WHEN '不在寝' THEN 3
             WHEN '缺席' THEN 4
             ELSE 5 END) as priority
-          FROM records
-          WHERE type='checkin' AND date=?${clsCond}
-          GROUP BY student_id
+          FROM records r${recJoin}
+          WHERE r.type='checkin' AND r.date=?${clsCond}
+          GROUP BY r.student_id
         )
         SELECT
           SUM(CASE WHEN priority=1 THEN 1 ELSE 0 END) as present,
@@ -177,36 +222,51 @@ function init(_db, validateToken) {
 
   router.get('/api/course-checkin/public', (req, res) => {
     try {
-      const { date, class_name } = req.query;
+      const { date, class_name: qClass } = req.query;
       // 默认"今天"经 clampedToday 锚定；支持指定日期查询
       const courseDate = date || localDateStr();
-      // 选定班级时按"班级+课程"聚合，避免全校课程混在同一榜里
-      let sql = `
-        SELECT c.name, c.start_time, c.end_time, c.location, COALESCE(s.class_name, c.class_name, '') as class_name,
+
+      // 辅导员/班主任班级隔离
+      const scope = classScopeOf(req);
+      let class_name = qClass;
+      if (limitedRole(req) && scope.length) {
+        if (!class_name || !scope.includes(class_name)) class_name = '';
+      }
+      if (limitedRole(req) && !scope.length) {
+        return res.json({ code: 0, data: [] });
+      }
+
+      // 统一以 courses.class_name 为过滤/聚合维度（courses 本身已带班级字段，避免 LEFT JOIN students 后空 IN () 问题）
+      let where = 'WHERE c.date = ?';
+      let groupBy = 'GROUP BY c.class_name, c.id';
+      let params = [courseDate, courseDate];
+      if (class_name) {
+        where += ' AND c.class_name = ?';
+        params.push(class_name);
+        groupBy = 'GROUP BY c.id';
+      } else if (limitedRole(req) && scope.length) {
+        const inList = scope.map(() => '?').join(',');
+        where += ` AND c.class_name IN (${inList})`;
+        params.push(...scope);
+      }
+      // 管理员/院领导/未登录：不追加班级过滤，即"全部班级"
+
+      const sql = `
+        SELECT c.name, c.start_time, c.end_time, c.location, c.class_name,
           COUNT(DISTINCT r.student_id) as checked_in,
           COUNT(DISTINCT CASE WHEN r.status='出勤' THEN r.student_id END) as present,
-          COUNT(DISTINCT CASE WHEN r.student_id IS NOT NULL THEN r.student_id END) as total
+          (SELECT COUNT(*) FROM students WHERE class_name = c.class_name) as total
         FROM courses c
         LEFT JOIN records r ON c.id = r.course_id AND r.type='class' AND r.date=?
-        LEFT JOIN students s ON r.student_id = s.student_id
-        WHERE c.date = ?`;
-      const params = [courseDate, courseDate];
-      if (class_name) {
-        // 同时按课程绑定班级 与 签到记录班级 过滤，确保只看所选班级
-        sql += ' AND (s.class_name=? OR c.class_name=?)';
-        params.push(class_name, class_name);
-      }
-      sql += class_name ? ' GROUP BY s.class_name, c.id' : ' GROUP BY c.id';
+        ${where}
+        ${groupBy}`;
+
       const records = database.exec(sql, params)[0]?.values || [];
-      // 若选中班级，应到人数以该班级实际在班学生数为分母；否则以"已签到人数"为分母
-      let classTotal = 0;
-      if (class_name) {
-        classTotal = database.exec("SELECT COUNT(*) FROM students WHERE class_name=?", [class_name])[0]?.values?.[0]?.[0] || 0;
-      }
       res.json({ code: 0, data: records.map(r => {
         const checkedIn = r[5] || 0;
         const present = r[6] || 0;
-        const total = class_name ? (classTotal || checkedIn) : (checkedIn || present);
+        const classTotal = r[7] || 0;
+        const total = classTotal || checkedIn || present;
         const rate = total > 0 ? Math.round(present / total * 100) : 0;
         return {
           course_name: r[0],
@@ -227,15 +287,18 @@ function init(_db, validateToken) {
 
   router.get('/api/dorms/public', (req, res) => {
     try {
-      const { class_name } = req.query;
-      const whereClass = class_name ? 'AND s.class_name = ?' : '';
-      const params = class_name ? [class_name] : [];
+      const f = studentSqlFilter(req, req.query.class_name);
+      if (f.empty) return res.json({ code: 0, data: [] });
+      const inCond = f.params.length ? f.where : '';
+      const countCond = inCond ? ` AND s2.${inCond}` : '';
+      const existsCond = inCond ? ` AND EXISTS (SELECT 1 FROM students s WHERE s.dorm=d.building||d.room AND s.${inCond})` : '';
+      const params = [ ...f.params, ...(inCond ? f.params : []) ];
       const rows = database.exec(`
         SELECT d.building, d.room, d.capacity, d.occupied,
-          (SELECT COUNT(*) FROM students s2 WHERE s2.dorm = d.building || d.room) as count
+          (SELECT COUNT(*) FROM students s2 WHERE s2.dorm = d.building || d.room${countCond}) as count
         FROM dorms d
         WHERE d.building IS NOT NULL AND d.room IS NOT NULL
-        ${whereClass ? 'AND EXISTS (SELECT 1 FROM students s WHERE s.dorm=d.building||d.room AND s.class_name=?)' : ''}
+        ${existsCond}
         ORDER BY d.building, d.room
       `, params)[0]?.values || [];
       res.json({ code: 0, data: rows.map(r => ({ dorm: r[0] + r[1], building: r[0], room: r[1], capacity: r[2], occupied: r[3], count: r[4] })) });
@@ -247,7 +310,8 @@ function init(_db, validateToken) {
   router.get('/api/class-trend/public', (req, res) => {
     try {
       const days = parseInt(req.query.days) || 7;
-      const { class_name } = req.query;
+      const f = studentSqlFilter(req, req.query.class_name);
+      if (f.empty) return res.json({ code: 0, data: [] });
       // 窗口结束于“今天”（clampedToday），起点 = 今天 - (days-1)；按本地日期分量计算避免时区漂移
       const endDateStr = localDateStr();
       const [ty, tm, td] = endDateStr.split('-').map(Number);
@@ -255,21 +319,36 @@ function init(_db, validateToken) {
       startD.setDate(startD.getDate() - days + 1);
       const startDateStr = `${startD.getFullYear()}-${String(startD.getMonth()+1).padStart(2,'0')}-${String(startD.getDate()).padStart(2,'0')}`;
 
-      // 按班级过滤
-      const clsCond = class_name ? " AND r.class_name=?" : "";
-      // 在寝(总数) | 缺勤(不在寝/旷课) | 未归 | 请假；上界锁到"今天"，避免未来日期（如跨冻结日的请假记录）污染趋势
+      // 按班级过滤；records.class_name 存储的是状态/事由而非学生班级，必须 JOIN students 用真实班级
+      const clsJoin = f.where ? 'JOIN students s ON r.student_id = s.student_id' : '';
+      const clsCond = f.where ? ` AND s.${f.where}` : '';
+      // 在寝(总数) | 未归 | 请假；上界锁到"今天"，避免未来日期（如跨冻结日的请假记录）污染趋势
+      // 注意：「缺勤」已归类为「课堂缺勤」，改由课堂签到记录(type='class', status='缺勤')统计，见下方 classAbsentMap
       const trend = database.exec(`
         SELECT r.date as date,
           COUNT(DISTINCT r.student_id) as total_count,
           COUNT(DISTINCT CASE WHEN r.status='在寝' THEN r.student_id END) as in_count,
-          COUNT(DISTINCT CASE WHEN r.status='不在寝' THEN r.student_id END) as absent_count,
           COUNT(DISTINCT CASE WHEN r.status='未归' THEN r.student_id END) as not_return_count,
           COUNT(DISTINCT CASE WHEN r.status IN ('病假','事假','公假','丧假') THEN r.student_id END) as leave_count
         FROM records r
+        ${clsJoin}
         WHERE r.type='checkin' AND r.date >= ? AND r.date <= ?${clsCond}
         GROUP BY r.date
         ORDER BY r.date
-      `, class_name ? [startDateStr, endDateStr, class_name] : [startDateStr, endDateStr])[0]?.values || [];
+      `, [startDateStr, endDateStr, ...f.params])[0]?.values || [];
+
+      // 课堂缺勤：来自课堂签到记录，按日期聚合 status='缺勤' 的去重人数
+      const classAbsentRows = database.exec(`
+        SELECT r.date as date,
+          COUNT(DISTINCT CASE WHEN r.status='缺勤' THEN r.student_id END) as class_absent
+        FROM records r
+        ${clsJoin}
+        WHERE r.type='class' AND r.date >= ? AND r.date <= ?${clsCond}
+        GROUP BY r.date
+        ORDER BY r.date
+      `, [startDateStr, endDateStr, ...f.params])[0]?.values || [];
+      const classAbsentMap = {};
+      classAbsentRows.forEach(r => { classAbsentMap[r[0]] = r[1] || 0; });
 
       res.json({
         code: 0,
@@ -277,9 +356,9 @@ function init(_db, validateToken) {
           date: r[0],
           total_count: r[1] || 0,
           in_count: r[2] || 0,
-          absent_count: r[3] || 0,
-          not_return_count: r[4] || 0,
-          leave_count: r[5] || 0
+          not_return_count: r[3] || 0,
+          leave_count: r[4] || 0,
+          class_absent: classAbsentMap[r[0]] || 0
         }))
       });
     } catch (e) {
@@ -291,13 +370,15 @@ function init(_db, validateToken) {
   router.get('/api/stats/conduct/public', (req, res) => {
     try {
       const days = parseInt(req.query.days) || 30;
-      const { class_name } = req.query;
+      const f = studentSqlFilter(req, req.query.class_name);
+      if (f.empty) return res.json({ code: 0, data: [] });
       const endDate = localDateStr();
       // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏移
       const [ey, em, ed] = endDate.split('-').map(Number);
       const es = new Date(ey, em - 1, ed);
       es.setDate(es.getDate() - days + 1);
       const startDate = `${es.getFullYear()}-${String(es.getMonth()+1).padStart(2,'0')}-${String(es.getDate()).padStart(2,'0')}`;
+      const clsWhere = f.where ? `WHERE s.${f.where}` : '';
       const result = database.exec(`
         SELECT s.id, s.student_id, s.name, s.dorm, s.class_name,
           COUNT(DISTINCT CASE WHEN r.status='在寝' THEN r.date END) as normal_days,
@@ -306,10 +387,10 @@ function init(_db, validateToken) {
           COUNT(DISTINCT r.date) as checkin_days
         FROM students s
         LEFT JOIN records r ON s.student_id = r.student_id AND r.type='checkin' AND r.date >= ? AND r.date <= ?
-        ${class_name ? 'WHERE s.class_name = ?' : ''}
+        ${clsWhere}
         GROUP BY s.id
         ORDER BY checkin_days DESC, normal_days DESC
-      `, class_name ? [startDate, endDate, class_name] : [startDate, endDate]);
+      `, [startDate, endDate, ...f.params]);
       const rows = result[0]?.values || [];
       const scores = rows.map(r => {
         const normalDays = r[5] || 0, absentDays = r[6] || 0, leaveDays = r[7] || 0, checkinDays = r[8] || 0;
@@ -332,24 +413,26 @@ function init(_db, validateToken) {
   router.get('/api/stats/attention/public', (req, res) => {
     try {
       const days = parseInt(req.query.days) || 30;
-      const { class_name } = req.query;
+      const f = studentSqlFilter(req, req.query.class_name);
+      if (f.empty) return res.json({ code: 0, data: [] });
       const endDate = localDateStr();
       // 起点 = 今天(clamped) - (days-1)；按本地日期分量计算，避免真实时钟越界导致窗口偏移
       const [ey, em, ed] = endDate.split('-').map(Number);
       const es = new Date(ey, em - 1, ed);
       es.setDate(es.getDate() - days + 1);
       const startDate = `${es.getFullYear()}-${String(es.getMonth()+1).padStart(2,'0')}-${String(es.getDate()).padStart(2,'0')}`;
+      const clsWhere = f.where ? `WHERE s.${f.where}` : '';
       const result = database.exec(`
         SELECT s.id, s.name, s.dorm, s.class_name,
           SUM(CASE WHEN r.status IN ('未归','不在寝') THEN 1 ELSE 0 END) as absent_count,
           SUM(CASE WHEN r.status IN ('病假','事假','公假','丧假') THEN 1 ELSE 0 END) as leave_count
         FROM students s
         LEFT JOIN records r ON s.student_id = r.student_id AND r.type='checkin' AND r.date >= ? AND r.date <= ?
-        ${class_name ? 'WHERE s.class_name = ?' : ''}
+        ${clsWhere}
         GROUP BY s.id
         HAVING absent_count >= 3
         ORDER BY absent_count DESC, leave_count DESC
-      `, class_name ? [startDate, endDate, class_name] : [startDate, endDate]);
+      `, [startDate, endDate, ...f.params]);
       const rows = result[0]?.values || [];
       const data = rows.map(r => ({
         id: r[0], name: r[1], dorm: r[2]||'', class_name: r[3]||'',

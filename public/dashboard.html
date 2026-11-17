@@ -413,7 +413,8 @@ select:hover{background-color:var(--select-bg)!important}
         atRisk: '/api/stats/attention/public?days=30',
         trend: '/api/class-trend/public',
         dorms: '/api/dorms/public',
-        conduct: '/api/stats/conduct/public?days=30'
+        conduct: '/api/stats/conduct/public?days=30',
+        me: '/api/me'
       };
       let charts = {}, currentClass = 'all';
       // 从 teacher.html 登录后遗留的 localStorage 读取 token（用于辅导员/班主任班级隔离）
@@ -423,7 +424,22 @@ select:hover{background-color:var(--select-bg)!important}
       function fmtTime(t){ if(!t)return''; const d=new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 
       async function loadClasses(){
-        try{ const r=await fetch(api.classes,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const classes=j.data; const sel=document.getElementById('classFilter'); sel.innerHTML='<option value="all">全部班级</option>'+classes.map(c=>`<option value="${c}">${esc(c)}</option>`).join(''); sel.value='all'; currentClass='all'; }catch(e){}}
+        try{ const r=await fetch(api.classes,{headers:_hdrs}); const j=await r.json(); if(j.code!==0||!j.data)return; const classes=j.data; const sel=document.getElementById('classFilter');
+          // 判断当前用户角色，用于班级隔离控制（辅导员/班主任不显示"全部班级"）
+          const _me=await fetch(api.me,{headers:_hdrs}).then(x=>x.json()).catch(()=>({}));
+          const _role=_me.data&&_me.data.role;
+          const _isCounselor=_role==='counselor'||_role==='teacher';
+          const _isFullAccess=!_role||_role==='admin'||_role==='super_admin'||_role==='dean';
+          // 辅导员/班主任：只渲染所带班级，不显示"全部班级"选项，默认选中第一个
+          if(_isCounselor&&!_isFullAccess&&classes.length){
+            sel.innerHTML=classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            sel.value=classes[0]; currentClass=classes[0];
+          } else {
+            sel.innerHTML='<option value="all">全部班级</option>'+classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            sel.value='all'; currentClass='all';
+          }
+        }catch(e){}
+      }
 
       function updateTime(){ const n=new Date(); const p2=x=>String(x).padStart(2,'0'); document.getElementById('currentTime').textContent=`${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 ${p2(n.getHours())}:${p2(n.getMinutes())}:${p2(n.getSeconds())}`; }
 
@@ -439,7 +455,7 @@ select:hover{background-color:var(--select-bg)!important}
       function animateNum(id,target){ const el=document.getElementById(id); const start=parseInt(el.textContent)||0; if(start===target)return; const diff=target-start; const dur=800; const t0=performance.now(); function upd(now){ const p=Math.min((now-t0)/dur,1); const e=1-Math.pow(1-p,3); el.textContent=Math.floor(start+diff*e); if(p<1)requestAnimationFrame(upd);} requestAnimationFrame(upd); }
 
       async function loadTrendChart(){
-        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.trend+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0){if(charts.trend){charts.trend.destroy();charts.trend=null;} return;} const data=j.data; if(!data||!data.length){if(charts.trend){charts.trend.destroy();charts.trend=null;} const el=document.getElementById('trendChart'); if(el){const parent=el.parentElement; if(parent&&!parent.querySelector('.no-data')) parent.innerHTML='<div class=\"no-data\" style=\"text-align:center;color:var(--text-dim);padding:40px 0\">暂无数据</div>';} return;} const labels=data.map(r=>r.date); const absent=data.map(r=>r.absent_count||0); const notReturn=data.map(r=>r.not_return_count||0); const leave=data.map(r=>r.leave_count||0); if(charts.trend)charts.trend.destroy(); charts.trend=new Chart(document.getElementById('trendChart'),{ type:'line', data:{ labels, datasets:[{label:'缺勤',data:absent,borderColor:'#f59e0b',backgroundColor:'#f59e0b20',fill:false,tension:0.4,pointRadius:4},{label:'未归',data:notReturn,borderColor:'#ef4444',backgroundColor:'#ef444420',fill:false,tension:0.4,pointRadius:4},{label:'请假',data:leave,borderColor:'#a78bfa',backgroundColor:'#a78bfa20',fill:false,tension:0.4,pointRadius:4}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{legend:{labels:{color:'#e2e8f0',font:{size:10},boxWidth:12,padding:8}}}, scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}},beginAtZero:true}}}}); }catch(e){console.error(e);}}
+        try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.trend+params,{headers:_hdrs}); const j=await r.json(); if(j.code!==0){if(charts.trend){charts.trend.destroy();charts.trend=null;} return;} const data=j.data; if(!data||!data.length){if(charts.trend){charts.trend.destroy();charts.trend=null;} const el=document.getElementById('trendChart'); if(el){const parent=el.parentElement; if(parent&&!parent.querySelector('.no-data')) parent.innerHTML='<div class=\"no-data\" style=\"text-align:center;color:var(--text-dim);padding:40px 0\">暂无数据</div>';} return;} const labels=data.map(r=>r.date); const classAbsent=data.map(r=>r.class_absent||0); const notReturn=data.map(r=>r.not_return_count||0); const leave=data.map(r=>r.leave_count||0); if(charts.trend)charts.trend.destroy(); charts.trend=new Chart(document.getElementById('trendChart'),{ type:'line', data:{ labels, datasets:[{label:'课堂缺勤',data:classAbsent,borderColor:'#f59e0b',backgroundColor:'#f59e0b20',fill:false,tension:0.4,pointRadius:4},{label:'未归',data:notReturn,borderColor:'#ef4444',backgroundColor:'#ef444420',fill:false,tension:0.4,pointRadius:4},{label:'请假',data:leave,borderColor:'#a78bfa',backgroundColor:'#a78bfa20',fill:false,tension:0.4,pointRadius:4}]}, options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, plugins:{legend:{labels:{color:'#e2e8f0',font:{size:10},boxWidth:12,padding:8}}}, scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#94a3b8',font:{size:10}},beginAtZero:true}}}}); }catch(e){console.error(e);}}
 
       async function loadCourseCheckinRank(){
         try{ const params=currentClass!=='all'?`?class_name=${encodeURIComponent(currentClass)}`:''; const r=await fetch(api.courseCheckin+params,{headers:_hdrs}); const j=await r.json(); const el=document.getElementById('courseCheckinRank'); if(j.code!==0||!j.data||!j.data.length){el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:20px 0">暂无课程签到数据</div>';return;} el.innerHTML=j.data.map((c,i)=>{ const present=c.present||0; const total=c.checked_in||0; const rate=total?Math.round((present/total)*100):0; const rc=i===0?'top1':i===1?'top2':i===2?'top3':'normal'; return `<div class="rank-item"><div class="rank-num ${rc}">${i+1}</div><div class="rank-info"><div class="rn">${esc(c.course_name)||'未知课程'}</div><div style="font-size:10px;color:var(--text-dim)">${esc(c.class_name)||''} · ${present}/${total}人</div><div class="bar-wrap"><div class="bar-fill" style="width:${rate}%"></div></div></div><div class="rank-val">${rate}%</div></div>`; }).join(''); }catch(e){console.error(e);}}
@@ -475,7 +491,7 @@ async function loadModelEvaluation() {
     const r = await fetch('/api/predict/evaluate' + cls, {headers:_hdrs});
     const j = await r.json();
     if (j.code !== 0 || !j.data || !j.data.results || !j.data.results.length) {
-      box.innerHTML = '<div style="flex:1;text-align:center;color:var(--text-dim);padding:8px 0">' + ((j.data && j.data.message) || '暂无足够数据回测') + '</div>';
+      box.innerHTML = '<div style="flex:1;text-align:center;color:var(--text-dim);padding:8px 0">' + esc((j.data && j.data.message) || '暂无足够数据回测') + '</div>';
       return;
     }
     const best = j.data.best;
@@ -535,6 +551,14 @@ async function loadPredictionChartForDim(dim, canvasId, badgeId, chartKey, actua
     const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(148,163,184,0.15)';
     const tickColor = isDark ? '#94a3b8' : '#64748b';
 
+    // Y 轴根据实际数据自适应，平时放大波动细节，异常低值/高值时自动扩展，始终锁在 0-100
+    const allValues = [...actualData, ...predictedData].filter(v => v != null && !isNaN(v));
+    let yMin = allValues.length ? Math.min(...allValues) : 0;
+    let yMax = allValues.length ? Math.max(...allValues) : 100;
+    const padding = Math.max(5, (yMax - yMin) * 0.12);
+    yMin = Math.max(0, Math.floor((yMin - padding) / 5) * 5);
+    yMax = Math.min(100, Math.ceil((yMax + padding) / 5) * 5);
+
     if (charts[chartKey]) charts[chartKey].destroy();
     charts[chartKey] = new Chart(el, {
       type: 'line',
@@ -554,7 +578,7 @@ async function loadPredictionChartForDim(dim, canvasId, badgeId, chartKey, actua
             grid: { display: false, color: gridColor },
             ticks: { color: tickColor, font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }
           },
-          y: { min: 50, max: 100, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 9 }, callback: v => v + '%' } }
+          y: { min: yMin, max: yMax, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 9 }, callback: v => v + '%' } }
         },
         plugins: {
           legend: { display: false },

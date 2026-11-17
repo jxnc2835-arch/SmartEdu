@@ -11,6 +11,8 @@
 | dom-safe | `public/js/modules/dom-safe.js` | ✅ 完成 | ~80 | XSS防护工具函数 |
 | checkin | `public/js/modules/checkin.js` | ✅ 完成 | ~350 | 查寝加载, 状态标签, 分页 |
 | students | `public/js/modules/students.js` | ✅ 完成 | ~200 | 学生CRUD, 宿舍管理 |
+| statistics | `public/js/modules/statistics.js` | ✅ 已提取 | ~30KB | 统计分析与可视化 |
+| ai-chat | `public/js/modules/ai-chat.js` | ✅ 已提取 | ~14KB | AI 会话/流式响应 |
 
 ## 待提取模块
 
@@ -34,9 +36,9 @@
 - [x] checkin.js - 查寝核心
 - [x] students.js - 学生管理
 
-### 阶段二：高级功能 (进行中)
-- [ ] statistics.js - 统计分析
-- [ ] ai.js - AI助手
+### 阶段二：高级功能 (部分完成)
+- [x] statistics.js - 统计分析（文件已提取，待与 teacher.html 收敛）
+- [x] ai-chat.js - AI助手（文件已提取，待与 teacher.html 收敛）
 - [ ] export.js - 导出功能
 
 ### 阶段三：系统管理 (待排期)

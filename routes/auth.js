@@ -144,6 +144,11 @@ function init(opts) {
     }
     // 院领导不能绑定班级
     const finalClassName = role === 'dean' ? '' : (class_name || '');
+    // [修复·问题3] 辅导员/班主任必须绑定至少一个班级，否则其 token 无 classScope，
+    // 后端会把"空 scope"误判为"全部"，造成越权。未绑定班级一律拒绝创建。
+    if ((role === 'counselor' || role === 'teacher') && !finalClassName) {
+      return res.json({ code: 1, message: '辅导员/班主任必须指定班级（class_name）' });
+    }
     const hash = await bcrypt.hash(password, 10);
     try {
       // 同时写 id 和 username，方便登录查询
@@ -170,6 +175,10 @@ function init(opts) {
       params.push(role);
     }
     if (class_name !== undefined) {
+      // [修复·问题3] 禁止把辅导员/班主任的班级清空，避免产生无 scope 的越权账号
+      if ((role === 'counselor' || role === 'teacher') && !class_name) {
+        return res.json({ code: 1, message: '辅导员/班主任的班级不能为空' });
+      }
       updates.push('class_name=?');
       params.push(class_name);
     }
@@ -180,6 +189,7 @@ function init(opts) {
     if (!updates.length) return res.json({ code: 1, message: '无更新字段' });
     params.push(id);
     db.run(`UPDATE users SET ${updates.join(', ')} WHERE id=?`, params);
+    if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该用户，更新失败' });
     scheduleSave();
     res.json({ code: 0, message: '更新成功' });
   });
@@ -187,6 +197,7 @@ function init(opts) {
   router.delete('/api/users/:id', authMiddleware, requireRole('super_admin','admin'), (req, res) => {
     const { id } = req.params;
     db.run("DELETE FROM users WHERE id=?", [id]);
+    if (db.getRowsModified() === 0) return res.json({ code: 1, message: '未找到该用户，删除失败' });
     scheduleSave();
     res.json({ code: 0, message: '删除成功' });
   });

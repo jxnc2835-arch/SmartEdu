@@ -95,6 +95,7 @@ function requireRole(...roles) {
       }
       req.user.role = userRole;
       req.user.class_name = userClasses;
+      req.user.allowed_classes = req.user.classScope || [];
       return next();
     }
     
@@ -104,6 +105,7 @@ function requireRole(...roles) {
     
     req.user.role = userRole;
     req.user.class_name = userClasses;
+    req.user.allowed_classes = req.user.classScope || [];
     next();
   };
 }
@@ -190,5 +192,6 @@ module.exports = {
   LOGIN_ATTEMPTS, 
   LOGIN_LOCK_TIME, 
   LOGIN_MAX_ATTEMPTS,
-  setDb 
+  JWT_SECRET,
+  setDb
 };

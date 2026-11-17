@@ -9,8 +9,8 @@ const fs = require('fs');
 // ==================== 基础配置 ====================
 const ROOT_DIR = __dirname;            // config/ 目录（存放数据/日志/备份）
 const APP_ROOT = path.join(__dirname, '..'); // 项目根目录（前端静态/SSL 证书/上传实际所在处）
-const PORT = parseInt(process.env.PORT) || 3000;
-const HTTPS_PORT = parseInt(process.env.HTTPS_PORT) || 3443;
+const PORT = parseInt(process.env.PORT) || 3100;
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT) || 3543;
 
 // ==================== 路径配置 ====================
 // SSL 证书放在项目根 ssl/（真实证书所在位置；config/ssl 为空目录是历史遗留）

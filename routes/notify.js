@@ -56,6 +56,35 @@ async function sendToWebhook(url, content) {
 }
 
 /**
+ * 微信推送服务（PushPlus）：将消息推送到个人微信
+ * 与群机器人 Webhook 并行，未归名单等也可推到个人微信
+ * @param {object} database - sql.js Database 实例
+ * @param {string} content - 消息内容（纯文本，含 \n）
+ * @returns {Promise<{sent: boolean}>}
+ */
+async function pushPlus(database, content) {
+  try {
+    if (!database) return { sent: false };
+    const en = database.exec('SELECT value FROM settings WHERE key=\'pushplus_enabled\'')[0]?.values?.[0]?.[0];
+    const tk = database.exec('SELECT value FROM settings WHERE key=\'pushplus_token\'')[0]?.values?.[0]?.[0];
+    if (en === '1' && tk) {
+      await fetch('https://www.pushplus.plus/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: tk,
+          title: '学管SmartEdu通知',
+          content: String(content).replace(/\n/g, '<br/>'),
+          content_type: 'html'
+        })
+      }).catch(() => {});
+      return { sent: true };
+    }
+  } catch (e) {}
+  return { sent: false };
+}
+
+/**
  * 脱敏处理 Webhook URL
  * @param {string} u - 原始 URL
  * @returns {string} 脱敏后的 URL
@@ -110,12 +139,17 @@ function init(opts) {
     }
   });
 
-  // 推送今日未归名单
+  // 推送今日未归名单（群机器人 + 个人微信 PushPlus 双通道）
   router.post('/api/notify/absent-today', authMiddleware, async (req, res) => {
     try {
-      const url = getSetting(db, 'notify_webhook');
-      if (!url) return res.json({ code: 1, message: '尚未配置 Webhook 地址' });
       const today = todayStr();
+      const url = getSetting(db, 'notify_webhook');
+      const ppEnabled = getSetting(db, 'pushplus_enabled') === '1';
+      const ppToken = getSetting(db, 'pushplus_token');
+      // 未配置任何推送渠道则提前提示（保持与原行为一致）
+      if (!url && !(ppEnabled && ppToken)) {
+        return res.json({ code: 1, message: '尚未配置任何推送渠道（群机器人或 PushPlus）', sent: false });
+      }
       const rows = db.exec(
         `SELECT s.name, s.class_name, s.dorm FROM records r
          LEFT JOIN students s ON s.student_id = r.student_id
@@ -128,9 +162,20 @@ function init(opts) {
       }
       const list = rows.map((r, i) => `${i + 1}. ${r[0] || '未知'}（${r[1] || '-'}班 / ${r[2] || '宿舍未知'}）`).join('\n');
       const content = `【查寝系统】今日未归名单（${today}）\n共 ${rows.length} 人：\n${list}`;
-      const result = await sendToWebhook(url, content);
-      if (result.ok) res.json({ code: 0, message: `已推送 ${rows.length} 名未归学生`, sent: true });
-      else res.json({ code: 1, message: '推送失败', detail: result });
+      let sent = false;
+      let detail = '';
+      if (url) {
+        const result = await sendToWebhook(url, content);
+        sent = !!result.ok;
+        if (!sent) detail = '群机器人推送失败；';
+      } else {
+        detail = '未配置群机器人 Webhook；';
+      }
+      const pp = await pushPlus(db, content);
+      if (pp.sent) { sent = true; detail = ''; }
+      else { detail += '未配置 PushPlus'; }
+      if (!sent) return res.json({ code: 1, message: '尚未配置任何推送渠道（群机器人或 PushPlus）', sent: false });
+      res.json({ code: 0, message: `已推送 ${rows.length} 名未归学生`, sent: true, detail: detail || undefined });
     } catch (e) {
       res.json({ code: 1, message: '推送异常', detail: e.message });
     }
@@ -139,4 +184,4 @@ function init(opts) {
   return router;
 }
 
-module.exports = { init, sendToWebhook, getSetting, setSetting };
+module.exports = { init, sendToWebhook, getSetting, setSetting, pushPlus };

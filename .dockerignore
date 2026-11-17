@@ -1,0 +1,24 @@
+# 构建上下文排除项：避免把本地大文件/密钥/运行时产物打进镜像
+node_modules
+.git
+.gitignore
+logs
+backups
+*.log
+
+# 本地业务库不进镜像（云上用空卷 + DEFAULT_ADMIN_PASSWORD 起新库，
+# 需要演示数据时用 docker cp 注入，见《部署与运维说明_云服务器版.md》）
+config/data.db
+config/backups
+
+# 本地 .env 含密钥，不进镜像；云上由 docker-compose 的 .env 注入
+.env
+
+# 开发/构建辅助，非运行时必需
+.workspace
+.workbuddy
+ecosystem.claw.config.js
+ecosystem.tunnel.config.js
+scripts
+test
+*.md

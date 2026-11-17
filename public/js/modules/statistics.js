@@ -454,6 +454,14 @@ window.renderAiPredictionChart = function(arimaData, lstmData) {
   const tickColor = isDark ? '#94a3b8' : '#64748b';
   const titleColor = isDark ? '#94a3b8' : '#64748b';
 
+  // Y 轴根据实际数据自适应，放大波动细节，同时锁在 0-100 百分比边界
+  const allValues = [...historyRates, ...arimaFull, ...lstmFull].filter(v => v != null && !isNaN(v));
+  let yMin = allValues.length ? Math.min(...allValues) : 0;
+  let yMax = allValues.length ? Math.max(...allValues) : 100;
+  const padding = Math.max(5, (yMax - yMin) * 0.12);
+  yMin = Math.max(0, Math.floor((yMin - padding) / 5) * 5);
+  yMax = Math.min(100, Math.ceil((yMax + padding) / 5) * 5);
+
   window._aiPredictionChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -469,7 +477,7 @@ window.renderAiPredictionChart = function(arimaData, lstmData) {
       interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y + '%' : '-') } } },
       scales: {
-        y: { min: 50, max: 100, title: { display: true, text: (arimaData?.dim_label || '签到率') + ' (%)', font: { size: 11 }, color: titleColor }, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 11 } } },
+        y: { min: yMin, max: yMax, title: { display: true, text: (arimaData?.dim_label || '签到率') + ' (%)', font: { size: 11 }, color: titleColor }, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 11 } } },
         x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 11 } } }
       }
     }
