@@ -91,7 +91,7 @@ npm start          # 即 node server.js
 - 用户名：`admin`
 - 密码：`.env` 中 `DEFAULT_ADMIN_PASSWORD` 的值
 
-> 想灌入演示数据：`node scripts/seed-demo.js --force`（默认 dry-run，加 `--force` 才清库灌数据，且自动备份）。
+> 默认空库启动即可使用（自动建全表 + 创建 admin）。需要演示数据可运行 `node scripts/smoke-page.js`（冒烟页）自行造数。
 
 ---
 
@@ -123,7 +123,7 @@ npm start          # 即 node server.js
 ├── models/            # face-api 离线识别模型权重
 ├── config/            # 配置（index.js；data.db 运行时生成）
 ├── test/              # Jest 测试用例（133 条）
-├── scripts/           # 工具脚本（seed-demo / smoke-page ...）
+├── scripts/           # 工具脚本（smoke-page / ai-bench ...）
 └── 部署文档/           # 部署与运维 / 性能评估 / 师生指引
 ```
 
