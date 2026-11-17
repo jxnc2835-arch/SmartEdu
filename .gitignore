@@ -69,3 +69,5 @@ ehthumbs.db
 # Docker volumes
 docker/volumes/
 _debug_system.js
+config/data.db-shm
+config/data.db-wal

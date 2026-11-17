@@ -600,6 +600,24 @@ app.use((err, req, res, next) => {
       logger.warn('SQLite 回放失败，回退纯 sql.js 模式:', e.message);
     }
     
+    // P0·干净项目首启：空库（首次部署，无 data.db）时，runMigrations 首行会读 settings 表，
+    // 空库下 settings 尚未建表 → 抛 "no such table: settings" 导致初始化失败。
+    // 故在 runMigrations 之前先建最小表（settings/users）+ 预置 admin，确保迁移与验证都能走通。
+    // 幂等：表已存在（正常启动有库）时 IF NOT EXISTS 无副作用。
+    try {
+      db.run(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);`);
+      db.run(`CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT, role TEXT, display_name TEXT DEFAULT '');`);
+      const adminSeed = db.exec("SELECT 1 FROM users WHERE username='admin' LIMIT 1;")[0]?.values?.length;
+      if (!adminSeed) {
+        const seedPwd = process.env.DEFAULT_ADMIN_PASSWORD;
+        if (seedPwd && seedPwd.trim() !== '') {
+          const seedHash = await bcrypt.hash(seedPwd, 12);
+          db.run("INSERT INTO users(id, username, password_hash, role, display_name) VALUES('admin', 'admin', ?, 'admin', '管理员')", [seedHash]);
+          logger.info('🔑 空库首启：默认管理员账号已创建 (admin)');
+        }
+      }
+    } catch (e) { logger.warn('空库首启最小建表/seed 失败:', e.message); }
+
     // 执行数据库迁移
     runMigrations(db, dbFile);
     
